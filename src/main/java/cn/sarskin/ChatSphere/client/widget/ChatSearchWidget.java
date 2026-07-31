@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.widget;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -79,13 +80,13 @@ public class ChatSearchWidget {
         var font = Minecraft.getInstance().font;
 
         int closeX = sidebarWidth + 166;
-        g.fill(closeX, 2, closeX + 10, 14, 0xFF333333);
+        g.fill(closeX, 2, closeX + 10, 14, Theme.isDark() ? 0xFF333333 : 0xFFDDDDDD);
         g.drawString(font, "X", closeX + 2, 2, 0xFFFF4444, false);
 
         if (!results.isEmpty()) {
-            g.drawString(font, (resultIndex + 1) + "/" + results.size(), sidebarWidth + 178, 3, 0xFF8888FF, false);
+            g.drawString(font, (resultIndex + 1) + "/" + results.size(), sidebarWidth + 178, 3, Theme.accent(), false);
         } else if (!query.isEmpty()) {
-            g.drawString(font, Component.translatable("screen.chatsphere.search.no_match"), sidebarWidth + 178, 3, 0xFF888888, false);
+            g.drawString(font, Component.translatable("screen.chatsphere.search.no_match"), sidebarWidth + 178, 3, Theme.textDim(), false);
         }
     }
 

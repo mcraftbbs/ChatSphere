@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import net.minecraft.client.gui.GuiGraphics;
@@ -89,28 +90,34 @@ public class CreateChannelScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
+    }
+
+    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(guiGraphics, mouseX, mouseY, partialTick);
 
         int popupX = (this.width - POPUP_WIDTH) / 2;
         int popupY = (this.height - POPUP_HEIGHT) / 2;
 
-        guiGraphics.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, 0xCC1A1A2E);
-        guiGraphics.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, 0xFF4444AA);
+        guiGraphics.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, Theme.popupBg3());
+        guiGraphics.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline2());
 
         String title = this.title.getString();
         guiGraphics.drawString(this.font, title,
                 popupX + (POPUP_WIDTH - this.font.width(title)) / 2,
-                popupY + 5, 0xFFFFFFFF, false);
+                popupY + 5, Theme.text(), false);
 
         Component nameLabel = Component.translatable("screen.chatsphere.create_channel.input_label");
-        guiGraphics.drawString(this.font, nameLabel, popupX + 10, popupY + 22 - 10, 0xFFAAAAAA, false);
+        guiGraphics.drawString(this.font, nameLabel, popupX + 10, popupY + 22 - 10, Theme.textInactive(), false);
 
         Component descLabel = Component.translatable("screen.chatsphere.channel_config.description");
-        guiGraphics.drawString(this.font, descLabel, popupX + 10, popupY + 48 - 10, 0xFFAAAAAA, false);
+        guiGraphics.drawString(this.font, descLabel, popupX + 10, popupY + 48 - 10, Theme.textInactive(), false);
 
         Component publicLabel = Component.translatable("screen.chatsphere.channel_config.public_label");
-        guiGraphics.drawString(this.font, publicLabel, popupX + 10, popupY + 78, 0xFFAAAAAA, false);
+        guiGraphics.drawString(this.font, publicLabel, popupX + 10, popupY + 78, Theme.textInactive(), false);
 
         this.nameInput.render(guiGraphics, mouseX, mouseY, partialTick);
         this.descInput.render(guiGraphics, mouseX, mouseY, partialTick);

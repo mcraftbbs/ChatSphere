@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -49,13 +50,19 @@ public class BlockListScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
-        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, 0xFFFFFF, false);
+        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
 
         if (blockedUuids.isEmpty()) {
             Component empty = Component.translatable("screen.chatsphere.blocklist.empty");
-            g.drawString(font, empty, width / 2 - font.width(empty) / 2, CONTENT_Y + 20, 0xFF888888, false);
+            g.drawString(font, empty, width / 2 - font.width(empty) / 2, CONTENT_Y + 20, Theme.textDim(), false);
             return;
         }
 
@@ -63,10 +70,10 @@ public class BlockListScreen extends Screen {
         for (int i = 0; i < blockedUuids.size(); i++) {
             if (y < CONTENT_Y - ROW_H || y > height) { y += ROW_H; continue; }
             boolean hovered = mouseX >= 10 && mouseX <= width - 10 && mouseY >= y && mouseY < y + ROW_H;
-            if (hovered) g.fill(10, y, width - 10, y + ROW_H, 0x22333388);
-            g.drawString(font, blockedNames.get(i), 14, y + 6, 0xFFCCCCCC, false);
+            if (hovered) g.fill(10, y, width - 10, y + ROW_H, Theme.hoverRow());
+            g.drawString(font, blockedNames.get(i), 14, y + 6, Theme.textMain(), false);
             String uuidText = blockedUuids.get(i).substring(0, Math.min(8, blockedUuids.get(i).length()));
-            g.drawString(font, uuidText, 14, y + 16, 0xFF555555, false);
+            g.drawString(font, uuidText, 14, y + 16, Theme.textFaint(), false);
             y += ROW_H;
         }
     }

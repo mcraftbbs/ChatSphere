@@ -20,6 +20,8 @@ public class ModClientConfig {
 
     public final ModConfigSpec.BooleanValue preserveInput;
     public final ModConfigSpec.BooleanValue themeDark;
+    public final ModConfigSpec.IntValue uiCornerStyle;
+    public final ModConfigSpec.BooleanValue backgroundBlur;
     public final ModConfigSpec.ConfigValue<String> bubbleColorOwn;
     public final ModConfigSpec.ConfigValue<String> bubbleColorOther;
     public final ModConfigSpec.IntValue bubbleCornerRadius;
@@ -59,6 +61,12 @@ public class ModClientConfig {
         themeDark = builder
                 .comment("Use dark theme")
                 .define("themeDark", true);
+        uiCornerStyle = builder
+                .comment("Corner style for UI panels: 0=square, 1=pixel, 2=rounded")
+                .defineInRange("uiCornerStyle", 2, 0, 2);
+        backgroundBlur = builder
+                .comment("Show blurred game view behind popup/config screens")
+                .define("backgroundBlur", true);
         bubbleColorOwn = builder
                 .comment("Own message bubble color (hex #RRGGBB)")
                 .define("bubbleColorOwn", "#222222");

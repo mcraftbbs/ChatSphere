@@ -4,6 +4,9 @@ import cn.sarskin.ChatSphere.client.PlayerSkinCache;
 import cn.sarskin.ChatSphere.compat.ncr.NCRCompat;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
+import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.Ui;
+import cn.sarskin.ChatSphere.client.ui.UiToggle;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import cn.sarskin.ChatSphere.network.ServerboundPermissionCheckPayload;
 import net.minecraft.client.Minecraft;
@@ -30,6 +33,7 @@ public class ConfigScreen extends Screen {
     private String pendingOpMsg;
 
     private static final int ROW_H = 28;
+    private static final int GROUP_H = 22;
     private static final int TAB_Y = 38;
     private static final int CONTENT_Y = 68;
     private static final int TAB_PAD = 6;
@@ -46,7 +50,20 @@ public class ConfigScreen extends Screen {
     private record Opt(String key, WidgetFactory factory, java.util.function.Supplier<String> previewColor) {
         Opt(String key, WidgetFactory factory) { this(key, factory, null); }
     }
-    private record Cat(String key, List<Opt> opts) {}
+
+    private static class Group {
+        final String key;
+        final List<Opt> opts;
+        boolean collapsed;
+        Group(String key, List<Opt> opts) {
+            this.key = key;
+            this.opts = opts;
+        }
+    }
+
+    private record Cat(String key, List<Group> groups) {
+        static Cat plain(String key, List<Opt> opts) { return new Cat(key, List.of(new Group(null, opts))); }
+    }
 
     private List<Cat> cats;
 
@@ -69,8 +86,11 @@ public class ConfigScreen extends Screen {
         ui.add(new Opt("config.chatsphere.show_sender_name", y -> mkBool(y, ModClientConfig.CONFIG.showSenderName)));
         ui.add(new Opt("config.chatsphere.show_avatar", y -> mkBool(y, ModClientConfig.CONFIG.showAvatar)));
         ui.add(new Opt("config.chatsphere.theme", y -> mkBool(y, ModClientConfig.CONFIG.themeDark)));
+        ui.add(new Opt("config.chatsphere.background_blur", y -> mkBool(y, ModClientConfig.CONFIG.backgroundBlur)));
         ui.add(new Opt("config.chatsphere.strong_hint", y -> mkServerBool(y, "showStrongHint", ModServerConfig.CONFIG.showStrongHint)));
-        cats.add(new Cat("config.chatsphere.ui", ui));
+        cats.add(Cat.plain("config.chatsphere.ui", ui));
+
+        cats.add(new Cat("config.chatsphere.corner_style_cat", List.of()));
 
         List<Opt> behavior = new ArrayList<>();
         behavior.add(new Opt("config.chatsphere.anti_spam", y -> mkServerBool(y, "antiSpam", ModServerConfig.CONFIG.antiSpam)));
@@ -83,11 +103,7 @@ public class ConfigScreen extends Screen {
             y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.scrollHistoryLimit.get()), 50, 500, 3, v -> { ModClientConfig.CONFIG.scrollHistoryLimit.set(v); CONFIG_SPEC.save(); }), null));
         behavior.add(new Opt("config.chatsphere.command_history_limit",
             y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.commandHistoryLimit.get()), 10, 500, 3, v -> { ModClientConfig.CONFIG.commandHistoryLimit.set(v); CONFIG_SPEC.save(); }), null));
-        cats.add(new Cat("config.chatsphere.behavior", behavior));
-
-        List<Opt> channels = new ArrayList<>();
-        channels.add(new Opt("config.chatsphere.enable_channels", y -> mkServerBool(y, "enableChannels", ModServerConfig.CONFIG.enableChannels)));
-        cats.add(new Cat("config.chatsphere.channels", channels));
+        cats.add(Cat.plain("config.chatsphere.behavior", behavior));
 
         List<Opt> sound = new ArrayList<>();
         sound.add(new Opt("config.chatsphere.notification_sound", y -> mkBool(y, ModClientConfig.CONFIG.notificationSound)));
@@ -96,7 +112,7 @@ public class ConfigScreen extends Screen {
         sound.add(new Opt("config.chatsphere.sound_whisper", y -> mkBool(y, ModClientConfig.CONFIG.soundWhisper)));
         sound.add(new Opt("config.chatsphere.sound_system", y -> mkBool(y, ModClientConfig.CONFIG.soundSystem)));
         sound.add(new Opt("config.chatsphere.sound_public", y -> mkBool(y, ModClientConfig.CONFIG.soundPublic)));
-        cats.add(new Cat("config.chatsphere.sound_settings", sound));
+        cats.add(Cat.plain("config.chatsphere.sound_settings", sound));
 
         List<Opt> bubble = new ArrayList<>();
         bubble.add(new Opt("config.chatsphere.bubble_color_own",
@@ -107,7 +123,7 @@ public class ConfigScreen extends Screen {
             ModClientConfig.CONFIG.bubbleColorOther::get));
         bubble.add(new Opt("config.chatsphere.bubble_corner_radius",
             y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.bubbleCornerRadius.get()), 0, 8, 1, v -> { ModClientConfig.CONFIG.bubbleCornerRadius.set(v); CONFIG_SPEC.save(); }), null));
-        cats.add(new Cat("config.chatsphere.bubble", bubble));
+        cats.add(Cat.plain("config.chatsphere.bubble", bubble));
 
         List<Opt> skin = new ArrayList<>();
         skin.add(new Opt("config.chatsphere.custom_skin_api_url",
@@ -121,29 +137,93 @@ public class ConfigScreen extends Screen {
                 .bounds(inputX, y, btnW, 20)
                 .tooltip(Tooltip.create(Component.translatable("config.chatsphere.refresh_skin_cache.tip")))
                 .build(), null));
-        cats.add(new Cat("config.chatsphere.skin", skin));
+        cats.add(Cat.plain("config.chatsphere.skin", skin));
 
-        List<Opt> network = new ArrayList<>();
-        network.add(new Opt("config.chatsphere.allow_vanilla_connection", y -> mkBool(y, ModClientConfig.CONFIG.allowVanillaConnection)));
-        cats.add(new Cat("config.chatsphere.network", network));
-
-        List<Opt> voice = new ArrayList<>();
-        voice.add(new Opt("config.chatsphere.voice_cache_enabled", y -> mkBool(y, ModClientConfig.CONFIG.voiceCacheEnabled)));
-        voice.add(new Opt("config.chatsphere.voice_cache_max_age",
-            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.voiceCacheMaxAgeHours.get()), 1, 168, 3, v -> { ModClientConfig.CONFIG.voiceCacheMaxAgeHours.set(v); CONFIG_SPEC.save(); }), null));
-        cats.add(new Cat("config.chatsphere.voice_cache", voice));
-
+        List<Group> adv = new ArrayList<>();
+        adv.add(new Group("config.chatsphere.channels", List.of(
+            new Opt("config.chatsphere.enable_channels", y -> mkServerBool(y, "enableChannels", ModServerConfig.CONFIG.enableChannels)))));
+        adv.add(new Group("config.chatsphere.network", List.of(
+            new Opt("config.chatsphere.allow_vanilla_connection", y -> mkBool(y, ModClientConfig.CONFIG.allowVanillaConnection)))));
+        adv.add(new Group("config.chatsphere.voice_cache", List.of(
+            new Opt("config.chatsphere.voice_cache_enabled", y -> mkBool(y, ModClientConfig.CONFIG.voiceCacheEnabled)),
+            new Opt("config.chatsphere.voice_cache_max_age",
+                y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.voiceCacheMaxAgeHours.get()), 1, 168, 3, v -> { ModClientConfig.CONFIG.voiceCacheMaxAgeHours.set(v); CONFIG_SPEC.save(); }), null))));
         if (NCRCompat.isNCRLoaded()) {
-            List<Opt> ncrops = new ArrayList<>();
-            ncrops.add(new Opt("config.chatsphere.ncr_compat", y -> mkBool(y, ModClientConfig.CONFIG.ncrCompat)));
-            ncrops.add(new Opt("config.chatsphere.ncr_safety", y -> {
-                Component label = NCRCompat.getSafetyStatusComponent();
-                return Button.builder(label, btn -> {})
-                        .bounds(inputX, y, btnW, 20).build();
-            }));
-            ncrops.add(new Opt("config.chatsphere.ncr_prevents_reports", y -> mkServerBool(y, "preventsChatReports", ModServerConfig.CONFIG.preventsChatReports)));
-            cats.add(new Cat("config.chatsphere.ncr", ncrops));
+            adv.add(new Group("config.chatsphere.ncr", List.of(
+                new Opt("config.chatsphere.ncr_compat", y -> mkBool(y, ModClientConfig.CONFIG.ncrCompat)),
+                new Opt("config.chatsphere.ncr_safety", y -> {
+                    Component label = NCRCompat.getSafetyStatusComponent();
+                    return Button.builder(label, btn -> {})
+                            .bounds(inputX, y, btnW, 20).build();
+                }),
+                new Opt("config.chatsphere.ncr_prevents_reports", y -> mkServerBool(y, "preventsChatReports", ModServerConfig.CONFIG.preventsChatReports)))));
         }
+        cats.add(new Cat("config.chatsphere.advanced", adv));
+    }
+
+    private boolean isCornerStyleCat(int idx) {
+        return idx >= 0 && idx < cats.size() && cats.get(idx).key().equals("config.chatsphere.corner_style_cat");
+    }
+
+    private int[] cornerCardLayout() {
+        int gap = 24;
+        int margin = 16;
+        int availW = width - margin * 2;
+        int cardW = Math.max(90, Math.min(150, (availW - gap * 2) / 3));
+        int avail = (height - 48) - CONTENT_Y;
+        int cardH = Math.min(152, Math.max(120, avail - 16));
+        int totalW = cardW * 3 + gap * 2;
+        int startX = (width - totalW) / 2;
+        int cardY = CONTENT_Y + Math.max(8, (avail - cardH) / 2);
+        return new int[] { cardW, cardH, gap, startX, cardY };
+    }
+
+    private void drawCornerCards(GuiGraphics g, int mouseX, int mouseY) {
+        int style = ModClientConfig.CONFIG.uiCornerStyle.get();
+        int[] l = cornerCardLayout();
+        int cardW = l[0], cardH = l[1], gap = l[2], startX = l[3], cardY = l[4];
+        for (int i = 0; i < 3; i++) {
+            int cx = startX + i * (cardW + gap);
+            boolean sel = i == style;
+            boolean hover = mouseX >= cx && mouseX <= cx + cardW && mouseY >= cardY && mouseY <= cardY + cardH;
+            Ui.fillRoundedRect(g, cx, cardY, cardW, cardH, 6, Theme.panelBg());
+            g.renderOutline(cx, cardY, cardW, cardH, sel ? Theme.accent() : (hover ? Theme.popupOutline() : Theme.popupOutline2()));
+            if (sel) {
+                Ui.fillRoundedRect(g, cx, cardY, cardW, 20, 6, 0x336666DD);
+            }
+            int prevY = cardY + 24;
+            int prevH = Math.max(36, cardH - 70);
+            drawCornerPreview(g, cx + 10, prevY, cardW - 20, prevH, i);
+            Component name = Component.translatable("config.chatsphere.corner_style." + i);
+            int nameY = prevY + prevH + 5;
+            g.drawString(font, name, cx + (cardW - font.width(name)) / 2, nameY, Theme.text(), false);
+            int btnW = Math.min(64, cardW - 12), btnH = 14;
+            int bx = cx + (cardW - btnW) / 2;
+            int by = cardY + cardH - 22;
+            Ui.fillRoundedRect(g, bx, by, btnW, btnH, 3, sel ? Theme.accent() : Theme.slotBg());
+            Component pick = Component.translatable("config.chatsphere.corner_pick");
+            g.drawString(font, pick, bx + (btnW - font.width(pick)) / 2, by + 3,
+                    sel ? 0xFFFFFFFF : Theme.textDim(), false);
+        }
+    }
+
+    private void drawCornerPreview(GuiGraphics g, int x, int y, int w, int h, int style) {
+        g.fill(x, y, x + w, y + h, 0xFFF4F4FA);
+        int pw = Math.min(102, w - 16);
+        int ph = Math.min(58, h - 16);
+        double s = pw / 102.0;
+        int px = x + (w - pw) / 2;
+        int py = y + Math.max(2, (h - ph) / 2);
+        g.fill(x + (int) (8 * s), y + (int) (2 * s), x + w - (int) (8 * s), y + (int) (3 * s), 0x668888CC);
+        g.fill(x + (int) (8 * s), y + h - (int) (3 * s), x + w - (int) (8 * s), y + h - (int) (2 * s), 0x668888CC);
+        Ui.fillRoundedRectStyle(g, style, px, py, pw, ph, (int) (8 * s), 0xEB2A2A4E);
+        g.fill(px + (int) (8 * s), py + (int) (8 * s), px + (int) (32 * s), py + (int) (14 * s), 0xFFDDDDEE);
+        g.fill(px + (int) (8 * s), py + (int) (20 * s), px + (int) (78 * s), py + (int) (26 * s), 0xFFDDDDEE);
+        g.fill(px + (int) (8 * s), py + (int) (32 * s), px + (int) (58 * s), py + (int) (38 * s), 0xFFDDDDEE);
+        Ui.fillRoundedRectStyle(g, style, px + pw - (int) (42 * s), py + ph - (int) (15 * s),
+                (int) (34 * s), (int) (10 * s), (int) (4 * s), 0xFF8888FF);
+        g.fill(px + pw - (int) (34 * s), py + ph - (int) (11 * s),
+                px + pw - (int) (22 * s), py + ph - (int) (10 * s), 0xFFFFFFFF);
     }
 
     @Override
@@ -163,9 +243,13 @@ public class ConfigScreen extends Screen {
         scrollOffset = Mth.clamp(scrollOffset, 0, calcMaxScroll());
 
         int y = CONTENT_Y - scrollOffset;
-        for (Opt opt : cats.get(selectedCat).opts()) {
-            scrollWidgets.add(addRenderableWidget(opt.factory().create(y)));
-            y += ROW_H;
+        for (Group grp : cats.get(selectedCat).groups()) {
+            if (grp.key != null) y += GROUP_H;
+            if (grp.collapsed) continue;
+            for (Opt opt : grp.opts) {
+                scrollWidgets.add(addRenderableWidget(opt.factory().create(y)));
+                y += ROW_H;
+            }
         }
 
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, btn -> onClose())
@@ -229,24 +313,29 @@ public class ConfigScreen extends Screen {
     }
 
     private void drawColorPreview(GuiGraphics g, int y, String hex) {
-        int color = ModClientConfig.parseHexColor(hex, 0xFF888888);
+        int color = ModClientConfig.parseHexColor(hex, Theme.textDim());
         int px = inputX - 22;
-        g.fill(px, y + 4, px + 12, y + 16, 0xFF3A3A4A);
+        g.fill(px, y + 4, px + 12, y + 16, Theme.previewSwatchBg());
         g.fill(px + 1, y + 5, px + 11, y + 15, color);
     }
 
-    private Button mkBool(int y, ModConfigSpec.BooleanValue cfg) {
-        boolean v = cfg.get();
-        return Button.builder(
-            v ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF,
-            btn -> {
-                boolean nv = !cfg.get();
-                cfg.set(nv);
-                btn.setMessage(nv ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF);
-                CONFIG_SPEC.save();
-            }
-        ).bounds(inputX, y, btnW, 20)
-            .tooltip(Tooltip.create(Component.translatable("screen.chatsphere.config.tip_toggle"))).build();
+    private AbstractWidget mkBool(int y, ModConfigSpec.BooleanValue cfg) {
+        if (Theme.originalStyle()) {
+            return Button.builder(
+                    Component.translatable(cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"),
+                    btn -> {
+                        cfg.set(!cfg.get());
+                        CONFIG_SPEC.save();
+                        btn.setMessage(Component.translatable(
+                                cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"));
+                    })
+                    .bounds(inputX, y, btnW, 20)
+                    .build();
+        }
+        return new UiToggle(inputX, y, btnW, 20, cfg.get(), v -> {
+            cfg.set(v);
+            CONFIG_SPEC.save();
+        });
     }
 
     private void sendConfigUpdate(String key, String value) {
@@ -257,18 +346,24 @@ public class ConfigScreen extends Screen {
                 new ServerboundConfigUpdatePayload(key, value)));
     }
 
-    private Button mkServerBool(int y, String fieldName, ModConfigSpec.BooleanValue cfg) {
-        boolean v = safeGetBool(cfg);
-        return Button.builder(
-            v ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF,
-            btn -> {
-                boolean nv = !safeGetBool(cfg);
-                cfg.set(nv);
-                btn.setMessage(nv ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF);
-                sendConfigUpdate(fieldName, String.valueOf(nv));
-            }
-        ).bounds(inputX, y, btnW, 20)
-            .tooltip(Tooltip.create(Component.translatable("screen.chatsphere.config.tip_toggle"))).build();
+    private AbstractWidget mkServerBool(int y, String fieldName, ModConfigSpec.BooleanValue cfg) {
+        if (Theme.originalStyle()) {
+            return Button.builder(
+                    Component.translatable(safeGetBool(cfg) ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"),
+                    btn -> {
+                        boolean next = !safeGetBool(cfg);
+                        ModServerConfig.safeSetBool(cfg, fieldName, next);
+                        sendConfigUpdate(fieldName, String.valueOf(next));
+                        btn.setMessage(Component.translatable(
+                                next ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"));
+                    })
+                    .bounds(inputX, y, btnW, 20)
+                    .build();
+        }
+        return new UiToggle(inputX, y, btnW, 20, safeGetBool(cfg), v -> {
+            ModServerConfig.safeSetBool(cfg, fieldName, v);
+            sendConfigUpdate(fieldName, String.valueOf(v));
+        });
     }
 
     private static boolean safeGetBool(ModConfigSpec.BooleanValue cfg) {
@@ -316,9 +411,20 @@ public class ConfigScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        int contentBottom = height - 48;
+        for (AbstractWidget w : scrollWidgets) {
+            int wy = w.getY();
+            w.visible = wy >= CONTENT_Y && wy + w.getHeight() <= contentBottom;
+        }
         super.render(g, mouseX, mouseY, partialTick);
-        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, 0xFFFFFF, false);
+        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
 
         int cx = tabX;
         for (int i = 0; i < cats.size(); i++) {
@@ -327,29 +433,45 @@ public class ConfigScreen extends Screen {
             boolean sel = i == selectedCat;
             boolean hover = mouseX >= cx && mouseX <= cx + w && mouseY >= TAB_Y && mouseY <= TAB_Y + 22;
             if (sel)
-                g.fill(cx, TAB_Y + 20, cx + w, TAB_Y + 22, 0xFF8888FF);
+                g.fill(cx, TAB_Y + 20, cx + w, TAB_Y + 22, Theme.accent());
             else if (hover)
-                g.fill(cx, TAB_Y, cx + w, TAB_Y + 22, 0x225A4A7E);
+                g.fill(cx, TAB_Y, cx + w, TAB_Y + 22, Theme.divider());
             g.drawString(font, label, cx + TAB_PAD, TAB_Y + 7,
-                sel ? 0xFF8888FF : 0xFFFFFFFF, false);
+                sel ? Theme.accent() : Theme.text(), false);
             cx += w + 6;
         }
 
-        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, 0x225A4A7E);
+        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
         if (pendingOpMsg != null) {
             Component msg = Component.translatable(pendingOpMsg);
-            g.drawString(font, msg, width / 2 - font.width(msg) / 2, height / 2, 0xFF888888, false);
+            g.drawString(font, msg, width / 2 - font.width(msg) / 2, height / 2, Theme.textDim(), false);
         }
 
+        if (isCornerStyleCat(selectedCat)) {
+            drawCornerCards(g, mouseX, mouseY);
+            return;
+        }
         int y = CONTENT_Y - scrollOffset;
-        for (Opt opt : cats.get(selectedCat).opts()) {
-            if (y > -ROW_H && y < height) {
-                g.drawString(font, Component.translatable(opt.key()), optLabelX, y + 6, 0xFFFFFFFF, false);
-                if (opt.previewColor() != null)
-                    drawColorPreview(g, y, opt.previewColor().get());
+        for (Group grp : cats.get(selectedCat).groups()) {
+            if (grp.key != null) {
+                if (y >= CONTENT_Y && y + GROUP_H <= contentBottom) {
+                    g.fill(10, y, width - 10, y + 1, Theme.sectionLine());
+                    String arrow = grp.collapsed ? "\u25B8" : "\u25BE";
+                    g.drawString(font, arrow, optLabelX - 14, y + 6, Theme.textDim(), false);
+                    g.drawString(font, Component.translatable(grp.key), optLabelX, y + 6, Theme.textDim(), false);
+                }
+                y += GROUP_H;
             }
-            y += ROW_H;
+            if (grp.collapsed) continue;
+            for (Opt opt : grp.opts) {
+                if (y >= CONTENT_Y && y + ROW_H <= contentBottom) {
+                    g.drawString(font, Component.translatable(opt.key()), optLabelX, y + 6, Theme.text(), false);
+                    if (opt.previewColor() != null)
+                        drawColorPreview(g, y, opt.previewColor().get());
+                }
+                y += ROW_H;
+            }
         }
     }
 
@@ -364,6 +486,33 @@ public class ConfigScreen extends Screen {
                     return true;
                 }
                 cx += w + 6;
+            }
+            if (isCornerStyleCat(selectedCat)) {
+                int style = ModClientConfig.CONFIG.uiCornerStyle.get();
+                int[] l = cornerCardLayout();
+                int cardW = l[0], cardH = l[1], gap = l[2], startX = l[3], cardY = l[4];
+                for (int i = 0; i < 3; i++) {
+                    int cx2 = startX + i * (cardW + gap);
+                    if (mouseX >= cx2 && mouseX <= cx2 + cardW && mouseY >= cardY && mouseY <= cardY + cardH) {
+                        ModClientConfig.CONFIG.uiCornerStyle.set(i);
+                        CONFIG_SPEC.save();
+                        return true;
+                    }
+                }
+            }
+            int y = CONTENT_Y - scrollOffset;
+            for (Group grp : cats.get(selectedCat).groups()) {
+                if (grp.key != null) {
+                    if (mouseY >= y && mouseY < y + GROUP_H && mouseX >= 10 && mouseX < width - 10) {
+                        grp.collapsed = !grp.collapsed;
+                        scrollOffset = Math.min(scrollOffset, calcMaxScroll());
+                        clearWidgets();
+                        init();
+                        return true;
+                    }
+                    y += GROUP_H;
+                }
+                if (!grp.collapsed) y += grp.opts.size() * ROW_H;
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
@@ -381,8 +530,12 @@ public class ConfigScreen extends Screen {
     }
 
     private int calcMaxScroll() {
-        int total = cats.get(selectedCat).opts().size() * ROW_H;
-        return Math.max(0, CONTENT_Y + total - (height - 42));
+        int total = 0;
+        for (Group grp : cats.get(selectedCat).groups()) {
+            if (grp.key != null) total += GROUP_H;
+            if (!grp.collapsed) total += grp.opts.size() * ROW_H;
+        }
+        return Math.max(0, CONTENT_Y + total - (height - 48));
     }
 
     @Override
@@ -393,10 +546,15 @@ public class ConfigScreen extends Screen {
         scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
 
         int y = CONTENT_Y - scrollOffset;
-        List<Opt> opts = cats.get(selectedCat).opts();
-        for (int i = 0; i < opts.size() && i < scrollWidgets.size(); i++) {
-            scrollWidgets.get(i).setY(y);
-            y += ROW_H;
+        int wi = 0;
+        for (Group grp : cats.get(selectedCat).groups()) {
+            if (grp.key != null) y += GROUP_H;
+            if (grp.collapsed) continue;
+            for (int i = 0; i < grp.opts.size() && wi < scrollWidgets.size(); i++) {
+                scrollWidgets.get(wi).setY(y);
+                wi++;
+                y += ROW_H;
+            }
         }
         return true;
     }

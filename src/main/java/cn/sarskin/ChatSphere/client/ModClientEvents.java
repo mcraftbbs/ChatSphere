@@ -3,7 +3,9 @@ package cn.sarskin.ChatSphere.client;
 import cn.sarskin.ChatSphere.ModMain;
 import cn.sarskin.ChatSphere.client.screen.ConfigScreen;
 import cn.sarskin.ChatSphere.client.screen.ModChatScreen;
+import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
+import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -21,6 +23,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @EventBusSubscriber(modid = ModMain.MODID, value = Dist.CLIENT)
@@ -87,6 +90,19 @@ public class ModClientEvents {
 
         while (ModKeyMappings.OPEN_CONFIG_KEY.get().consumeClick()) {
             mc.setScreen(new ConfigScreen());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onClientLogin(ClientPlayerNetworkEvent.LoggingIn event) {
+        Map<String, Boolean> pending = ModServerConfig.flushPendingBooleans();
+        if (pending.isEmpty()) return;
+        Minecraft mc = Minecraft.getInstance();
+        ClientPacketListener conn = mc.getConnection();
+        if (conn == null || mc.player == null) return;
+        for (Map.Entry<String, Boolean> e : pending.entrySet()) {
+            conn.send(new ServerboundCustomPayloadPacket(
+                    new ServerboundConfigUpdatePayload(e.getKey(), String.valueOf(e.getValue()))));
         }
     }
 

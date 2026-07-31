@@ -4,6 +4,7 @@ import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.voice.VoiceIntegration;
 import cn.sarskin.ChatSphere.client.voice.VoiceRoom;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.CopyToast;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
@@ -173,7 +174,7 @@ public class ChannelConfigScreen extends Screen {
             Component info = Component.translatable("screen.chatsphere.channel_config.voice_room_count", config.voiceRooms.size());
             return new AbstractWidget(30, y, width - 50, 12, Component.empty()) {
                 @Override public void renderWidget(GuiGraphics g, int mx, int my, float pt) {
-                    g.drawString(font, info.getVisualOrderText(), getX(), getY(), 0xFFAAAAAA, false);
+                    g.drawString(font, info.getVisualOrderText(), getX(), getY(), Theme.textInactive(), false);
                 }
                 @Override protected void updateWidgetNarration(NarrationElementOutput n) {}
                 @Override public boolean mouseClicked(double mx, double my, int btn) { return false; }
@@ -374,7 +375,7 @@ public class ChannelConfigScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
-        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, 0xFFFFFF, false);
+        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
 
         int cx = tabX;
         for (int i = 0; i < cats.size(); i++) {
@@ -383,21 +384,22 @@ public class ChannelConfigScreen extends Screen {
             boolean sel = i == selectedCat;
             boolean hover = mouseX >= cx && mouseX <= cx + w && mouseY >= TAB_Y && mouseY <= TAB_Y + 22;
             if (sel)
-                g.fill(cx, TAB_Y + 20, cx + w, TAB_Y + 22, 0xFF8888FF);
+                g.fill(cx, TAB_Y + 20, cx + w, TAB_Y + 22, Theme.accent());
             else if (hover)
-                g.fill(cx, TAB_Y, cx + w, TAB_Y + 22, 0x225A4A7E);
+                g.fill(cx, TAB_Y, cx + w, TAB_Y + 22, Theme.divider());
             g.drawString(font, label, cx + TAB_PAD, TAB_Y + 7,
-                sel ? 0xFF8888FF : 0xFFFFFFFF, false);
+                sel ? Theme.accent() : Theme.text(), false);
             cx += w + 6;
         }
 
-        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, 0x225A4A7E);
+        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
+        int contentBottom = height - 48;
         int y = CONTENT_Y - scrollOffset;
         for (Opt opt : cats.get(selectedCat).opts()) {
-            if (y > -ROW_H && y < height) {
+            if (y > -ROW_H && y < contentBottom) {
                 if (!opt.key().isEmpty()) {
-                    g.drawString(font, Component.translatable(opt.key()), optLabelX, y + 6, 0xFFFFFFFF, false);
+                    g.drawString(font, Component.translatable(opt.key()), optLabelX, y + 6, Theme.text(), false);
                 }
             }
             y += ROW_H;
@@ -440,7 +442,7 @@ public class ChannelConfigScreen extends Screen {
 
     private int calcMaxScroll() {
         int total = cats.get(selectedCat).opts().size() * ROW_H;
-        return Math.max(0, CONTENT_Y + total - (height - 42));
+        return Math.max(0, CONTENT_Y + total - (height - 48));
     }
 
     @Override
@@ -458,6 +460,7 @@ public class ChannelConfigScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
         super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }
 
     @Override
@@ -499,7 +502,7 @@ public class ChannelConfigScreen extends Screen {
             int btnX = delX - 4 - btnW;
 
             // Room name + count
-            g.drawString(font, room.name + " (" + room.members.size() + ")", leftX, ry + 3, 0xFFFFFFFF, false);
+            g.drawString(font, room.name + " (" + room.members.size() + ")", leftX, ry + 3, Theme.text(), false);
 
             // Member names (second line)
             if (!room.members.isEmpty()) {
@@ -517,7 +520,7 @@ public class ChannelConfigScreen extends Screen {
                     }
                     membersStr += "…";
                 }
-                g.drawString(font, membersStr, leftX + 2, ry + 14, 0xFF888888, false);
+                g.drawString(font, membersStr, leftX + 2, ry + 14, Theme.textDim(), false);
             }
 
             // Join/Leave button

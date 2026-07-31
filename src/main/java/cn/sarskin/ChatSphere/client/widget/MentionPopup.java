@@ -1,5 +1,6 @@
 package cn.sarskin.ChatSphere.client.widget;
 
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -43,15 +44,15 @@ public class MentionPopup {
         int popupW = maxW + 12;
         if (popupY < 20) popupY = input.getY() + input.getHeight() + 2;
 
-        g.fill(popupX, popupY, popupX + popupW, popupY + popupH, 0xDD222244);
-        g.renderOutline(popupX, popupY, popupW, popupH, 0xFF6666AA);
+        g.fill(popupX, popupY, popupX + popupW, popupY + popupH, Theme.popupBg());
+        g.renderOutline(popupX, popupY, popupW, popupH, Theme.popupOutline());
 
         int startIdx = Math.max(0, selectedIdx - 7);
         int endIdx = Math.min(candidates.size(), startIdx + 8);
         for (int i = startIdx; i < endIdx; i++) {
             int iy = popupY + 2 + (i - startIdx) * font.lineHeight;
             boolean sel = i == selectedIdx;
-            if (sel) g.fill(popupX + 2, iy, popupX + popupW - 2, iy + font.lineHeight, 0x44448888);
+            if (sel) g.fill(popupX + 2, iy, popupX + popupW - 2, iy + font.lineHeight, Theme.menuHover());
             g.drawString(font, "@" + candidates.get(i), popupX + 4, iy + 1, sel ? 0xFFFFFF : 0xCCCCCC, false);
         }
     }

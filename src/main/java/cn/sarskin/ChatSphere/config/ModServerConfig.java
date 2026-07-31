@@ -3,6 +3,9 @@ package cn.sarskin.ChatSphere.config;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class ModServerConfig {
     public static final ModServerConfig CONFIG;
     public static final ModConfigSpec CONFIG_SPEC;
@@ -24,10 +27,21 @@ public class ModServerConfig {
     public final ModConfigSpec.IntValue voiceOfflineMaxAgeHours;
     public final ModConfigSpec.IntValue voiceOfflineMaxPerPlayer;
 
+    private static final Map<String, Boolean> pendingBooleans = new HashMap<>();
+    private static final Map<String, ModConfigSpec.BooleanValue> BOOL_FIELDS = new HashMap<>();
+
     static {
         Pair<ModServerConfig, ModConfigSpec> pair = new ModConfigSpec.Builder().configure(ModServerConfig::new);
         CONFIG = pair.getLeft();
         CONFIG_SPEC = pair.getRight();
+        BOOL_FIELDS.put("antiSpam", CONFIG.antiSpam);
+        BOOL_FIELDS.put("enableChannels", CONFIG.enableChannels);
+        BOOL_FIELDS.put("showStrongHint", CONFIG.showStrongHint);
+        BOOL_FIELDS.put("syncDefaultChannel", CONFIG.syncDefaultChannel);
+        BOOL_FIELDS.put("channelHistoryEnabled", CONFIG.channelHistoryEnabled);
+        BOOL_FIELDS.put("exploreEnabled", CONFIG.exploreEnabled);
+        BOOL_FIELDS.put("preventsChatReports", CONFIG.preventsChatReports);
+        BOOL_FIELDS.put("voiceOfflineStorage", CONFIG.voiceOfflineStorage);
     }
 
     private ModServerConfig(ModConfigSpec.Builder builder) {
@@ -91,5 +105,45 @@ public class ModServerConfig {
                 .comment("Maximum number of undelivered voice messages stored per player")
                 .defineInRange("voiceOfflineMaxPerPlayer", 10, 1, 50);
         builder.pop();
+    }
+
+    public static boolean safeSetBool(ModConfigSpec.BooleanValue cfg, String fieldName, boolean v) {
+        try {
+            cfg.set(v);
+            return true;
+        } catch (IllegalStateException e) {
+            pendingBooleans.put(fieldName, v);
+            return false;
+        }
+    }
+
+    public static Map<String, Boolean> flushPendingBooleans() {
+        if (pendingBooleans.isEmpty()) return Map.of();
+        boolean loaded;
+        try {
+            BOOL_FIELDS.get("antiSpam").get();
+            loaded = true;
+        } catch (IllegalStateException e) {
+            loaded = false;
+        }
+        Map<String, Boolean> toSend = new HashMap<>();
+        for (Map.Entry<String, Boolean> entry : pendingBooleans.entrySet()) {
+            ModConfigSpec.BooleanValue cv = BOOL_FIELDS.get(entry.getKey());
+            if (cv == null) continue;
+            if (loaded) {
+                try {
+                    cv.set(entry.getValue());
+                } catch (IllegalStateException ignored) {}
+            } else {
+                toSend.put(entry.getKey(), entry.getValue());
+            }
+        }
+        if (loaded) {
+            try {
+                CONFIG_SPEC.save();
+            } catch (Exception ignored) {}
+        }
+        pendingBooleans.clear();
+        return toSend;
     }
 }

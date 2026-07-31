@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import net.minecraft.client.gui.GuiGraphics;
@@ -55,19 +56,25 @@ public class JoinChannelScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
+    }
+
+    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(guiGraphics, mouseX, mouseY, partialTick);
 
         int popupX = (this.width - POPUP_WIDTH) / 2;
         int popupY = (this.height - POPUP_HEIGHT) / 2;
 
-        guiGraphics.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, 0xCC222244);
-        guiGraphics.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, 0xFF6666AA);
+        guiGraphics.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, Theme.popupBg2());
+        guiGraphics.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline());
 
         String title = this.title.getString();
         guiGraphics.drawString(this.font, title,
                 popupX + (POPUP_WIDTH - this.font.width(title)) / 2,
-                popupY + 5, 0xFFFFFFFF, false);
+                popupY + 5, Theme.text(), false);
 
         this.codeInput.render(guiGraphics, mouseX, mouseY, partialTick);
 

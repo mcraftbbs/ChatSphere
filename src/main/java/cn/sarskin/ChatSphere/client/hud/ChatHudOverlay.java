@@ -5,6 +5,7 @@ import cn.sarskin.ChatSphere.client.ChatHintsManager;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ChatMessageData;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.util.ItemSerialization;
@@ -145,12 +146,11 @@ public class ChatHudOverlay implements LayeredDraw.Layer {
     private void drawBubble(GuiGraphics guiGraphics, Minecraft mc, ChatMessageData msg,
                             Component bubbleText, boolean itemRendered, ItemStack itemStack,
                             int x, int y, int width, int height) {
-        boolean isDark = ModClientConfig.CONFIG.themeDark.get();
         int color;
         if (msg.isOwn()) {
-            color = ModClientConfig.parseHexColor(ModClientConfig.CONFIG.bubbleColorOwn.get(), isDark ? 0xFF1D3B5C : 0xFFD9E8FF);
+            color = ModClientConfig.parseHexColor(ModClientConfig.CONFIG.bubbleColorOwn.get(), Theme.bubbleOwnFallback());
         } else {
-            color = ModClientConfig.parseHexColor(ModClientConfig.CONFIG.bubbleColorOther.get(), isDark ? 0xFF26262E : 0xFFFFFFFF);
+            color = ModClientConfig.parseHexColor(ModClientConfig.CONFIG.bubbleColorOther.get(), Theme.bubbleOtherFallback());
         }
 
         guiGraphics.fill(x, y, x + width, y + height, color);
@@ -163,16 +163,15 @@ public class ChatHudOverlay implements LayeredDraw.Layer {
             textX = avatarX + AVATAR_SIZE + 4;
         }
 
+        int textColor = Theme.bubbleTextOn(color);
         if (itemRendered && !itemStack.isEmpty()) {
             int iconY = y + (height - 16) / 2;
             guiGraphics.renderItem(itemStack, textX, iconY);
             int nameX = textX + 18;
             int nameY = y + (height - 9) / 2;
-            int textColor = msg.isOwn() ? 0xFFF0F0F0 : 0xFF1A1A1A;
             guiGraphics.drawString(mc.font, bubbleText, nameX, nameY, textColor, false);
         } else {
             int textY = y + (height - 9) / 2;
-            int textColor = msg.isOwn() ? 0xFFF0F0F0 : 0xFF1A1A1A;
             guiGraphics.drawString(mc.font, bubbleText, textX, textY, textColor, false);
         }
     }

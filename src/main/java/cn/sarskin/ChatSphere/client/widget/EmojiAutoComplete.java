@@ -2,6 +2,7 @@ package cn.sarskin.ChatSphere.client.widget;
 
 import cn.sarskin.ChatSphere.client.emoji.EmojiEntry;
 import cn.sarskin.ChatSphere.client.emoji.EmojiRegistry;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -47,15 +48,15 @@ public class EmojiAutoComplete {
         int popupW = font.lineHeight + maxCodeW + 20;
         if (popupY < 20) popupY = input.getY() + input.getHeight() + 2;
 
-        g.fill(popupX, popupY, popupX + popupW, popupY + popupH, 0xDD222244);
-        g.renderOutline(popupX, popupY, popupW, popupH, 0xFF6666AA);
+        g.fill(popupX, popupY, popupX + popupW, popupY + popupH, Theme.popupBg());
+        g.renderOutline(popupX, popupY, popupW, popupH, Theme.popupOutline());
 
         int startIdx = Math.max(0, Math.min(selectedIdx, candidates.size() - 8));
         int endIdx = Math.min(candidates.size(), startIdx + 8);
         for (int i = startIdx; i < endIdx; i++) {
             int iy = popupY + 2 + (i - startIdx) * (font.lineHeight + 2);
             boolean sel = i == selectedIdx;
-            if (sel) g.fill(popupX + 2, iy, popupX + popupW - 2, iy + font.lineHeight + 2, 0x44448888);
+            if (sel) g.fill(popupX + 2, iy, popupX + popupW - 2, iy + font.lineHeight + 2, Theme.menuHover());
             EmojiEntry e = candidates.get(i);
             String pua = EmojiRegistry.puaChar(e);
             if (pua != null) {

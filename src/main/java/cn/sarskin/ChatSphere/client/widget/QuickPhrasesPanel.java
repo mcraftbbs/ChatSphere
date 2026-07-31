@@ -1,5 +1,6 @@
 package cn.sarskin.ChatSphere.client.widget;
 
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import static cn.sarskin.ChatSphere.config.ModClientConfig.CONFIG_SPEC;
 import net.minecraft.client.Minecraft;
@@ -52,8 +53,8 @@ public class QuickPhrasesPanel {
         List<String> phrases = getPhrases();
         int ph = panelH();
 
-        g.fill(panelX, panelY, panelX + PANEL_W, panelY + ph, 0xDD2A2A4E);
-        g.renderOutline(panelX, panelY, PANEL_W, ph, 0xFF6666AA);
+        g.fill(panelX, panelY, panelX + PANEL_W, panelY + ph, Theme.panelBg());
+        g.renderOutline(panelX, panelY, PANEL_W, ph, Theme.popupOutline());
 
         int listRows = Math.min(phrases.size(), VISIBLE_ROWS);
         int listH = listRows * ROW_H;
@@ -68,12 +69,12 @@ public class QuickPhrasesPanel {
             int sbX = panelX + PANEL_W - 6;
             int sbTop = listTop;
             int sbBot = listTop + listH;
-            g.fill(sbX, sbTop, sbX + 3, sbBot, 0x30333333);
+            g.fill(sbX, sbTop, sbX + 3, sbBot, Theme.scrollTrack());
             int thumbH = Math.max(6, listH * VISIBLE_ROWS / phrases.size());
             int maxScroll = phrases.size() - VISIBLE_ROWS;
             int travel = listH - thumbH;
             int thumbY = sbTop + (maxScroll > 0 ? scroll * travel / maxScroll : 0);
-            g.fill(sbX, thumbY, sbX + 3, thumbY + thumbH, 0x706666AA);
+            g.fill(sbX, thumbY, sbX + 3, thumbY + thumbH, Theme.scrollThumb());
         }
 
         // Phrase rows
@@ -83,20 +84,20 @@ public class QuickPhrasesPanel {
             String phrase = font.plainSubstrByWidth(phrases.get(i), textW);
             boolean hover = mouseX >= panelX + PAD && mouseX <= textRight
                     && mouseY >= rowY && mouseY <= rowY + ROW_H;
-            if (hover) g.fill(panelX + PAD, rowY, textRight, rowY + ROW_H, 0x44448888);
-            g.drawString(font, phrase, panelX + PAD + 2, rowY + 3, 0xFFCCCCCC, false);
+            if (hover) g.fill(panelX + PAD, rowY, textRight, rowY + ROW_H, Theme.menuHover());
+            g.drawString(font, phrase, panelX + PAD + 2, rowY + 3, Theme.textMain(), false);
 
             int delX = textRight - 12;
             boolean hoverDel = mouseX >= delX && mouseX <= delX + 11
                     && mouseY >= rowY && mouseY <= rowY + ROW_H;
-            g.fill(delX, rowY + 2, delX + 11, rowY + 13, hoverDel ? 0x66FF4444 : 0x33333333);
+            g.fill(delX, rowY + 2, delX + 11, rowY + 13, hoverDel ? 0x66FF4444 : Theme.searchCloseBg());
             g.drawString(font, "\u2715", delX + 3, rowY + 3, 0xFFFF6666, false);
         }
 
         // Add row
         int addY = panelY + ph - ADD_H - PAD;
-        g.fill(panelX + PAD, addY, panelX + PANEL_W - PAD, addY + ADD_H, 0x331A1A3E);
-        g.renderOutline(panelX + PAD, addY, PANEL_W - PAD * 2, ADD_H, 0x335A4A7E);
+        g.fill(panelX + PAD, addY, panelX + PANEL_W - PAD, addY + ADD_H, Theme.inputBg());
+        g.renderOutline(panelX + PAD, addY, PANEL_W - PAD * 2, ADD_H, Theme.divider());
 
         addInput.setX(panelX + PAD + 2);
         addInput.setY(addY + 2);
@@ -108,7 +109,7 @@ public class QuickPhrasesPanel {
         int addBtnX = panelX + PANEL_W - PAD - 18;
         boolean hoverAdd = mouseX >= addBtnX && mouseX <= addBtnX + 16
                 && mouseY >= addY && mouseY <= addY + ADD_H;
-        g.fill(addBtnX, addY, addBtnX + 16, addY + ADD_H, hoverAdd ? 0x66448888 : 0x33333333);
+        g.fill(addBtnX, addY, addBtnX + 16, addY + ADD_H, hoverAdd ? 0x66448888 : Theme.searchCloseBg());
         g.drawString(font, "+", addBtnX + 5, addY + 3, 0xFF88FF88, false);
     }
 

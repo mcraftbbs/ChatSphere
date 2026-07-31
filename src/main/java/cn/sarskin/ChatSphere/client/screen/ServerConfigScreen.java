@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.UiToggle;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import net.minecraft.client.Minecraft;
@@ -151,18 +153,24 @@ public class ServerConfigScreen extends Screen {
         return box;
     }
 
-    private Button mkBool(int y, String fieldName, ModConfigSpec.BooleanValue cfg) {
-        boolean v = safeGetBool(cfg);
-        return Button.builder(
-            v ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF,
-            btn -> {
-                boolean nv = !safeGetBool(cfg);
-                cfg.set(nv);
-                btn.setMessage(nv ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF);
-                sendConfigUpdate(fieldName, String.valueOf(nv));
-            }
-        ).bounds(inputX, y, btnW, 20)
-            .tooltip(Tooltip.create(Component.translatable("screen.chatsphere.config.tip_toggle"))).build();
+    private AbstractWidget mkBool(int y, String fieldName, ModConfigSpec.BooleanValue cfg) {
+        if (Theme.originalStyle()) {
+            return Button.builder(
+                    Component.translatable(safeGetBool(cfg) ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"),
+                    btn -> {
+                        boolean next = !safeGetBool(cfg);
+                        ModServerConfig.safeSetBool(cfg, fieldName, next);
+                        sendConfigUpdate(fieldName, String.valueOf(next));
+                        btn.setMessage(Component.translatable(
+                                next ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"));
+                    })
+                    .bounds(inputX, y, btnW, 20)
+                    .build();
+        }
+        return new UiToggle(inputX, y, btnW, 20, safeGetBool(cfg), v -> {
+            ModServerConfig.safeSetBool(cfg, fieldName, v);
+            sendConfigUpdate(fieldName, String.valueOf(v));
+        });
     }
 
     private static boolean safeGetBool(ModConfigSpec.BooleanValue cfg) {
@@ -183,9 +191,20 @@ public class ServerConfigScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        int contentBottom = height - 48;
+        for (AbstractWidget w : scrollWidgets) {
+            int wy = w.getY();
+            w.visible = wy >= CONTENT_Y && wy + w.getHeight() <= contentBottom;
+        }
         super.render(g, mouseX, mouseY, partialTick);
-        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, 0xFFFFFF, false);
+        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
 
         int cx = tabX;
         for (int i = 0; i < cats.size(); i++) {
@@ -194,20 +213,20 @@ public class ServerConfigScreen extends Screen {
             boolean sel = i == selectedCat;
             boolean hover = mouseX >= cx && mouseX <= cx + w && mouseY >= TAB_Y && mouseY <= TAB_Y + 22;
             if (sel)
-                g.fill(cx, TAB_Y + 20, cx + w, TAB_Y + 22, 0xFF8888FF);
+                g.fill(cx, TAB_Y + 20, cx + w, TAB_Y + 22, Theme.accent());
             else if (hover)
-                g.fill(cx, TAB_Y, cx + w, TAB_Y + 22, 0x225A4A7E);
+                g.fill(cx, TAB_Y, cx + w, TAB_Y + 22, Theme.divider());
             g.drawString(font, label, cx + TAB_PAD, TAB_Y + 7,
-                sel ? 0xFF8888FF : 0xFFFFFFFF, false);
+                sel ? Theme.accent() : Theme.text(), false);
             cx += w + 6;
         }
 
-        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, 0x225A4A7E);
+        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
         int y = CONTENT_Y - scrollOffset;
         for (Opt opt : cats.get(selectedCat).opts()) {
-            if (y > -ROW_H && y < height) {
-                g.drawString(font, Component.translatable(opt.key()), optLabelX, y + 6, 0xFFFFFFFF, false);
+            if (y >= CONTENT_Y && y + ROW_H <= contentBottom) {
+                g.drawString(font, Component.translatable(opt.key()), optLabelX, y + 6, Theme.text(), false);
             }
             y += ROW_H;
         }
@@ -236,7 +255,7 @@ public class ServerConfigScreen extends Screen {
 
     private int calcMaxScroll() {
         int total = cats.get(selectedCat).opts().size() * ROW_H;
-        return Math.max(0, CONTENT_Y + total - (height - 42));
+        return Math.max(0, CONTENT_Y + total - (height - 48));
     }
 
     @Override

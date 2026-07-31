@@ -2,6 +2,7 @@ package cn.sarskin.ChatSphere.client.widget;
 
 import cn.sarskin.ChatSphere.client.emoji.EmojiEntry;
 import cn.sarskin.ChatSphere.client.emoji.EmojiRegistry;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -44,18 +45,18 @@ public class EmojiPanel {
 
         hoveredEmoji = null;
 
-        g.fill(panelX, panelY, panelX + PANEL_W, panelY + PANEL_H, 0xDD1E1E3E);
-        g.renderOutline(panelX, panelY, PANEL_W, PANEL_H, 0xFF5555AA);
+        g.fill(panelX, panelY, panelX + PANEL_W, panelY + PANEL_H, Theme.panelBg2());
+        g.renderOutline(panelX, panelY, PANEL_W, PANEL_H, Theme.emojiOutline());
 
         var font = Minecraft.getInstance().font;
 
         drawCategoryTabs(g, panelX, panelY, mouseX, mouseY);
 
         int searchY = panelY + CATEGORY_HEIGHT;
-        g.fill(panelX + 3, searchY + 1, panelX + PANEL_W - 3, searchY + SEARCH_HEIGHT - 1, 0x44111122);
+        g.fill(panelX + 3, searchY + 1, panelX + PANEL_W - 3, searchY + SEARCH_HEIGHT - 1, Theme.inputBg());
         String searchDisplay = editingFilter ? filterText + (System.currentTimeMillis() / 600 % 2 == 0 ? "|" : "") : (filterText.isEmpty()
                 ? Component.translatable("emoji.panel.search_hint").getString() : filterText);
-        int searchColor = filterText.isEmpty() ? 0xFF666666 : 0xFFFFFFFF;
+        int searchColor = filterText.isEmpty() ? Theme.searchPlaceholder() : Theme.text();
         g.drawString(font, searchDisplay, panelX + 6, searchY + 3, searchColor, false);
 
         int gridY = searchY + SEARCH_HEIGHT;
@@ -72,7 +73,7 @@ public class EmojiPanel {
             int ly = lineY + (i - startLine) * CELL;
             LineEntry line = lines.get(i);
             if (line.isCategory()) {
-                g.drawString(font, line.categoryName, panelX + 6, ly + 4, 0xFFAAAAAA, false);
+                g.drawString(font, line.categoryName, panelX + 6, ly + 4, Theme.textInactive(), false);
             } else {
                 EmojiEntry[] row = line.emojis;
                 for (int col = 0; col < row.length; col++) {
@@ -82,7 +83,7 @@ public class EmojiPanel {
                     int ey = ly;
                     boolean hover = mouseX >= ex && mouseX < ex + CELL && mouseY >= ey && mouseY < ey + CELL;
                     if (hover) {
-                        g.fill(ex, ey, ex + CELL, ey + CELL, 0x44446688);
+                        g.fill(ex, ey, ex + CELL, ey + CELL, Theme.emojiCellBg());
                         hoveredEmoji = e;
                     }
                     String pua = EmojiRegistry.puaChar(e);
@@ -98,12 +99,12 @@ public class EmojiPanel {
         g.disableScissor();
 
         int hintY = gridY + gridH;
-        g.fill(panelX + 2, hintY, panelX + PANEL_W - 2, hintY + HINT_HEIGHT, 0x44111122);
+        g.fill(panelX + 2, hintY, panelX + PANEL_W - 2, hintY + HINT_HEIGHT, Theme.inputBg());
         if (hoveredEmoji != null) {
             String hint = hoveredEmoji.unicode() + " " + hoveredEmoji.shortcode() + " \u00A77" + hoveredEmoji.name();
             g.drawString(font, hint, panelX + 5, hintY + 3, 0xFFFFCC00, false);
         } else {
-            g.drawString(font, Component.translatable("emoji.panel.emoji_count", EmojiRegistry.getAll().size()), panelX + 5, hintY + 3, 0xFF666666, false);
+            g.drawString(font, Component.translatable("emoji.panel.emoji_count", EmojiRegistry.getAll().size()), panelX + 5, hintY + 3, Theme.searchPlaceholder(), false);
         }
 
         int totalLineHeight = lines.size();
@@ -111,7 +112,7 @@ public class EmojiPanel {
         if (totalLineHeight > visLineCount) {
             int barH = Math.max(8, (visLineCount * gridH) / totalLineHeight);
             int barY = gridY + (scrollOffset * (gridH - barH)) / (totalLineHeight - visLineCount);
-            g.fill(panelX + PANEL_W - 3, barY, panelX + PANEL_W - 1, barY + barH, 0x885555AA);
+            g.fill(panelX + PANEL_W - 3, barY, panelX + PANEL_W - 1, barY + barH, Theme.scrollThumb());
         }
     }
 
@@ -182,9 +183,9 @@ public class EmojiPanel {
             boolean allSelected = selectedCategory == NO_CATEGORY;
             int tw = tabWidths[0];
             boolean hover = mouseX >= x && mouseX < x + tw && mouseY >= tabY && mouseY < tabY + tabH;
-            int bg = allSelected ? 0x664466AA : (hover ? 0x44333366 : 0x22000000);
+            int bg = allSelected ? Theme.emojiTabSel() : (hover ? Theme.emojiTabHover() : Theme.emojiTabBg());
             g.fill(x, tabY, x + tw, tabY + tabH, bg);
-            g.drawString(font, "\u00AB", x + (tw - font.width("\u00AB")) / 2, tabY + 2, allSelected ? 0xFFFFFF : 0xFFAAAAAA, false);
+            g.drawString(font, "\u00AB", x + (tw - font.width("\u00AB")) / 2, tabY + 2, allSelected ? Theme.text() : Theme.textInactive(), false);
             x += tw;
         }
         for (int i = 0; i < cats.size(); i++) {
@@ -193,9 +194,9 @@ public class EmojiPanel {
             boolean selected = i == selectedCategory;
             int tw = tabWidths[i + 1];
             boolean hover = mouseX >= x && mouseX < x + tw && mouseY >= tabY && mouseY < tabY + tabH;
-            int bg = selected ? 0x664466AA : (hover ? 0x44333366 : 0x22000000);
+            int bg = selected ? Theme.emojiTabSel() : (hover ? Theme.emojiTabHover() : Theme.emojiTabBg());
             g.fill(x, tabY, x + tw, tabY + tabH, bg);
-            g.drawString(font, label, x + 4, tabY + 2, selected ? 0xFFFFFF : 0xFFAAAAAA, false);
+            g.drawString(font, label, x + 4, tabY + 2, selected ? Theme.text() : Theme.textInactive(), false);
             x += tw;
         }
 

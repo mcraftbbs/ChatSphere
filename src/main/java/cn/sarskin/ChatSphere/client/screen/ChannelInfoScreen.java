@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -72,37 +73,43 @@ public class ChannelInfoScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
 
         // Title
-        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, 0xFFFFFF, false);
+        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
 
         // Separator
-        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, 0x225A4A7E);
+        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
         int y = CONTENT_Y + 4;
 
         // Display Name row
         Component dnLabel = Component.translatable("screen.chatsphere.channel_config.display_name");
-        g.drawString(font, dnLabel, optLabelX, y + 6, 0xFFFFFFFF, false);
+        g.drawString(font, dnLabel, optLabelX, y + 6, Theme.text(), false);
         Component dnVal = displayName.isEmpty()
             ? Component.translatable("screen.chatsphere.channel_info.no_display_name")
             : Component.literal(displayName);
-        g.drawString(font, dnVal, inputX, y + 6, 0xFF888888, false);
+        g.drawString(font, dnVal, inputX, y + 6, Theme.textDim(), false);
         y += ROW_H;
 
         // Description row
         Component descLabel = Component.translatable("screen.chatsphere.channel_config.description");
-        g.drawString(font, descLabel, optLabelX, y + 6, 0xFFFFFFFF, false);
+        g.drawString(font, descLabel, optLabelX, y + 6, Theme.text(), false);
         if (descLines.isEmpty()) {
             g.drawString(font, Component.translatable("screen.chatsphere.channel_info.no_description"),
-                inputX, y + 6, 0xFF888888, false);
+                inputX, y + 6, Theme.textDim(), false);
         } else {
             int lineH = font.lineHeight + 2;
             int dy = y + 4;
             for (FormattedCharSequence line : descLines) {
-                g.drawString(font, line, inputX, dy, 0xFF888888, false);
+                g.drawString(font, line, inputX, dy, Theme.textDim(), false);
                 dy += lineH;
             }
         }
@@ -112,12 +119,12 @@ public class ChannelInfoScreen extends Screen {
         Component memberInfo = Component.translatable("screen.chatsphere.channel_config.member_count", memberCount)
             .copy().append("  ")
             .append(Component.translatable("screen.chatsphere.channel_config.online_member_count", onlineCount));
-        g.drawString(font, memberInfo, optLabelX, y + 6, 0xFFAAAAAA, false);
+        g.drawString(font, memberInfo, optLabelX, y + 6, Theme.textInactive(), false);
         y += ROW_H;
 
         // Admin count row
         Component adminInfo = Component.translatable("screen.chatsphere.channel_config.admin_count", adminCount);
-        g.drawString(font, adminInfo, optLabelX, y + 6, 0xFFAAAAAA, false);
+        g.drawString(font, adminInfo, optLabelX, y + 6, Theme.textInactive(), false);
     }
 
     @Override

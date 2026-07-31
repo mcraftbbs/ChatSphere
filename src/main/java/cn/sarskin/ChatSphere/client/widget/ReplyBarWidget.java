@@ -2,6 +2,7 @@ package cn.sarskin.ChatSphere.client.widget;
 
 import cn.sarskin.ChatSphere.ModMain;
 import cn.sarskin.ChatSphere.client.emoji.EmojiRegistry;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -22,12 +23,12 @@ public class ReplyBarWidget {
         int barW = screenWidth - sidebarWidth - 20;
         if (showRight) barW -= rightSidebarWidth;
 
-        g.fill(sidebarWidth + 4, barY, sidebarWidth + 4 + barW, barY + BAR_HEIGHT, 0xCC333355);
+        g.fill(sidebarWidth + 4, barY, sidebarWidth + 4 + barW, barY + BAR_HEIGHT, Theme.replyBarBg());
         String raw = Component.translatable("screen.chatsphere.reply.prefix", replySender, replyText).getString();
         String truncated = font.plainSubstrByWidth(raw, barW - 20 - CANCEL_SIZE);
         Component emojiComponent = EmojiRegistry.toComponent(truncated);
         int emojiOff = EmojiRegistry.containsPua(emojiComponent) ? EmojiRegistry.EMOJI_Y_OFFSET : 0;
-        g.drawString(font, emojiComponent, sidebarWidth + 6, barY + (BAR_HEIGHT - font.lineHeight) / 2 + emojiOff, 0xFF8888FF, false);
+        g.drawString(font, emojiComponent, sidebarWidth + 6, barY + (BAR_HEIGHT - font.lineHeight) / 2 + emojiOff, Theme.accent(), false);
 
         int cancelX = sidebarWidth + 4 + barW - BAR_HEIGHT + (BAR_HEIGHT - CANCEL_SIZE) / 2;
         int cancelY = barY + (BAR_HEIGHT - CANCEL_SIZE) / 2;

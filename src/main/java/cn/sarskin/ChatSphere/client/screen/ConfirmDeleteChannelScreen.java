@@ -1,5 +1,6 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import net.minecraft.client.gui.GuiGraphics;
@@ -88,17 +89,17 @@ public class ConfirmDeleteChannelScreen extends Screen {
         int popupX = (width - POPUP_WIDTH) / 2;
         int popupY = (height - POPUP_HEIGHT) / 2;
 
-        g.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, 0xCC1A1A2E);
-        g.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, 0xFF4444AA);
+        g.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, Theme.popupBg3());
+        g.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline2());
 
         String title = this.title.getString();
-        g.drawString(font, title, popupX + (POPUP_WIDTH - font.width(title)) / 2, popupY + 8, 0xFFFFFFFF, false);
+        g.drawString(font, title, popupX + (POPUP_WIDTH - font.width(title)) / 2, popupY + 8, Theme.text(), false);
 
         Component warn = Component.translatable(leaveMode ? "screen.chatsphere.confirm_leave.warning" : "screen.chatsphere.confirm_delete.warning");
         g.drawString(font, warn, popupX + 10, popupY + 34, 0xFFFF6666, false);
 
         Component hint = Component.translatable(leaveMode ? "screen.chatsphere.confirm_leave.hint" : "screen.chatsphere.confirm_delete.hint");
-        g.drawString(font, hint, popupX + 10, popupY + 50, 0xFFAAAAAA, false);
+        g.drawString(font, hint, popupX + 10, popupY + 50, Theme.textInactive(), false);
 
         super.render(g, mouseX, mouseY, partialTick);
     }
@@ -125,5 +126,6 @@ public class ConfirmDeleteChannelScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
         super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }
 }

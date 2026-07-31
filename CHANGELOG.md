@@ -1,3 +1,25 @@
+## 2.1.1
+
+### Added
+- Corner style system — square / pixel-rounded / original, applied to all UI components in real time
+- Dedicated "Corner Style" config category with three selectable cards, each showing a live miniature preview that scales with window size; click to apply immediately
+- Background blur toggle for config and list screens (`backgroundBlur`)
+- Pixel-rounded corners via per-pixel coverage rendering (1px transition)
+- Pending server config queue — toggling server options (strong hint, anti-spam, enable channels, etc.) from the mod list menu no longer requires a loaded world; changes are staged and applied on joining a world (singleplayer: written to config file; multiplayer: sent via config update packet)
+
+### Changed
+- Config screen reorganized into 6 categories; advanced settings grouped into collapsible sections
+- Original style preserves the UI appearance of versions below this one, kept as a retro option
+- Toggle widgets keep their rounded slider look in all corner styles
+- Config/list screens use `screenBg` layered over the vanilla blur
+- Popup outlines neutralized (no longer purple solid line)
+- Floating text on the chat screen (title, time separators, empty search result) and chat/search inputs locked to light colors so they stay readable in light mode
+- Config page option rows fully clipped to the content area — scrolling can no longer draw rows above the category bar or below the action buttons
+
+### Fixed
+- Crash when toggling server-side options from the mod list menu before joining a world
+- Option labels/buttons rendering outside the clipped content area
+
 ## 2.1.0
 
 ### Added

@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
@@ -108,11 +109,17 @@ public class ExploreServersScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
 
-        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, 0xFFFFFF, false);
-        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, 0x225A4A7E);
+        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
+        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         List<ClientboundPublicChannelListPayload.PublicChannelEntry> data =
@@ -124,14 +131,14 @@ public class ExploreServersScreen extends Screen {
             }
             Component loading = Component.translatable("screen.chatsphere.explore.loading");
             g.drawString(font, loading, width / 2 - font.width(loading) / 2,
-                    height / 2 - 10, 0xFF888888, false);
+                    height / 2 - 10, Theme.textDim(), false);
             return;
         }
 
         if (data.isEmpty()) {
             Component empty = Component.translatable("screen.chatsphere.explore.empty");
             g.drawString(font, empty, width / 2 - font.width(empty) / 2,
-                    height / 2 - 10, 0xFF888888, false);
+                    height / 2 - 10, Theme.textDim(), false);
             return;
         }
 
@@ -141,7 +148,7 @@ public class ExploreServersScreen extends Screen {
         }
 
         Component info = Component.translatable("screen.chatsphere.explore.count", data.size());
-        g.drawString(font, info, 30, CONTENT_Y + 4, 0xFF888888, false);
+        g.drawString(font, info, 30, CONTENT_Y + 4, Theme.textDim(), false);
 
         int y = CONTENT_Y + ROW_H;
         for (int i = 0; i < rows.size(); i++) {
@@ -150,25 +157,25 @@ public class ExploreServersScreen extends Screen {
             if (ry < CONTENT_Y - ROW_H || ry > height) continue;
 
             boolean hover = mouseY >= ry && mouseY < ry + ROW_H && mouseX >= 10 && mouseX <= width - 10;
-            if (hover) g.fill(10, ry, width - 10, ry + ROW_H, 0x22333388);
+            if (hover) g.fill(10, ry, width - 10, ry + ROW_H, Theme.hoverRow());
 
             var entry = r.entry;
 
             // Channel name
             g.drawString(font, Component.literal(entry.displayName()),
-                    14, ry + 3, 0xFFFFFFFF, false);
+                    14, ry + 3, Theme.text(), false);
 
             // Description (truncated to ~50 chars)
             String desc = entry.description() != null && !entry.description().isEmpty()
                     ? entry.description() : "";
             if (desc.length() > 50) desc = desc.substring(0, 47) + "...";
             g.drawString(font, Component.literal(desc),
-                    14, ry + 14, 0xFF888888, false);
+                    14, ry + 14, Theme.textDim(), false);
 
             // Member / online count
             Component countInfo = Component.translatable(
                     "screen.chatsphere.explore.member_count", entry.memberCount(), entry.onlineCount());
-            g.drawString(font, countInfo, 14, ry + 25, 0xFFAAAAAA, false);
+            g.drawString(font, countInfo, 14, ry + 25, Theme.textInactive(), false);
 
             // Join button is positioned by repositionWidgets
         }

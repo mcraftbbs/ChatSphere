@@ -3,6 +3,7 @@ package cn.sarskin.ChatSphere.client.screen;
 import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import net.minecraft.client.Minecraft;
@@ -135,14 +136,14 @@ public class InvitePlayerScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
 
-        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, 0xFFFFFF, false);
-        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, 0x225A4A7E);
+        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
+        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
         int totalOnline = rows.size();
         long invitedCount = rows.stream().filter(r -> r.invited).count();
         Component info = Component.translatable("screen.chatsphere.invite_player.info_count",
             totalOnline, invitedCount);
-        g.drawString(font, info, 30, CONTENT_Y + 4, 0xFF888888, false);
+        g.drawString(font, info, 30, CONTENT_Y + 4, Theme.textDim(), false);
 
         int y = CONTENT_Y + ROW_H;
         for (int i = 0; i < rows.size(); i++) {
@@ -153,17 +154,17 @@ public class InvitePlayerScreen extends Screen {
             int bg = r.inChannel
                 ? 0x22222266
                 : (mouseY >= ry && mouseY < ry + ROW_H && mouseX >= 10 && mouseX <= width - 10
-                    ? 0x22333388 : 0x00000000);
+                    ? Theme.hoverRow() : 0x00000000);
             if (bg != 0) g.fill(10, ry, width - 10, ry + ROW_H, bg);
 
             drawPlayerHead(g, r.uuid, 14, ry + 5, 10);
 
-            int textColor = r.inChannel ? 0xFF666666 : 0xFFCCCCCC;
+            int textColor = r.inChannel ? Theme.textDim() : Theme.textMain();
             g.drawString(font, r.name, 28, ry + 4, textColor, false);
 
             if (r.inChannel) {
                 g.drawString(font, Component.translatable("screen.chatsphere.invite_player.status_member"),
-                    width - 72, ry + 4, 0xFF666666, false);
+                    width - 72, ry + 4, Theme.textDim(), false);
             }
         }
     }
@@ -207,6 +208,7 @@ public class InvitePlayerScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
         super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }
 
     private static class InviteRow {

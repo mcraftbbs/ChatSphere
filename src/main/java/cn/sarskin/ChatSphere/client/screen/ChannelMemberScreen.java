@@ -3,6 +3,7 @@ package cn.sarskin.ChatSphere.client.screen;
 import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import net.minecraft.client.Minecraft;
@@ -205,8 +206,8 @@ public class ChannelMemberScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
-        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, 0xFFFFFF, false);
-        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, 0x225A4A7E);
+        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
+        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
         int online = 0;
         if (minecraft != null && minecraft.getConnection() != null) {
@@ -216,7 +217,7 @@ public class ChannelMemberScreen extends Screen {
         }
         g.drawString(font, Component.translatable("screen.chatsphere.channel_member.info_count",
             config.members.size(), online, config.admins.size(), config.mutedPlayers.size()),
-            30, CONTENT_Y + 4, 0xFF888888, false);
+            30, CONTENT_Y + 4, Theme.textDim(), false);
 
         int y = CONTENT_Y + ROW_H;
         for (int i = 0; i < rows.size(); i++) {
@@ -225,7 +226,7 @@ public class ChannelMemberScreen extends Screen {
             if (ry < CONTENT_Y - ROW_H || ry > height) continue;
 
             boolean hovered = mouseX >= 10 && mouseX <= width - 10 && mouseY >= ry && mouseY < ry + ROW_H;
-            int bg = r.isOwner ? 0x226644AA : (r.isSelf ? 0x22446688 : (hovered ? 0x22333388 : 0));
+            int bg = r.isOwner ? 0x226644AA : (r.isSelf ? 0x22446688 : (hovered ? Theme.hoverRow() : 0));
             if (bg != 0) g.fill(10, ry, width - 10, ry + ROW_H, bg);
 
             drawPlayerHead(g, r.uuid, 14, ry + 6, 10);
@@ -235,10 +236,10 @@ public class ChannelMemberScreen extends Screen {
             int dotColor = isOnline ? 0xFF44FF44 : 0xFF666666;
             g.fill(28, ry + 11, 34, ry + 17, dotColor);
 
-            int nameColor = r.group == Group.OWNER ? 0xFFAA88FF : (r.isSelf ? 0xFFFFFF88 : 0xFFCCCCCC);
+            int nameColor = r.group == Group.OWNER ? 0xFFAA88FF : (r.isSelf ? 0xFFFFFF88 : Theme.textMain());
             g.drawString(font, r.name, 38, ry + 3, nameColor, false);
             String uuidText = r.uuid.substring(0, Math.min(8, r.uuid.length()));
-            g.drawString(font, uuidText, 38, ry + 13, 0xFF555555, false);
+            g.drawString(font, uuidText, 38, ry + 13, Theme.textFaint(), false);
 
             // group label next to uuid
             Component groupLabel = getGroupLabel(r);
@@ -329,6 +330,7 @@ public class ChannelMemberScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
         super.renderBackground(g, mx, my, pt);
+        g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }
 
     // ---- inner types ----

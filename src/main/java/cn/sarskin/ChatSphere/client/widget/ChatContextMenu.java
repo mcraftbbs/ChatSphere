@@ -1,5 +1,6 @@
 package cn.sarskin.ChatSphere.client.widget;
 
+import cn.sarskin.ChatSphere.client.ui.Theme;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -23,15 +24,15 @@ public class ChatContextMenu {
         int menuY = contextY - menuH;
         if (menuY < 20) menuY = contextY + 4;
 
-        g.fill(menuX, menuY, menuX + W, menuY + menuH, 0xDD2A2A4E);
-        g.renderOutline(menuX, menuY, W, menuH, 0xFF6666AA);
+        g.fill(menuX, menuY, menuX + W, menuY + menuH, Theme.panelBg());
+        g.renderOutline(menuX, menuY, W, menuH, Theme.popupOutline());
 
         boolean hoverCopy = mouseY >= menuY && mouseY <= menuY + ITEM_H;
-        g.fill(menuX + 1, menuY + 1, menuX + W - 1, menuY + ITEM_H + 1, hoverCopy ? 0x44448888 : 0);
+        g.fill(menuX + 1, menuY + 1, menuX + W - 1, menuY + ITEM_H + 1, hoverCopy ? Theme.menuHover() : 0);
         g.drawString(font, Component.translatable("screen.chatsphere.context.copy"), menuX + 8, menuY + 3, 0xCCCCCC, false);
 
         boolean hoverReply = mouseY >= menuY + ITEM_H + 2 && mouseY <= menuY + ITEM_H * 2 + 2;
-        g.fill(menuX + 1, menuY + ITEM_H + 2, menuX + W - 1, menuY + ITEM_H * 2 + 2, hoverReply ? 0x44448888 : 0);
+        g.fill(menuX + 1, menuY + ITEM_H + 2, menuX + W - 1, menuY + ITEM_H * 2 + 2, hoverReply ? Theme.menuHover() : 0);
         g.drawString(font, Component.translatable("screen.chatsphere.context.reply"), menuX + 8, menuY + ITEM_H + 4, 0xCCCCCC, false);
     }
 
