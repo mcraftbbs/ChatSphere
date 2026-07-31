@@ -666,13 +666,16 @@ public class ModServerChannels {
     private static void pruneBackups(Path backupDir) {
         try {
             if (!Files.exists(backupDir)) return;
-            List<Path> sorted = Files.list(backupDir)
-                    .filter(p -> p.toString().endsWith(".json"))
-                    .sorted(Comparator.comparingLong(p -> {
-                        try { return Files.getLastModifiedTime(p).toMillis(); }
-                        catch (IOException e) { return 0; }
-                    }))
-                    .collect(Collectors.toList());
+            List<Path> sorted;
+            try (var stream = Files.list(backupDir)) {
+                sorted = stream
+                        .filter(p -> p.toString().endsWith(".json"))
+                        .sorted(Comparator.comparingLong(p -> {
+                            try { return Files.getLastModifiedTime(p).toMillis(); }
+                            catch (IOException e) { return 0; }
+                        }))
+                        .collect(Collectors.toList());
+            }
             while (sorted.size() > cn.sarskin.ChatSphere.config.ModServerConfig.CONFIG.backupKeepMax.get()) {
                 Path oldest = sorted.remove(0);
                 Files.deleteIfExists(oldest);

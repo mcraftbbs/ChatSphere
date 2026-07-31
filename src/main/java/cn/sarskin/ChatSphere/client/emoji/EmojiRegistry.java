@@ -508,12 +508,12 @@ public class EmojiRegistry {
 
     public static int puaStart() { return PUA_START; }
 
-    private static String matchPua(String text, int pos) {
+    private static UnicodeEntry matchUnicodeEntry(String text, int pos) {
         int cp = text.codePointAt(pos);
         List<UnicodeEntry> candidates = UNICODE_CANDIDATES.get(cp);
         if (candidates != null) {
             for (UnicodeEntry ue : candidates) {
-                if (text.startsWith(ue.unicode(), pos)) return ue.pua;
+                if (text.startsWith(ue.unicode(), pos)) return ue;
             }
         }
         return null;
@@ -557,21 +557,30 @@ public class EmojiRegistry {
             int cp = text.codePointAt(i);
             int charCount = Character.charCount(cp);
             boolean isPua = cp >= PUA_START && cp <= PUA_START + ALL.size();
-            String puaStr = isPua ? text.substring(i, i + charCount) : matchPua(text, i);
-            if (puaStr != null) {
+            UnicodeEntry ue = isPua ? null : matchUnicodeEntry(text, i);
+            if (isPua) {
+                String puaStr = text.substring(i, i + charCount);
                 if (result == null) {
                     result = Component.literal(puaStr).withStyle(EMOJI_STYLE);
                 } else {
                     result.append(Component.literal(puaStr).withStyle(EMOJI_STYLE));
                 }
+                i += charCount;
+            } else if (ue != null) {
+                if (result == null) {
+                    result = Component.literal(ue.pua()).withStyle(EMOJI_STYLE);
+                } else {
+                    result.append(Component.literal(ue.pua()).withStyle(EMOJI_STYLE));
+                }
+                i += ue.unicode().length();
             } else {
                 if (result == null) {
                     result = Component.literal(text.substring(i, i + charCount));
                 } else {
                     result.append(Component.literal(text.substring(i, i + charCount)));
                 }
+                i += charCount;
             }
-            i += charCount;
         }
         return result != null ? result : Component.literal("");
     }
@@ -586,22 +595,24 @@ public class EmojiRegistry {
             int cp = withPua.codePointAt(i);
             int charCount = Character.charCount(cp);
             boolean isPua = cp >= PUA_START && cp <= PUA_START + ALL.size();
-            String puaStr = isPua ? withPua.substring(i, i + charCount) : matchPua(withPua, i);
-            if (puaStr != null) {
-                parts.add(FormattedCharSequence.forward(puaStr, EMOJI_STYLE));
+            UnicodeEntry ue = isPua ? null : matchUnicodeEntry(withPua, i);
+            if (isPua) {
+                parts.add(FormattedCharSequence.forward(withPua.substring(i, i + charCount), EMOJI_STYLE));
+                i += charCount;
+            } else if (ue != null) {
+                parts.add(FormattedCharSequence.forward(ue.pua(), EMOJI_STYLE));
+                i += ue.unicode().length();
             } else {
                 int start = i;
                 while (i < len) {
                     cp = withPua.codePointAt(i);
                     charCount = Character.charCount(cp);
                     boolean isPuaInner = cp >= PUA_START && cp <= PUA_START + ALL.size();
-                    if (isPuaInner || matchPua(withPua, i) != null) break;
+                    if (isPuaInner || matchUnicodeEntry(withPua, i) != null) break;
                     i += charCount;
                 }
                 parts.add(FormattedCharSequence.forward(withPua.substring(start, i), Style.EMPTY));
-                continue;
             }
-            i += charCount;
         }
         return FormattedCharSequence.composite(parts);
     }

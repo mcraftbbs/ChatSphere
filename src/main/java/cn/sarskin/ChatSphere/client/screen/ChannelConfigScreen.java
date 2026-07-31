@@ -255,6 +255,9 @@ public class ChannelConfigScreen extends Screen {
 
         buildCats();
 
+        if (configChangeListener != null) {
+            ChatHistoryManager.getInstance().removeChannelConfigChangeListener(configChangeListener);
+        }
         configChangeListener = () -> {
             ChatDataStore.ChannelConfig latest = ChatHistoryManager.getInstance().getChannelConfig(channelId);
             if (latest != config) {

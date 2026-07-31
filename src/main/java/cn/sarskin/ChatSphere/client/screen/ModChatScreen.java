@@ -1690,9 +1690,15 @@ public class ModChatScreen extends Screen {
         }
 
         if (isCommand) {
-            boolean isVoice = msg.content().getString().startsWith("VoiceMessage#");
-            if (isVoice && ModVoiceMessagesIntegration.isVoiceMessagesLoaded()) {
-                java.util.UUID vmUuid = java.util.UUID.fromString(msg.content().getString().substring("VoiceMessage#".length()));
+            boolean isVoice = false;
+            java.util.UUID vmUuid = null;
+            if (msg.content().getString().startsWith("VoiceMessage#") && ModVoiceMessagesIntegration.isVoiceMessagesLoaded()) {
+                try {
+                    vmUuid = java.util.UUID.fromString(msg.content().getString().substring("VoiceMessage#".length()));
+                    isVoice = true;
+                } catch (Exception ignored) {}
+            }
+            if (isVoice) {
                 int vmBg = 0x00000000;
                 int vmH = 20;
                 int vmY = textY;
@@ -1734,9 +1740,15 @@ public class ModChatScreen extends Screen {
             int textColor = msg.isOwn() ? 0xFFF0F0F0 : 0xFF1A1A1A;
             guiGraphics.drawString(mc.font, infoLine, textX, textY, 0xFF555555, false);
             textY += lineH + 1;
-            boolean isVoice = msg.content().getString().startsWith("VoiceMessage#");
-            if (isVoice && ModVoiceMessagesIntegration.isVoiceMessagesLoaded()) {
-                java.util.UUID vmUuid = java.util.UUID.fromString(msg.content().getString().substring("VoiceMessage#".length()));
+            boolean isVoice = false;
+            java.util.UUID vmUuid = null;
+            if (msg.content().getString().startsWith("VoiceMessage#") && ModVoiceMessagesIntegration.isVoiceMessagesLoaded()) {
+                try {
+                    vmUuid = java.util.UUID.fromString(msg.content().getString().substring("VoiceMessage#".length()));
+                    isVoice = true;
+                } catch (Exception ignored) {}
+            }
+            if (isVoice) {
                 int vmBg = msg.isOwn() ? 0x44000000 : 0x44FFFFFF;
                 Object pp = voicePlayerCache.computeIfAbsent(vmUuid, u -> ModVoiceMessagesIntegration.createPlaybackPlayer(u, vmBg));
                 if (pp != null) {
