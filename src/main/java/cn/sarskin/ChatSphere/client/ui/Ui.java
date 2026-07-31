@@ -2,8 +2,13 @@ package cn.sarskin.ChatSphere.client.ui;
 
 import net.minecraft.client.gui.GuiGraphics;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public final class Ui {
     private Ui() {}
+
+    private static final Map<Integer, int[]> CORNER_ALPHA_CACHE = new HashMap<>();
 
     public static void fillRoundedRect(GuiGraphics g, int x, int y, int w, int h, int r, int color) {
         switch (Theme.cornerStyle()) {
@@ -37,10 +42,6 @@ public final class Ui {
     }
 
     private static void fillPixelRounded(GuiGraphics g, int x, int y, int w, int h, int r, int color) {
-        fillCoverageRounded(g, x, y, w, h, r, color, 1.0);
-    }
-
-    private static void fillCoverageRounded(GuiGraphics g, int x, int y, int w, int h, int r, int color, double band) {
         r = Math.min(r, Math.min(w, h) / 2);
         if (r <= 0) {
             g.fill(x, y, x + w, y + h, color);
@@ -53,28 +54,38 @@ public final class Ui {
         g.fill(x + r, y1 - r, x1 - r, y1, color);
         g.fill(x, y + r, x + r, y1 - r, color);
         g.fill(x1 - r, y + r, x1, y1 - r, color);
+        int[] alphas = cornerAlphas(r);
+        int colorA = color >>> 24;
         for (int dy = 0; dy < r; dy++) {
-            double v = r - dy - 0.5;
             int topY = y + dy;
             int botY = y1 - 1 - dy;
             for (int col = 0; col < r; col++) {
-                double dx = r - col - 0.5;
-                double d = Math.sqrt(dx * dx + v * v);
-                int a = coverAlpha(color, r, d, band);
-                g.fill(x + col, topY, x + col + 1, topY + 1, a);
-                g.fill(x1 - 1 - col, topY, x1 - col, topY + 1, a);
-                g.fill(x + col, botY, x + col + 1, botY + 1, a);
-                g.fill(x1 - 1 - col, botY, x1 - col, botY + 1, a);
+                int a = (colorA * alphas[dy * r + col]) / 255;
+                if (a == 0) continue;
+                int ac = (a << 24) | (color & 0x00FFFFFF);
+                g.fill(x + col, topY, x + col + 1, topY + 1, ac);
+                g.fill(x1 - 1 - col, topY, x1 - col, topY + 1, ac);
+                g.fill(x + col, botY, x + col + 1, botY + 1, ac);
+                g.fill(x1 - 1 - col, botY, x1 - col, botY + 1, ac);
             }
         }
     }
 
-    private static int coverAlpha(int color, int r, double dist, double band) {
-        double t = (r + band - 0.5 - dist) / band;
-        double a = Math.max(0.0, Math.min(1.0, t));
-        if (a <= 0.001) return 0;
-        int alpha = (int) ((color >>> 24) * a);
-        return (alpha << 24) | (color & 0x00FFFFFF);
+    private static int[] cornerAlphas(int r) {
+        int[] cached = CORNER_ALPHA_CACHE.get(r);
+        if (cached != null) return cached;
+        int[] table = new int[r * r];
+        for (int dy = 0; dy < r; dy++) {
+            double v = r - dy - 0.5;
+            for (int col = 0; col < r; col++) {
+                double dx = r - col - 0.5;
+                double d = Math.sqrt(dx * dx + v * v);
+                double a = Math.max(0.0, Math.min(1.0, r + 0.5 - d));
+                table[dy * r + col] = (int) (255 * a);
+            }
+        }
+        CORNER_ALPHA_CACHE.put(r, table);
+        return table;
     }
 
     private static void fillOriginalRounded(GuiGraphics g, int x, int y, int w, int h, int r, int color) {

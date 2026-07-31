@@ -201,7 +201,7 @@ public class ServerConfigScreen extends Screen {
         int contentBottom = height - 48;
         for (AbstractWidget w : scrollWidgets) {
             int wy = w.getY();
-            w.visible = wy >= CONTENT_Y && wy + w.getHeight() <= contentBottom;
+            w.visible = wy >= CONTENT_Y && wy + ROW_H <= contentBottom;
         }
         super.render(g, mouseX, mouseY, partialTick);
         g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);

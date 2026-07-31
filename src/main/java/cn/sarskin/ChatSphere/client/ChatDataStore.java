@@ -76,6 +76,15 @@ public class ChatDataStore {
     public static SavedData load() {
         migrateIfNeeded();
         Path path = getDataPath();
+        Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+        if (!Files.exists(path) && Files.exists(tmp)) {
+            try {
+                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.info("Recovered chat data from interrupted save");
+            } catch (IOException e) {
+                LOGGER.error("Failed to recover temp data file", e);
+            }
+        }
         if (!Files.exists(path)) return new SavedData();
         try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             JsonObject obj = GSON.fromJson(reader, JsonObject.class);
@@ -93,13 +102,27 @@ public class ChatDataStore {
 
     public static void save(SavedData data) {
         Path path = getDataPath();
+        Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
         try {
             Files.createDirectories(path.getParent());
-            try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) {
                 GSON.toJson(toJson(data), writer);
             }
+            moveAtomically(tmp, path);
         } catch (Exception e) {
             LOGGER.error("Failed to save chat data", e);
+        }
+    }
+
+    private static void moveAtomically(Path tmp, Path target) {
+        try {
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            try {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e2) {
+                LOGGER.error("Failed to move temp data file into place", e2);
+            }
         }
     }
 

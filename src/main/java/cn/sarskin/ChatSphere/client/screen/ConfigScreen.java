@@ -171,10 +171,10 @@ public class ConfigScreen extends Screen {
         int availW = width - margin * 2;
         int cardW = Math.max(90, Math.min(150, (availW - gap * 2) / 3));
         int avail = (height - 48) - CONTENT_Y;
-        int cardH = Math.min(152, Math.max(120, avail - 16));
+        int cardH = Math.max(80, Math.min(152, avail - 8));
         int totalW = cardW * 3 + gap * 2;
         int startX = (width - totalW) / 2;
-        int cardY = CONTENT_Y + Math.max(8, (avail - cardH) / 2);
+        int cardY = CONTENT_Y + Math.max(6, (avail - cardH) / 2);
         return new int[] { cardW, cardH, gap, startX, cardY };
     }
 
@@ -192,7 +192,7 @@ public class ConfigScreen extends Screen {
                 Ui.fillRoundedRect(g, cx, cardY, cardW, 20, 6, 0x336666DD);
             }
             int prevY = cardY + 24;
-            int prevH = Math.max(36, cardH - 70);
+            int prevH = Math.max(20, cardH - 70);
             drawCornerPreview(g, cx + 10, prevY, cardW - 20, prevH, i);
             Component name = Component.translatable("config.chatsphere.corner_style." + i);
             int nameY = prevY + prevH + 5;
@@ -421,7 +421,7 @@ public class ConfigScreen extends Screen {
         int contentBottom = height - 48;
         for (AbstractWidget w : scrollWidgets) {
             int wy = w.getY();
-            w.visible = wy >= CONTENT_Y && wy + w.getHeight() <= contentBottom;
+            w.visible = wy >= CONTENT_Y && wy + ROW_H <= contentBottom;
         }
         super.render(g, mouseX, mouseY, partialTick);
         g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);

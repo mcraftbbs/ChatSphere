@@ -387,5 +387,6 @@ Version: `"1.0"`. All payloads use NeoForge custom packet API (`CustomPacketPayl
 ## Credits
 
 - **Author:** xwwsdd
+- **Contributors:** [Spagles](https://github.com/Spagles) — voice message parsing crash fix, file/listener leak fixes, emoji rendering glitch fixes (PR #1)
 - **Emoji:** [twemoji](https://twemoji.twitter.com/) by Twitter (CC-BY 4.0)
 - **License:** GNU LGPLv3

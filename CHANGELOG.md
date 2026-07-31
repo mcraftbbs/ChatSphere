@@ -10,15 +10,25 @@
 ### Changed
 - Config screen reorganized into 6 categories; advanced settings grouped into collapsible sections
 - Original style preserves the UI appearance of versions below this one, kept as a retro option
-- Toggle widgets keep their rounded slider look in all corner styles
+- Toggle slider shape follows the selected corner style (square in square mode, rounded in pixel-rounded mode)
 - Config/list screens use `screenBg` layered over the vanilla blur
 - Popup outlines neutralized (no longer purple solid line)
 - Floating text on the chat screen (title, time separators, empty search result) and chat/search inputs locked to light colors so they stay readable in light mode
 - Config page option rows fully clipped to the content area — scrolling can no longer draw rows above the category bar or below the action buttons
+- Pixel-rounded corners use a cached corner alpha table — per-pixel distance math replaced with table lookup, fully transparent pixels skipped
+- Chat data file saved atomically (temp file + atomic move, cross-platform fallback) — interrupted saves can no longer corrupt data, recovery on next launch
 
 ### Fixed
 - Crash when toggling server-side options from the mod list menu before joining a world
 - Option labels/buttons rendering outside the clipped content area
+- Voice message parsing crash — invalid/non-UUID message IDs no longer crash the chat screen (PR #1)
+- File stream leak in backup pruning — `Files.list` now closed properly (PR #1)
+- Channel config screen registered a duplicate config change listener on reopen (PR #1)
+- Multi-codepoint emoji (ZWJ sequences etc.) now parse correctly — parser advances by full Unicode sequence, not single code point (PR #1)
+- Corner style picker cards overflowed the content area on small windows — card height/preview bounds fixed
+
+### Credits
+- Special thanks to [Spagles](https://github.com/Spagles) for contributing PR #1 — voice message parsing crash fix, file/listener leak fixes, and emoji rendering glitch fixes
 
 ## 2.1.0
 

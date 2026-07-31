@@ -23,13 +23,14 @@ public class UiToggle extends AbstractWidget {
 
     @Override
     public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        int style = Theme.cornerStyle();
         int trackH = Math.min(12, height - 4);
         int trackY = getY() + (height - trackH) / 2;
         int trackColor = state ? Theme.toggleOn() : Theme.toggleOff();
-        Ui.fillRoundedRectStyle(g, 1, getX(), trackY, width, trackH, trackH / 2, trackColor);
+        Ui.fillRoundedRectStyle(g, style, getX(), trackY, width, trackH, trackH / 2, trackColor);
         int knob = trackH - 4;
         int knobX = state ? getX() + width - knob - 2 : getX() + 2;
-        Ui.fillRoundedRectStyle(g, 1, knobX, trackY + 2, knob, knob, knob / 2, Theme.toggleKnob());
+        Ui.fillRoundedRectStyle(g, style, knobX, trackY + 2, knob, knob, knob / 2, Theme.toggleKnob());
     }
 
     @Override
