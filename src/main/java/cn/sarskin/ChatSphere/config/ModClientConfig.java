@@ -40,6 +40,8 @@ public class ModClientConfig {
     public final ModConfigSpec.BooleanValue allowVanillaConnection;
     public final ModConfigSpec.BooleanValue voiceCacheEnabled;
     public final ModConfigSpec.IntValue voiceCacheMaxAgeHours;
+    public final ModConfigSpec.BooleanValue customThemeActive;
+    public final ModConfigSpec.ConfigValue<String> customThemeFile;
 
     static {
         Pair<ModClientConfig, ModConfigSpec> pair = new ModConfigSpec.Builder().configure(ModClientConfig::new);
@@ -153,6 +155,15 @@ public class ModClientConfig {
         voiceCacheMaxAgeHours = builder
                 .comment("Maximum age in hours for cached voice messages before cleanup")
                 .defineInRange("voiceCacheMaxAgeHours", 24, 1, 168);
+        builder.pop();
+
+        builder.push("theme");
+        customThemeActive = builder
+                .comment("Enable the custom theme from config/chatsphere/themes")
+                .define("customThemeActive", false);
+        customThemeFile = builder
+                .comment("Active custom theme file (must end with .ctheme)")
+                .define("customThemeFile", "");
         builder.pop();
     }
 

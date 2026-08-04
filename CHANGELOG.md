@@ -1,3 +1,28 @@
+## 2.1.2
+
+### Added
+- Custom theme system: `.ctheme` files in `config/chatsphere/themes/` — `dark`/`light` color blocks, `styles` numeric block, `animations` block; white-listed keys, strict parsing, size/property limits, rejected themes keep the previous one
+- All built-in colors overridable per dark/light mode; new numerics: bubble gradient, sidebar width, message line spacing, avatar radius, blur intensity
+- Three bundled style presets as editable `.ctheme` files (auto-installed on first run); `uiCornerStyle` editable from the config screen
+- `colorSeed` tonal derivation: unset colors derive harmonized tints from one seed; explicit colors always win
+- Custom Themes gallery screen (Config -> Custom Theme -> Browse): real-color preview cards, enable toggle
+- Animations now render: `messageSlideIn`, `bubblePopIn`, `notificationPulse`, with configurable duration and easing
+- Config screen linkage — bubble corner radius, bubble colors and the corner style cards write through to the active theme file (presets and custom themes included)
+- Command console unread badge — the sidebar console entry shows the same digit count as the HUD icon for new command output
+
+### Changed
+- Background blur switched from the vanilla post-effect shader to a self-drawn GL blit blur (no global post slot, Iris-friendly)
+- Voice playback cache bounded (LRU, 256 entries)
+- Parsed item stacks cached — the HUD no longer re-deserializes item NBT per frame
+- Lying in bed opens the mod's chat screen instead of the vanilla sleeping chat bar
+- Chat background follows the corner style (solid/blurred variants; original style unchanged)
+- Floating text and inputs follow the theme again instead of being locked light; command bubbles keep their dark terminal look in light mode
+- HUD bubbles now include new command console messages (`>` / `→` prefixed)
+
+### Fixed
+- Chat data never falls back to the config folder when the storage context is unresolved
+- Emoji panel bottom hint truncated and clipped instead of overflowing the panel
+
 ## 2.1.1
 
 ### Added

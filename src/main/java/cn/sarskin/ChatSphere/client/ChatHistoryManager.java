@@ -63,8 +63,12 @@ public class ChatHistoryManager {
         return t;
     });
     private String savedInput;
-    private final List<String> blockedPlayers = new ArrayList<>();
+    private final Set<String> blockedPlayers = new LinkedHashSet<>();
     private final List<Runnable> channelConfigChangeListeners = new ArrayList<>();
+    private List<String> conversationIdsCache;
+    private int conversationIdsCacheVersion = -1;
+    private int conversationIdsVersion;
+    private int cachedUnreadTotal = -1;
 
     public void addChannelConfigChangeListener(Runnable listener) {
         synchronized (channelConfigChangeListeners) {
@@ -165,6 +169,7 @@ public class ChatHistoryManager {
         if (!isOwn) {
             newMessageSinceLastCheck = true;
             unreadCounts.merge(conversationId, 1, Integer::sum);
+            cachedUnreadTotal = -1;
             notifySoundForMessage(content, type);
             checkMentionAndHint(contentStr, senderName);
         }
@@ -173,6 +178,7 @@ public class ChatHistoryManager {
 
     private void markDirty() {
         saveDirty = true;
+        invalidateConversationIds();
         synchronized (this) {
             if (pendingSave == null || pendingSave.isDone()) {
                 pendingSave = SAVE_TIMER.schedule(() -> {
@@ -255,6 +261,17 @@ public class ChatHistoryManager {
         return -1;
     }
 
+    /** Snapshot of every loaded message (channels + command history). */
+    public List<ChatMessageData> snapshotAllMessages() {
+        synchronized (messages) {
+            List<ChatMessageData> out = new ArrayList<>(messages);
+            synchronized (commandMessages) {
+                out.addAll(commandMessages);
+            }
+            return out;
+        }
+    }
+
     public void setPendingReply(String content, String sender) {
         this.pendingReplyContent = content;
         this.pendingReplySender = sender;
@@ -276,17 +293,21 @@ public class ChatHistoryManager {
         }
     }
 
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+
     public static String timeSeparatorKey(long millis, int intervalMinutes) {
         if (intervalMinutes <= 0) return "";
         LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
         int totalMin = dt.getHour() * 60 + dt.getMinute();
         int bucket = totalMin / intervalMinutes;
-        return String.format("%02d:%02d", (bucket * intervalMinutes) / 60, (bucket * intervalMinutes) % 60);
+        int h = (bucket * intervalMinutes) / 60;
+        int m = (bucket * intervalMinutes) % 60;
+        return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
     }
 
     public static String formatTimestamp(long millis) {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault())
-                .format(DateTimeFormatter.ofPattern("HH:mm"));
+                .format(TIMESTAMP_FORMATTER);
     }
 
     public boolean consumeNewMessageFlag() {
@@ -301,10 +322,14 @@ public class ChatHistoryManager {
 
     public void markConversationRead(String conversationId) {
         unreadCounts.remove(conversationId);
+        cachedUnreadTotal = -1;
     }
 
     public int getTotalUnreadCount() {
-        return unreadCounts.values().stream().mapToInt(Integer::intValue).sum();
+        if (cachedUnreadTotal < 0) {
+            cachedUnreadTotal = unreadCounts.values().stream().mapToInt(Integer::intValue).sum();
+        }
+        return cachedUnreadTotal;
     }
 
     public List<ChatMessageData> getMessages() {
@@ -358,6 +383,7 @@ public class ChatHistoryManager {
         synchronized (knownChannels) {
             knownChannels.add(id);
         }
+        invalidateConversationIds();
         synchronized (channelConfigs) {
             if (!channelConfigs.containsKey(id)) {
                 ChatDataStore.ChannelConfig cfg = new ChatDataStore.ChannelConfig();
@@ -438,6 +464,9 @@ public class ChatHistoryManager {
     }
 
     public List<String> getConversationIds() {
+        if (conversationIdsCache != null && conversationIdsCacheVersion == conversationIdsVersion) {
+            return conversationIdsCache;
+        }
         Set<String> ids = new LinkedHashSet<>();
         synchronized (messages) {
             for (ChatMessageData msg : messages) {
@@ -450,7 +479,13 @@ public class ChatHistoryManager {
         synchronized (knownPrivateConversations) {
             ids.addAll(knownPrivateConversations);
         }
-        return new ArrayList<>(ids);
+        conversationIdsCache = new ArrayList<>(ids);
+        conversationIdsCacheVersion = conversationIdsVersion;
+        return conversationIdsCache;
+    }
+
+    private void invalidateConversationIds() {
+        conversationIdsVersion++;
     }
 
     public Component getConversationDisplayName(String conversationId) {
@@ -559,6 +594,7 @@ public class ChatHistoryManager {
         if (!isInput) {
             newMessageSinceLastCheck = true;
             unreadCounts.merge(COMMAND_CONVERSATION_ID, 1, Integer::sum);
+            cachedUnreadTotal = -1;
             notifySoundForMessage(content, ChatMessageData.ConversationType.COMMAND);
             checkMentionAndHint(senderName.getString(), senderName);
         }
@@ -581,6 +617,7 @@ public class ChatHistoryManager {
         synchronized (knownChannels) {
             knownChannels.clear();
         }
+        invalidateConversationIds();
         synchronized (channelConfigs) {
             channelConfigs.clear();
         }
@@ -710,6 +747,7 @@ public class ChatHistoryManager {
             }
         }
         savedInput = data.savedInput;
+        invalidateConversationIds();
     }
 
     public void save() {
@@ -795,8 +833,7 @@ public class ChatHistoryManager {
     }
 
     public void blockPlayer(String uuid) {
-        if (!blockedPlayers.contains(uuid)) {
-            blockedPlayers.add(uuid);
+        if (blockedPlayers.add(uuid)) {
             save();
         }
     }
@@ -861,6 +898,7 @@ public class ChatHistoryManager {
                 knownChannels.add(e.id());
             }
         }
+        invalidateConversationIds();
         synchronized (channelConfigs) {
             channelConfigs.clear();
             for (ModServerChannels.ChannelEntry e : serverChannels) {
@@ -945,6 +983,7 @@ public class ChatHistoryManager {
                         }
                         conversationDisplayNames.put(convId, displayName);
                         knownPrivateConversations.add(convId);
+                        invalidateConversationIds();
                     }
                 }
             } else {
@@ -1024,6 +1063,7 @@ public class ChatHistoryManager {
                 }
             }
             messages.addAll(deduped);
+            invalidateConversationIds();
             for (int i = 0; i < messages.size(); i++) {
                 ChatMessageData msg = messages.get(i);
                 if (msg.replyContent() != null) continue;
@@ -1075,15 +1115,12 @@ public class ChatHistoryManager {
 
     public void refreshPrivateConversationDisplayNames() {
         synchronized (conversationDisplayNames) {
-            List<String> toRefresh = new ArrayList<>();
             for (Map.Entry<String, Component> entry : conversationDisplayNames.entrySet()) {
-                if (entry.getKey().contains(":")) {
-                    toRefresh.add(entry.getKey());
+                if (!entry.getKey().contains(":")) continue;
+                Component resolved = resolveOtherPartyName(entry.getKey(), entry.getValue());
+                if (!resolved.getString().equals(entry.getValue().getString())) {
+                    conversationDisplayNames.put(entry.getKey(), resolved);
                 }
-            }
-            for (String convId : toRefresh) {
-                Component resolved = resolveOtherPartyName(convId, conversationDisplayNames.get(convId));
-                conversationDisplayNames.put(convId, resolved);
             }
         }
     }
@@ -1092,6 +1129,7 @@ public class ChatHistoryManager {
         synchronized (knownChannels) {
             if (knownChannels.isEmpty()) {
                 knownChannels.add(DEFAULT_CHANNEL_ID);
+                invalidateConversationIds();
             }
         }
         synchronized (channelConfigs) {

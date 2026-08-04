@@ -75,11 +75,10 @@ public class ChatHudOverlay implements LayeredDraw.Layer {
         int shown = 0;
         for (int i = recentMessages.size() - 1; i >= 0 && shown < MAX_VISIBLE_MESSAGES; i--) {
             ChatMessageData msg = recentMessages.get(i);
-            if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) continue;
             if (now - msg.timestamp() > MESSAGE_DISPLAY_TIME) continue;
 
             boolean hasItem = msg.itemNbt() != null && !msg.itemNbt().isEmpty();
-            ItemStack itemStack = hasItem ? ItemSerialization.deserialize(msg.itemNbt()) : ItemStack.EMPTY;
+            ItemStack itemStack = hasItem ? msg.parsedItem() : ItemStack.EMPTY;
             boolean itemRendered = hasItem && !itemStack.isEmpty();
 
             Component bubbleText = buildBubbleText(msg, itemRendered);
@@ -120,6 +119,15 @@ public class ChatHudOverlay implements LayeredDraw.Layer {
         MutableComponent text = Component.literal("");
         boolean showName = ModClientConfig.CONFIG.showSenderName.get();
         boolean showTime = ModClientConfig.CONFIG.showTimestamp.get();
+
+        if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) {
+            text.append(Component.literal(msg.isOwn() ? "> " : "→ ").withStyle(ChatFormatting.GRAY));
+            text.append(msg.senderName().copy().withStyle(msg.isOwn() ? ChatFormatting.GREEN : ChatFormatting.WHITE));
+            if (showTime) {
+                text.append("  ").append(Component.literal(ChatHistoryManager.formatTimestamp(msg.timestamp())).withStyle(ChatFormatting.GRAY));
+            }
+            return text;
+        }
 
         if (showName) {
             text.append(msg.senderName().copy().withStyle(ChatFormatting.AQUA));

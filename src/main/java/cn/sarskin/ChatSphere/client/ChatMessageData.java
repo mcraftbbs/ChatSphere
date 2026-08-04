@@ -2,7 +2,9 @@ package cn.sarskin.ChatSphere.client;
 
 import cn.sarskin.ChatSphere.client.emoji.EmojiRegistry;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
+import cn.sarskin.ChatSphere.util.ItemSerialization;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.UUID;
 
@@ -19,6 +21,7 @@ public class ChatMessageData {
     private String replyContent;
     private String replySender;
     private String itemNbt;
+    private ItemStack cachedItem;
 
     public ChatMessageData(Component senderName, UUID senderUuid, Component content,
                            long timestamp, String conversationId,
@@ -48,7 +51,17 @@ public class ChatMessageData {
 
     public ChatMessageData withItemNbt(String itemNbt) {
         this.itemNbt = itemNbt;
+        this.cachedItem = null;
         return this;
+    }
+
+    public ItemStack parsedItem() {
+        if (cachedItem == null) {
+            cachedItem = (itemNbt != null && !itemNbt.isEmpty())
+                    ? ItemSerialization.deserialize(itemNbt)
+                    : ItemStack.EMPTY;
+        }
+        return cachedItem;
     }
 
     public Component senderName() { return senderName; }

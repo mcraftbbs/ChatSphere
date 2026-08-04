@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
+import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -45,12 +46,11 @@ public class BlockListScreen extends Screen {
             CommonComponents.GUI_BACK,
             btn -> onClose()
         ).bounds(width / 2 - 100, height - 32, 200, 20).build());
-
-        try { minecraft.gameRenderer.loadEffect(ResourceLocation.fromNamespaceAndPath("minecraft", "shaders/post/blur.json")); } catch (Exception ignored) {}
     }
 
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        BackgroundBlur.blurScreen(g, width, height);
         super.renderBackground(g, mx, my, pt);
         g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }
@@ -102,10 +102,6 @@ public class BlockListScreen extends Screen {
         return true;
     }
 
-    @Override
-    public void removed() {
-        try { minecraft.gameRenderer.loadEffect(null); } catch (Exception ignored) {}
-    }
 
     @Override
     public void onClose() {

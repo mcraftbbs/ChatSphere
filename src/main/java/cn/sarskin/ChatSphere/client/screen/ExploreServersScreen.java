@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
+import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
@@ -56,7 +57,6 @@ public class ExploreServersScreen extends Screen {
                 Component.translatable("screen.chatsphere.explore.tip_back")
         ).build());
 
-        try { minecraft.gameRenderer.loadEffect(ResourceLocation.fromNamespaceAndPath("minecraft", "shaders/post/blur.json")); } catch (Exception ignored) {}
         repositionWidgets();
     }
 
@@ -110,6 +110,7 @@ public class ExploreServersScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        BackgroundBlur.blurScreen(g, width, height);
         super.renderBackground(g, mx, my, pt);
         g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }
@@ -215,10 +216,6 @@ public class ExploreServersScreen extends Screen {
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
-    @Override
-    public void removed() {
-        try { minecraft.gameRenderer.loadEffect(null); } catch (Exception ignored) {}
-    }
 
     @Override
     public boolean isPauseScreen() { return false; }

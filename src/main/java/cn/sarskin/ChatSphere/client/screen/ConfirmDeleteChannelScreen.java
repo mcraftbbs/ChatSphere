@@ -1,5 +1,6 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
@@ -32,7 +33,6 @@ public class ConfirmDeleteChannelScreen extends Screen {
 
     @Override
     protected void init() {
-        try { minecraft.gameRenderer.loadEffect(ResourceLocation.fromNamespaceAndPath("minecraft", "shaders/post/blur.json")); } catch (Exception ignored) {}
         int popupX = (width - POPUP_WIDTH) / 2;
         int popupY = (height - POPUP_HEIGHT) / 2;
         int btnW = 90;
@@ -101,7 +101,9 @@ public class ConfirmDeleteChannelScreen extends Screen {
         Component hint = Component.translatable(leaveMode ? "screen.chatsphere.confirm_leave.hint" : "screen.chatsphere.confirm_delete.hint");
         g.drawString(font, hint, popupX + 10, popupY + 50, Theme.textInactive(), false);
 
-        super.render(g, mouseX, mouseY, partialTick);
+        for (var renderable : this.renderables) {
+            renderable.render(g, mouseX, mouseY, partialTick);
+        }
     }
 
     @Override
@@ -125,6 +127,7 @@ public class ConfirmDeleteChannelScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        BackgroundBlur.blurScreen(g, width, height);
         super.renderBackground(g, mx, my, pt);
         g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }

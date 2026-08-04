@@ -3,6 +3,7 @@ package cn.sarskin.ChatSphere.client.widget;
 import cn.sarskin.ChatSphere.client.emoji.EmojiEntry;
 import cn.sarskin.ChatSphere.client.emoji.EmojiRegistry;
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -100,12 +101,15 @@ public class EmojiPanel {
 
         int hintY = gridY + gridH;
         g.fill(panelX + 2, hintY, panelX + PANEL_W - 2, hintY + HINT_HEIGHT, Theme.inputBg());
+        g.enableScissor(panelX + 2, hintY, panelX + PANEL_W - 2, hintY + HINT_HEIGHT);
         if (hoveredEmoji != null) {
-            String hint = hoveredEmoji.unicode() + " " + hoveredEmoji.shortcode() + " \u00A77" + hoveredEmoji.name();
-            g.drawString(font, hint, panelX + 5, hintY + 3, 0xFFFFCC00, false);
+            Component hint = Component.literal(hoveredEmoji.unicode() + " " + hoveredEmoji.shortcode() + " ")
+                    .append(Component.literal(hoveredEmoji.name()).withStyle(ChatFormatting.GRAY));
+            g.drawString(font, font.substrByWidth(hint, PANEL_W - 10).getString(), panelX + 5, hintY + 3, 0xFFFFCC00, false);
         } else {
             g.drawString(font, Component.translatable("emoji.panel.emoji_count", EmojiRegistry.getAll().size()), panelX + 5, hintY + 3, Theme.searchPlaceholder(), false);
         }
+        g.disableScissor();
 
         int totalLineHeight = lines.size();
         int visLineCount = ROWS_VISIBLE;

@@ -8,7 +8,7 @@ A modern instant-messaging chat mod for Minecraft NeoForge (1.21.1). Replaces th
 
 > **License:** GNU LGPLv3
 > **Mod ID:** `chatsphere`
-> **Version:** 2.0.0
+> **Version:** 2.1.2
 
 ---
 

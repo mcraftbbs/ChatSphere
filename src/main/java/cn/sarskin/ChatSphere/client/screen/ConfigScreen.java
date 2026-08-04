@@ -4,11 +4,13 @@ import cn.sarskin.ChatSphere.client.PlayerSkinCache;
 import cn.sarskin.ChatSphere.compat.ncr.NCRCompat;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
+import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.client.ui.UiToggle;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import cn.sarskin.ChatSphere.network.ServerboundPermissionCheckPayload;
+import cn.sarskin.ChatSphere.style.CustomTheme;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -24,6 +26,7 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static cn.sarskin.ChatSphere.config.ModClientConfig.CONFIG_SPEC;
@@ -116,13 +119,24 @@ public class ConfigScreen extends Screen {
 
         List<Opt> bubble = new ArrayList<>();
         bubble.add(new Opt("config.chatsphere.bubble_color_own",
-            y -> mkHexBox(y, ModClientConfig.CONFIG.bubbleColorOwn.get(), s -> { ModClientConfig.CONFIG.bubbleColorOwn.set(s); CONFIG_SPEC.save(); }),
+            y -> mkHexBox(y, ModClientConfig.CONFIG.bubbleColorOwn.get(), s -> {
+                ModClientConfig.CONFIG.bubbleColorOwn.set(s); CONFIG_SPEC.save();
+                int argb = ModClientConfig.parseHexColor(s, 0xFF8888FF);
+                CustomTheme.INSTANCE.syncValues(null, Map.of("bubbleOwn", argb), Map.of("bubbleOwn", argb));
+            }),
             ModClientConfig.CONFIG.bubbleColorOwn::get));
         bubble.add(new Opt("config.chatsphere.bubble_color_other",
-            y -> mkHexBox(y, ModClientConfig.CONFIG.bubbleColorOther.get(), s -> { ModClientConfig.CONFIG.bubbleColorOther.set(s); CONFIG_SPEC.save(); }),
+            y -> mkHexBox(y, ModClientConfig.CONFIG.bubbleColorOther.get(), s -> {
+                ModClientConfig.CONFIG.bubbleColorOther.set(s); CONFIG_SPEC.save();
+                int argb = ModClientConfig.parseHexColor(s, 0xFF8888FF);
+                CustomTheme.INSTANCE.syncValues(null, Map.of("bubbleOther", argb), Map.of("bubbleOther", argb));
+            }),
             ModClientConfig.CONFIG.bubbleColorOther::get));
         bubble.add(new Opt("config.chatsphere.bubble_corner_radius",
-            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.bubbleCornerRadius.get()), 0, 8, 1, v -> { ModClientConfig.CONFIG.bubbleCornerRadius.set(v); CONFIG_SPEC.save(); }), null));
+            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.bubbleCornerRadius.get()), 0, 8, 1, v -> {
+                ModClientConfig.CONFIG.bubbleCornerRadius.set(v); CONFIG_SPEC.save();
+                CustomTheme.INSTANCE.syncValues(Map.of("bubbleCornerRadius", v), null, null);
+            }), null));
         cats.add(Cat.plain("config.chatsphere.bubble", bubble));
 
         List<Opt> skin = new ArrayList<>();
@@ -159,6 +173,46 @@ public class ConfigScreen extends Screen {
                 new Opt("config.chatsphere.ncr_prevents_reports", y -> mkServerBool(y, "preventsChatReports", ModServerConfig.CONFIG.preventsChatReports)))));
         }
         cats.add(new Cat("config.chatsphere.advanced", adv));
+
+        List<Opt> custTheme = new ArrayList<>();
+        custTheme.add(new Opt("config.chatsphere.custom_theme_active", y -> mkThemeToggle(y),
+            () -> cn.sarskin.ChatSphere.style.CustomTheme.INSTANCE.isActive()
+                    && cn.sarskin.ChatSphere.style.CustomTheme.INSTANCE.error() == null
+                    ? "#44FF44" : "#FF4444"));
+        custTheme.add(new Opt("config.chatsphere.custom_theme_gallery", y -> Button.builder(
+                Component.translatable("config.chatsphere.custom_theme_gallery"),
+                btn -> {
+                    if (minecraft != null) minecraft.setScreen(new ThemeGalleryScreen(this));
+                })
+                .bounds(inputX, y, btnW, 20).build(), null));
+        cats.add(Cat.plain("config.chatsphere.custom_theme", custTheme));
+    }
+
+    private AbstractWidget mkThemeToggle(int y) {
+        var cfg = ModClientConfig.CONFIG.customThemeActive;
+        if (Theme.originalStyle()) {
+            return Button.builder(
+                    Component.translatable(cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"),
+                    btn -> {
+                        applyThemeToggle(!cfg.get());
+                        btn.setMessage(Component.translatable(
+                                cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"));
+                    })
+                    .bounds(inputX, y, btnW, 20)
+                    .build();
+        }
+        return new UiToggle(inputX, y, btnW, 20, cfg.get(), this::applyThemeToggle);
+    }
+
+    private void applyThemeToggle(boolean next) {
+        ModClientConfig.CONFIG.customThemeActive.set(next);
+        CONFIG_SPEC.save();
+        if (next) {
+            String f = ModClientConfig.CONFIG.customThemeFile.get();
+            if (f != null && !f.isEmpty()) cn.sarskin.ChatSphere.style.CustomTheme.INSTANCE.load(f);
+        } else {
+            cn.sarskin.ChatSphere.style.CustomTheme.INSTANCE.unload();
+        }
     }
 
     private boolean isCornerStyleCat(int idx) {
@@ -179,7 +233,7 @@ public class ConfigScreen extends Screen {
     }
 
     private void drawCornerCards(GuiGraphics g, int mouseX, int mouseY) {
-        int style = ModClientConfig.CONFIG.uiCornerStyle.get();
+        int style = Theme.cornerStyle();
         int[] l = cornerCardLayout();
         int cardW = l[0], cardH = l[1], gap = l[2], startX = l[3], cardY = l[4];
         for (int i = 0; i < 3; i++) {
@@ -261,8 +315,6 @@ public class ConfigScreen extends Screen {
             btn -> tryOpenServerConfig()
         ).bounds(width / 2 + 106, height - 32, 100, 20)
             .tooltip(Tooltip.create(Component.translatable("screen.chatsphere.config.tip_server_config"))).build());
-
-        try { minecraft.gameRenderer.loadEffect(ResourceLocation.fromNamespaceAndPath("minecraft", "shaders/post/blur.json")); } catch (Exception ignored) {}
     }
 
     private void switchCategory(int idx) {
@@ -412,6 +464,7 @@ public class ConfigScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        BackgroundBlur.blurScreen(g, width, height);
         super.renderBackground(g, mx, my, pt);
         g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }
@@ -488,7 +541,7 @@ public class ConfigScreen extends Screen {
                 cx += w + 6;
             }
             if (isCornerStyleCat(selectedCat)) {
-                int style = ModClientConfig.CONFIG.uiCornerStyle.get();
+                int style = Theme.cornerStyle();
                 int[] l = cornerCardLayout();
                 int cardW = l[0], cardH = l[1], gap = l[2], startX = l[3], cardY = l[4];
                 for (int i = 0; i < 3; i++) {
@@ -496,6 +549,14 @@ public class ConfigScreen extends Screen {
                     if (mouseX >= cx2 && mouseX <= cx2 + cardW && mouseY >= cardY && mouseY <= cardY + cardH) {
                         ModClientConfig.CONFIG.uiCornerStyle.set(i);
                         CONFIG_SPEC.save();
+                        String preset = CustomTheme.PRESETS[i] + CustomTheme.EXT;
+                        if (CustomTheme.INSTANCE.isActive() && !CustomTheme.isPreset(CustomTheme.INSTANCE.currentFile())) {
+                            CustomTheme.INSTANCE.syncValues(Map.of("uiCornerStyle", i), null, null);
+                        } else if (CustomTheme.INSTANCE.load(preset)) {
+                            ModClientConfig.CONFIG.customThemeFile.set(preset);
+                            ModClientConfig.CONFIG.customThemeActive.set(true);
+                            CONFIG_SPEC.save();
+                        }
                         return true;
                     }
                 }
@@ -522,11 +583,6 @@ public class ConfigScreen extends Screen {
     public void onClose() {
         CONFIG_SPEC.save();
         if (minecraft != null) minecraft.setScreen(lastScreen);
-    }
-
-    @Override
-    public void removed() {
-        try { minecraft.gameRenderer.loadEffect(null); } catch (Exception ignored) {}
     }
 
     private int calcMaxScroll() {

@@ -3,6 +3,7 @@ package cn.sarskin.ChatSphere.client.screen;
 import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
+import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
@@ -42,7 +43,6 @@ public class InvitePlayerScreen extends Screen {
 
     @Override
     protected void init() {
-        try { minecraft.gameRenderer.loadEffect(ResourceLocation.fromNamespaceAndPath("minecraft", "shaders/post/blur.json")); } catch (Exception ignored) {}
         refreshData();
         buildRows();
         repositionWidgets();
@@ -200,13 +200,10 @@ public class InvitePlayerScreen extends Screen {
     @Override
     public boolean isPauseScreen() { return false; }
 
-    @Override
-    public void removed() {
-        try { minecraft.gameRenderer.loadEffect(null); } catch (Exception ignored) {}
-    }
 
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
+        BackgroundBlur.blurScreen(g, width, height);
         super.renderBackground(g, mx, my, pt);
         g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }

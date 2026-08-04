@@ -35,7 +35,7 @@ public class ChatDataStore {
     }
 
     public static Path getDataDir() {
-        return dataDir != null ? dataDir : net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get().resolve("chatsphere_data");
+        return dataDir != null ? dataDir : cn.sarskin.ChatSphere.storage.ModStoragePaths.getClientBaseDir();
     }
 
     public static Path getDataPath() {

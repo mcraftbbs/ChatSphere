@@ -1,4 +1,10 @@
 {
+  "config.chatsphere.custom_theme_active": "Custom Theme Enabled",
+  "config.chatsphere.custom_theme_gallery": "Browse Custom Themes",
+  "config.chatsphere.custom_theme": "Custom Theme",
+  "screen.chatsphere.theme_gallery.title": "Custom Themes",
+  "screen.chatsphere.theme_gallery.close": "Close",
+
   "key.categories.chatsphere": "ChatSphere",
   "key.chatsphere.open_config": "Open Config Menu",
 
@@ -116,11 +122,13 @@
   "config.chatsphere.preserve_input": "Preserve Input on Close",
   "config.chatsphere.theme": "Dark Theme",
   "config.chatsphere.background_blur": "Blurred Background",
-  "config.chatsphere.corner_style_cat": "Corner Style",
+  "config.chatsphere.corner_style_cat": "Style Presets",
   "config.chatsphere.corner_style.0": "Square",
   "config.chatsphere.corner_style.1": "Pixel Rounded",
   "config.chatsphere.corner_style.2": "Original",
   "config.chatsphere.corner_pick": "Select",
+  "config.chatsphere.custom_themes_section": "Custom Themes",
+  "config.chatsphere.custom_themes_empty": "No custom themes - drop .ctheme files into config/chatsphere/themes/",
   "config.chatsphere.advanced": "Advanced",
   "config.chatsphere.strong_hint": "Show Strong Hints",
   "config.chatsphere.sound_settings": "Sound Settings",
