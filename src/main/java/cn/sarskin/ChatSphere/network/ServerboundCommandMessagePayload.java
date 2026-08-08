@@ -26,7 +26,8 @@ public record ServerboundCommandMessagePayload(String content, UUID senderUuid) 
     }
 
     private static ServerboundCommandMessagePayload read(ByteBuf buf) {
-        int cl = buf.readInt(); byte[] cb = new byte[cl]; buf.readBytes(cb);
+        int cl = PayloadLimits.readCount(buf, PayloadLimits.MAX_UTF_BYTES);
+        byte[] cb = new byte[cl]; buf.readBytes(cb);
         String content = new String(cb, StandardCharsets.UTF_8);
         UUID uuid = new UUID(buf.readLong(), buf.readLong());
         return new ServerboundCommandMessagePayload(content, uuid);
@@ -43,7 +44,7 @@ public record ServerboundCommandMessagePayload(String content, UUID senderUuid) 
             if (server == null) return;
             ModServerChannels msc = ModServerChannels.getInstance(server);
             String name = player.getName().getString();
-            msc.addCommandMessage(name, senderUuid, content);
+            msc.addCommandMessage(name, player.getUUID(), content);
         });
     }
 }

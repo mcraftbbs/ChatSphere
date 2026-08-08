@@ -31,15 +31,15 @@ public record ClientboundPublicChannelListPayload(List<PublicChannelEntry> chann
     }
 
     private static ClientboundPublicChannelListPayload read(ByteBuf buf) {
-        int count = buf.readInt();
+        int count = PayloadLimits.readCount(buf, PayloadLimits.MAX_CHANNELS);
         List<PublicChannelEntry> list = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            String channelId = readUtf(buf);
-            String displayName = readUtf(buf);
-            String description = readUtf(buf);
+            String channelId = PayloadLimits.readUtf(buf);
+            String displayName = PayloadLimits.readUtf(buf);
+            String description = PayloadLimits.readUtf(buf);
             int memberCount = buf.readInt();
             int onlineCount = buf.readInt();
-            String inviteCode = readUtf(buf);
+            String inviteCode = PayloadLimits.readUtf(buf);
             list.add(new PublicChannelEntry(channelId, displayName, description, memberCount, onlineCount, inviteCode));
         }
         return new ClientboundPublicChannelListPayload(list);
@@ -52,10 +52,7 @@ public record ClientboundPublicChannelListPayload(List<PublicChannelEntry> chann
     }
 
     private static String readUtf(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
-        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        return PayloadLimits.readUtf(buf);
     }
 
     public void handle(IPayloadContext ctx) {

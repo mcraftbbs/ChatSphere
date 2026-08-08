@@ -34,15 +34,15 @@ public record ClientboundChatPayload(StoredMessage message) implements CustomPac
     }
 
     private static ClientboundChatPayload read(ByteBuf buf) {
-        String senderName = readUtf(buf);
+        String senderName = PayloadLimits.readUtf(buf);
         UUID senderUuid = readUuid(buf);
-        String content = readUtf(buf);
+        String content = PayloadLimits.readUtf(buf);
         long timestamp = buf.readLong();
-        String conversationId = readUtf(buf);
-        String conversationType = readUtf(buf);
-        String replyContent = readUtf(buf);
-        String replySender = readUtf(buf);
-        String itemNbt = readUtf(buf);
+        String conversationId = PayloadLimits.readUtf(buf);
+        String conversationType = PayloadLimits.readUtf(buf);
+        String replyContent = PayloadLimits.readUtf(buf);
+        String replySender = PayloadLimits.readUtf(buf);
+        String itemNbt = PayloadLimits.readUtf(buf);
         return new ClientboundChatPayload(new StoredMessage(senderName, senderUuid, content, timestamp, conversationId, conversationType, replyContent, replySender, itemNbt));
     }
 
@@ -113,10 +113,7 @@ public record ClientboundChatPayload(StoredMessage message) implements CustomPac
     }
 
     private static String readUtf(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
+        return PayloadLimits.readUtf(buf);
     }
 
     private static void writeUuid(ByteBuf buf, UUID uuid) {

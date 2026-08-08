@@ -79,5 +79,10 @@ public class ModNetworkSetup {
                 ClientboundVoicePacket.STREAM_CODEC,
                 ClientboundVoicePacket::handle
         );
+        registrar.playToClient(
+                ClientboundChannelRenamedPayload.TYPE,
+                ClientboundChannelRenamedPayload.STREAM_CODEC,
+                ClientboundChannelRenamedPayload::handle
+        );
     }
 }

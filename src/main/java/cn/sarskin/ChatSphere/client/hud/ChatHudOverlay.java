@@ -124,7 +124,7 @@ public class ChatHudOverlay implements LayeredDraw.Layer {
             text.append(Component.literal(msg.isOwn() ? "> " : "→ ").withStyle(ChatFormatting.GRAY));
             text.append(msg.senderName().copy().withStyle(msg.isOwn() ? ChatFormatting.GREEN : ChatFormatting.WHITE));
             if (showTime) {
-                text.append("  ").append(Component.literal(ChatHistoryManager.formatTimestamp(msg.timestamp())).withStyle(ChatFormatting.GRAY));
+                text.append("  ").append(Component.literal(ChatHistoryManager.formatTimestampSmart(msg.timestamp())).withStyle(ChatFormatting.GRAY));
             }
             return text;
         }
@@ -142,7 +142,7 @@ public class ChatHudOverlay implements LayeredDraw.Layer {
             }
         }
         if (showTime) {
-            text.append("  ").append(Component.literal(ChatHistoryManager.formatTimestamp(msg.timestamp())).withStyle(ChatFormatting.GRAY));
+            text.append("  ").append(Component.literal(ChatHistoryManager.formatTimestampSmart(msg.timestamp())).withStyle(ChatFormatting.GRAY));
         }
         // Duplicate count
         if (msg.duplicateCount() > 1) {

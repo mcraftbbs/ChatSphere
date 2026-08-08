@@ -15,7 +15,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static cn.sarskin.ChatSphere.config.ModClientConfig.CONFIG_SPEC;
 
@@ -33,6 +37,10 @@ public class ThemeGalleryScreen extends Screen {
 
     private List<String> themes = new ArrayList<>();
     private int scroll;
+    private String errorPrefix = "";
+    private String lastFailedFile;
+    private final Map<String, ThemeSpec> parsedCache = new HashMap<>();
+    private final Set<String> failedCache = new HashSet<>();
 
     public ThemeGalleryScreen(Screen lastScreen) {
         super(Component.translatable("screen.chatsphere.theme_gallery.title"));
@@ -41,12 +49,21 @@ public class ThemeGalleryScreen extends Screen {
 
     public void refresh() {
         themes = new ArrayList<>();
+        parsedCache.clear();
+        failedCache.clear();
         for (String f : CustomTheme.INSTANCE.listFiles()) {
             boolean preset = false;
             for (String p : CustomTheme.PRESETS) {
                 if (f.equals(p + CustomTheme.EXT)) { preset = true; break; }
             }
             if (!preset) themes.add(f);
+        }
+        for (String f : themes) {
+            try {
+                parsedCache.put(f, ThemeFileParser.parse(CustomTheme.INSTANCE.read(f)));
+            } catch (Exception e) {
+                failedCache.add(f);
+            }
         }
         scroll = Mth.clamp(scroll, 0, maxScroll());
     }
@@ -67,6 +84,7 @@ public class ThemeGalleryScreen extends Screen {
 
     @Override
     protected void init() {
+        errorPrefix = Component.translatable("screen.chatsphere.theme_gallery.load_error").getString();
         refresh();
         addRenderableWidget(Button.builder(
                 Component.translatable("screen.chatsphere.theme_gallery.close"), b -> onClose())
@@ -84,6 +102,7 @@ public class ThemeGalleryScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
         g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
+        drawErrorBanner(g);
         g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
         int[] l = grid();
@@ -94,10 +113,12 @@ public class ThemeGalleryScreen extends Screen {
         Component sec = Component.translatable("config.chatsphere.custom_themes_section");
         g.drawString(font, sec, 14, y2 + 3, Theme.textDim(), false);
         boolean active = ModClientConfig.CONFIG.customThemeActive.get();
+        boolean failed = CustomTheme.INSTANCE.error() != null;
         int toggleBtnW = 88;
         int btnY = y2 - 2;
         int togX = width - 10 - toggleBtnW;
-        Ui.fillRoundedRect(g, togX, btnY, toggleBtnW, 18, 3, active ? Theme.accent() : Theme.slotBg());
+        int togBg = !active ? Theme.slotBg() : (failed ? 0xFFFF4444 : Theme.accent());
+        Ui.fillRoundedRect(g, togX, btnY, toggleBtnW, 18, 3, togBg);
         Component togText = Component.translatable(
                 active ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled");
         g.drawString(font, togText, togX + (toggleBtnW - font.width(togText)) / 2, btnY + 5,
@@ -126,16 +147,28 @@ public class ThemeGalleryScreen extends Screen {
         if (sel) {
             Ui.fillRoundedRect(g, cx, cy, cardW, 20, 6, 0x336666DD);
         }
-        try {
-            String content = CustomTheme.INSTANCE.read(file);
-            ThemeSpec spec = ThemeFileParser.parse(content);
+        ThemeSpec spec = parsedCache.get(file);
+        if (spec != null) {
             drawThemePreview(g, cx + 10, cy + 24, cardW - 20, 52, spec);
-        } catch (Exception ignored) {
+        } else if (failedCache.contains(file)) {
+            Component bad = Component.literal(errorPrefix);
+            g.drawString(font, bad, cx + 10, cy + 24, 0xFFFF8888, false);
         }
         String name = file.substring(0, file.length() - CustomTheme.EXT.length());
         Component nameC = Component.literal(name);
         g.drawString(font, nameC, cx + (cardW - font.width(nameC)) / 2, cy + cardH - 18,
                 sel ? Theme.accent() : Theme.text(), false);
+    }
+
+    private void drawErrorBanner(GuiGraphics g) {
+        String err = CustomTheme.INSTANCE.error();
+        if (err == null || err.isEmpty()) return;
+        int py = 32;
+        g.fill(10, py - 3, width - 10, py + 12, 0x33FF4444);
+        String text = lastFailedFile == null ? errorPrefix + ": " + err
+                : lastFailedFile + ": " + errorPrefix + ": " + err;
+        text = font.plainSubstrByWidth(text, width - 24);
+        g.drawString(font, text, 14, py, 0xFFFF8888, false);
     }
 
     /** Mini chat preview drawn in the theme's own colors (temporarily applied). */
@@ -177,7 +210,9 @@ public class ThemeGalleryScreen extends Screen {
                     CONFIG_SPEC.save();
                     if (next) {
                         String f = ModClientConfig.CONFIG.customThemeFile.get();
-                        if (f != null && !f.isEmpty()) CustomTheme.INSTANCE.load(f);
+                        if (f != null && !f.isEmpty() && !CustomTheme.INSTANCE.load(f)) {
+                            lastFailedFile = f;
+                        }
                     } else {
                         CustomTheme.INSTANCE.unload();
                     }
@@ -196,6 +231,8 @@ public class ThemeGalleryScreen extends Screen {
                         ModClientConfig.CONFIG.customThemeFile.set(file);
                         ModClientConfig.CONFIG.customThemeActive.set(true);
                         CONFIG_SPEC.save();
+                    } else {
+                        lastFailedFile = file;
                     }
                     return true;
                 }

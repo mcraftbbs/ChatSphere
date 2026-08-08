@@ -12,19 +12,18 @@ public final class Ui {
 
     public static void fillRoundedRect(GuiGraphics g, int x, int y, int w, int h, int r, int color) {
         switch (Theme.cornerStyle()) {
+            case 0:
+                g.fill(x, y, x + w, y + h, color);
+                return;
             case 1:
                 fillPixelRounded(g, x, y, w, h, r, color);
                 return;
             default:
-                g.fill(x, y, x + w, y + h, color);
+                fillOriginalRounded(g, x, y, w, h, r, color);
         }
     }
 
     public static void fillBubbleRect(GuiGraphics g, int x, int y, int w, int h, int r, int color) {
-        if (Theme.cornerStyle() == 2) {
-            fillOriginalRounded(g, x, y, w, h, r, color);
-            return;
-        }
         fillRoundedRect(g, x, y, w, h, r, color);
     }
 

@@ -112,7 +112,7 @@ public class InvitePlayerScreen extends Screen {
                     ServerboundChannelActionPayload.Action.TOGGLE_INVITE,
                     channelId, minecraft.player.getUUID(),
                     false, uuid, "",
-                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "")));
+                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "")));
         }
         rebuild();
     }

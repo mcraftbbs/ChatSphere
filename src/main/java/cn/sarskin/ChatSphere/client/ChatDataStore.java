@@ -1,15 +1,26 @@
 package cn.sarskin.ChatSphere.client;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -92,6 +103,13 @@ public class ChatDataStore {
             return fromJson(obj);
         } catch (Exception e) {
             LOGGER.error("Failed to load chat data", e);
+            try {
+                Files.move(path, path.resolveSibling(path.getFileName() + ".corrupt"),
+                        StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.warn("Corrupt data file backed up as {}", path.resolveSibling(path.getFileName() + ".corrupt"));
+            } catch (IOException ex) {
+                LOGGER.error("Failed to back up corrupt data file", ex);
+            }
             return new SavedData();
         }
     }
@@ -218,6 +236,8 @@ public class ChatDataStore {
                 vrArr.add(vrObj);
             }
             c.add("voiceRooms", vrArr);
+            c.addProperty("mainChatEnabled", cfg.mainChatEnabled);
+            c.addProperty("defaultSubChannel", cfg.defaultSubChannel);
             configsObj.add(e.getKey(), c);
         }
         root.add("channelConfigs", configsObj);
@@ -246,116 +266,142 @@ public class ChatDataStore {
         if (obj.has("messages")) {
             JsonArray arr = obj.getAsJsonArray("messages");
             for (JsonElement el : arr) {
-                JsonObject m = el.getAsJsonObject();
-                int dup = m.has("duplicateCount") ? m.get("duplicateCount").getAsInt() : 1;
-                String replyContent = m.has("replyContent") ? m.get("replyContent").getAsString() : null;
-                String replySender = m.has("replySender") ? m.get("replySender").getAsString() : null;
-                String itemNbt = m.has("itemNbt") ? m.get("itemNbt").getAsString() : null;
-                SavedMessage sm = new SavedMessage(
-                        m.get("senderName").getAsString(),
-                        UUID.fromString(m.get("senderUuid").getAsString()),
-                        m.get("content").getAsString(),
-                        m.get("timestamp").getAsLong(),
-                        m.get("conversationId").getAsString(),
-                        m.get("conversationType").getAsString(),
-                        m.get("isOwn").getAsBoolean(),
-                        dup, replyContent, replySender, itemNbt
-                );
-                data.messages.add(sm);
+                try {
+                    JsonObject m = el.getAsJsonObject();
+                    int dup = m.has("duplicateCount") ? m.get("duplicateCount").getAsInt() : 1;
+                    String replyContent = m.has("replyContent") ? m.get("replyContent").getAsString() : null;
+                    String replySender = m.has("replySender") ? m.get("replySender").getAsString() : null;
+                    String itemNbt = m.has("itemNbt") ? m.get("itemNbt").getAsString() : null;
+                    SavedMessage sm = new SavedMessage(
+                            m.get("senderName").getAsString(),
+                            UUID.fromString(m.get("senderUuid").getAsString()),
+                            m.get("content").getAsString(),
+                            m.get("timestamp").getAsLong(),
+                            m.get("conversationId").getAsString(),
+                            m.get("conversationType").getAsString(),
+                            m.get("isOwn").getAsBoolean(),
+                            dup, replyContent, replySender, itemNbt
+                    );
+                    data.messages.add(sm);
+                } catch (Exception e) {
+                    LOGGER.warn("Skipping corrupt message entry: {}", e.getMessage());
+                }
             }
         }
 
         if (obj.has("commandMessages")) {
             JsonArray arr = obj.getAsJsonArray("commandMessages");
             for (JsonElement el : arr) {
-                JsonObject m = el.getAsJsonObject();
-                int dup = m.has("duplicateCount") ? m.get("duplicateCount").getAsInt() : 1;
-                String replyContent = m.has("replyContent") ? m.get("replyContent").getAsString() : null;
-                String replySender = m.has("replySender") ? m.get("replySender").getAsString() : null;
-                String itemNbt = m.has("itemNbt") ? m.get("itemNbt").getAsString() : null;
-                data.commandMessages.add(new SavedMessage(
-                        m.get("senderName").getAsString(),
-                        UUID.fromString(m.get("senderUuid").getAsString()),
-                        m.get("content").getAsString(),
-                        m.get("timestamp").getAsLong(),
-                        m.get("conversationId").getAsString(),
-                        m.get("conversationType").getAsString(),
-                        m.get("isOwn").getAsBoolean(),
-                        dup, replyContent, replySender, itemNbt
-                ));
+                try {
+                    JsonObject m = el.getAsJsonObject();
+                    int dup = m.has("duplicateCount") ? m.get("duplicateCount").getAsInt() : 1;
+                    String replyContent = m.has("replyContent") ? m.get("replyContent").getAsString() : null;
+                    String replySender = m.has("replySender") ? m.get("replySender").getAsString() : null;
+                    String itemNbt = m.has("itemNbt") ? m.get("itemNbt").getAsString() : null;
+                    data.commandMessages.add(new SavedMessage(
+                            m.get("senderName").getAsString(),
+                            UUID.fromString(m.get("senderUuid").getAsString()),
+                            m.get("content").getAsString(),
+                            m.get("timestamp").getAsLong(),
+                            m.get("conversationId").getAsString(),
+                            m.get("conversationType").getAsString(),
+                            m.get("isOwn").getAsBoolean(),
+                            dup, replyContent, replySender, itemNbt
+                    ));
+                } catch (Exception e) {
+                    LOGGER.warn("Skipping corrupt command message: {}", e.getMessage());
+                }
             }
         }
 
         if (obj.has("channels")) {
             JsonArray arr = obj.getAsJsonArray("channels");
             for (JsonElement el : arr) {
-                data.channels.add(el.getAsString());
+                try {
+                    data.channels.add(el.getAsString());
+                } catch (Exception e) {
+                    LOGGER.warn("Skipping corrupt channel id: {}", e.getMessage());
+                }
             }
         }
 
         if (obj.has("privateConversations")) {
             JsonObject pObj = obj.getAsJsonObject("privateConversations");
             for (Map.Entry<String, JsonElement> e : pObj.entrySet()) {
-                data.privateDisplayNames.put(e.getKey(), e.getValue().getAsString());
+                try {
+                    data.privateDisplayNames.put(e.getKey(), e.getValue().getAsString());
+                } catch (Exception ex) {
+                    LOGGER.warn("Skipping corrupt private conversation entry: {}", ex.getMessage());
+                }
             }
         }
 
         if (obj.has("channelConfigs")) {
             JsonObject configsObj = obj.getAsJsonObject("channelConfigs");
             for (Map.Entry<String, JsonElement> e : configsObj.entrySet()) {
-                JsonObject c = e.getValue().getAsJsonObject();
-                ChannelConfig cfg = new ChannelConfig();
-                cfg.isPublic = c.get("isPublic").getAsBoolean();
-                if (c.has("owner")) cfg.owner = c.get("owner").getAsString();
-                if (c.has("description")) cfg.description = c.get("description").getAsString();
-                if (c.has("displayName")) cfg.displayName = c.get("displayName").getAsString();
-                cfg.inviteCode = c.has("inviteCode") ? c.get("inviteCode").getAsString() : "";
-                if (c.has("admins")) {
-                    JsonArray a = c.getAsJsonArray("admins");
-                    for (JsonElement el : a) cfg.admins.add(el.getAsString());
-                }
-                if (c.has("members")) {
-                    JsonArray m = c.getAsJsonArray("members");
-                    for (JsonElement el : m) cfg.members.add(el.getAsString());
-                }
-                if (c.has("mutedPlayers")) {
-                    JsonArray m = c.getAsJsonArray("mutedPlayers");
-                    for (JsonElement el : m) cfg.mutedPlayers.add(el.getAsString());
-                }
-                if (c.has("invitedPlayers")) {
-                    JsonArray i = c.getAsJsonArray("invitedPlayers");
-                    for (JsonElement el : i) cfg.invitedPlayers.add(el.getAsString());
-                }
-                if (c.has("playerNames")) {
-                    JsonObject namesObj = c.getAsJsonObject("playerNames");
-                    for (Map.Entry<String, JsonElement> ne : namesObj.entrySet()) {
-                        cfg.playerNames.put(ne.getKey(), ne.getValue().getAsString());
+                try {
+                    JsonObject c = e.getValue().getAsJsonObject();
+                    ChannelConfig cfg = new ChannelConfig();
+                    cfg.isPublic = c.get("isPublic").getAsBoolean();
+                    if (c.has("owner")) cfg.owner = c.get("owner").getAsString();
+                    if (c.has("description")) cfg.description = c.get("description").getAsString();
+                    if (c.has("displayName")) cfg.displayName = c.get("displayName").getAsString();
+                    cfg.inviteCode = c.has("inviteCode") ? c.get("inviteCode").getAsString() : "";
+                    if (c.has("admins")) {
+                        JsonArray a = c.getAsJsonArray("admins");
+                        for (JsonElement el : a) cfg.admins.add(el.getAsString());
                     }
-                }
-                if (c.has("voiceRooms")) {
-                    JsonArray vrArr = c.getAsJsonArray("voiceRooms");
-                    for (JsonElement vrEl : vrArr) {
-                        JsonObject vrObj = vrEl.getAsJsonObject();
-                        VoiceRoom vr = new VoiceRoom();
-                        vr.name = vrObj.get("name").getAsString();
-                        if (vrObj.has("members")) {
-                            JsonArray mArr = vrObj.getAsJsonArray("members");
-                            for (JsonElement mEl : mArr) vr.members.add(mEl.getAsString());
+                    if (c.has("members")) {
+                        JsonArray m = c.getAsJsonArray("members");
+                        for (JsonElement el : m) cfg.members.add(el.getAsString());
+                    }
+                    if (c.has("mutedPlayers")) {
+                        JsonArray m = c.getAsJsonArray("mutedPlayers");
+                        for (JsonElement el : m) cfg.mutedPlayers.add(el.getAsString());
+                    }
+                    if (c.has("invitedPlayers")) {
+                        JsonArray i = c.getAsJsonArray("invitedPlayers");
+                        for (JsonElement el : i) cfg.invitedPlayers.add(el.getAsString());
+                    }
+                    if (c.has("playerNames")) {
+                        JsonObject namesObj = c.getAsJsonObject("playerNames");
+                        for (Map.Entry<String, JsonElement> ne : namesObj.entrySet()) {
+                            cfg.playerNames.put(ne.getKey(), ne.getValue().getAsString());
                         }
-                        cfg.voiceRooms.add(vr);
                     }
+                    if (c.has("voiceRooms")) {
+                        JsonArray vrArr = c.getAsJsonArray("voiceRooms");
+                        for (JsonElement vrEl : vrArr) {
+                            JsonObject vrObj = vrEl.getAsJsonObject();
+                            VoiceRoom vr = new VoiceRoom();
+                            vr.name = vrObj.get("name").getAsString();
+                            if (vrObj.has("members")) {
+                                JsonArray mArr = vrObj.getAsJsonArray("members");
+                                for (JsonElement mEl : mArr) vr.members.add(mEl.getAsString());
+                            }
+                            cfg.voiceRooms.add(vr);
+                        }
+                    }
+                    if (c.has("mainChatEnabled")) cfg.mainChatEnabled = c.get("mainChatEnabled").getAsBoolean();
+                    if (c.has("defaultSubChannel")) cfg.defaultSubChannel = c.get("defaultSubChannel").getAsString();
+                    data.channelConfigs.put(e.getKey(), cfg);
+                } catch (Exception ex) {
+                    LOGGER.warn("Skipping corrupt channel config {}: {}", e.getKey(), ex.getMessage());
                 }
-                data.channelConfigs.put(e.getKey(), cfg);
             }
         }
 
         if (obj.has("commandHistory")) {
             JsonObject cmdHistObj = obj.getAsJsonObject("commandHistory");
             for (Map.Entry<String, JsonElement> e : cmdHistObj.entrySet()) {
-                JsonArray arr = e.getValue().getAsJsonArray();
-                List<String> cmds = new ArrayList<>();
-                for (JsonElement el : arr) cmds.add(el.getAsString());
-                data.commandHistory.put(e.getKey(), cmds);
+                try {
+                    JsonArray arr = e.getValue().getAsJsonArray();
+                    List<String> cmds = new ArrayList<>();
+                    for (JsonElement el : arr) cmds.add(el.getAsString());
+                    data.commandHistory.put(e.getKey(), cmds);
+                } catch (Exception ex) {
+                    LOGGER.warn("Skipping corrupt command history {}: {}", e.getKey(), ex.getMessage());
+                }
             }
         }
 
@@ -364,7 +410,13 @@ public class ChatDataStore {
 
         if (obj.has("blockedPlayers")) {
             JsonArray arr = obj.getAsJsonArray("blockedPlayers");
-            for (JsonElement el : arr) data.blockedPlayers.add(el.getAsString());
+            for (JsonElement el : arr) {
+                try {
+                    data.blockedPlayers.add(el.getAsString());
+                } catch (Exception e) {
+                    LOGGER.warn("Skipping corrupt blocked entry: {}", e.getMessage());
+                }
+            }
         }
 
         return data;
@@ -405,6 +457,8 @@ public class ChatDataStore {
         public final List<String> invitedPlayers = new ArrayList<>();
         public final Map<String, String> playerNames = new HashMap<>();
         public boolean showInExplore = true;
+        public boolean mainChatEnabled = true;
+        public String defaultSubChannel = "";
         public final List<cn.sarskin.ChatSphere.client.voice.VoiceRoom> voiceRooms = new ArrayList<>();
     }
 }

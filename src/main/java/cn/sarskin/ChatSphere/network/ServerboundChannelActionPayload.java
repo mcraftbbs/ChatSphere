@@ -31,7 +31,9 @@ public record ServerboundChannelActionPayload(
         boolean showInExplore,
         String replyContent,
         String replySender,
-        String itemNbt
+        String itemNbt,
+        boolean mainChatEnabled,
+        String defaultSubChannel
 ) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<ServerboundChannelActionPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(ModMain.MODID, "channel_action"));
@@ -54,24 +56,32 @@ public record ServerboundChannelActionPayload(
         writeUtf(buf, p.replyContent);
         writeUtf(buf, p.replySender);
         writeUtf(buf, p.itemNbt);
+        buf.writeBoolean(p.mainChatEnabled);
+        writeUtf(buf, p.defaultSubChannel);
     }
 
     private static ServerboundChannelActionPayload read(ByteBuf buf) {
-        Action action = Action.values()[buf.readInt()];
-        String channelId = readUtf(buf);
-        UUID owner = UUID.fromString(readUtf(buf));
+        int actionIdx = buf.readInt();
+        if (actionIdx < 0 || actionIdx >= Action.values().length) {
+            throw new IllegalStateException("Unknown action: " + actionIdx);
+        }
+        Action action = Action.values()[actionIdx];
+        String channelId = PayloadLimits.readUtf(buf);
+        UUID owner = UUID.fromString(PayloadLimits.readUtf(buf));
         boolean isPublic = buf.readBoolean();
-        String description = readUtf(buf);
-        String displayName = readUtf(buf);
-        List<String> admins = readStringList(buf);
-        List<String> muted = readStringList(buf);
-        List<String> invited = readStringList(buf);
-        String inviteCode = readUtf(buf);
+        String description = PayloadLimits.readUtf(buf);
+        String displayName = PayloadLimits.readUtf(buf);
+        List<String> admins = PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
+        List<String> muted = PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
+        List<String> invited = PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
+        String inviteCode = PayloadLimits.readUtf(buf);
         boolean showInExplore = buf.readBoolean();
-        String replyContent = readUtf(buf);
-        String replySender = readUtf(buf);
-        String itemNbt = readUtf(buf);
-        return new ServerboundChannelActionPayload(action, channelId, owner, isPublic, description, displayName, admins, muted, invited, inviteCode, showInExplore, replyContent, replySender, itemNbt);
+        String replyContent = PayloadLimits.readUtf(buf);
+        String replySender = PayloadLimits.readUtf(buf);
+        String itemNbt = PayloadLimits.readUtf(buf);
+        boolean mainChatEnabled = buf.readBoolean();
+        String defaultSubChannel = PayloadLimits.readUtf(buf);
+        return new ServerboundChannelActionPayload(action, channelId, owner, isPublic, description, displayName, admins, muted, invited, inviteCode, showInExplore, replyContent, replySender, itemNbt, mainChatEnabled, defaultSubChannel);
     }
 
     private static void writeUtf(ByteBuf buf, String s) {
@@ -82,10 +92,7 @@ public record ServerboundChannelActionPayload(
     }
 
     private static String readUtf(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
+        return PayloadLimits.readUtf(buf);
     }
 
     private static void writeStringList(ByteBuf buf, List<String> list) {
@@ -94,10 +101,7 @@ public record ServerboundChannelActionPayload(
     }
 
     private static List<String> readStringList(ByteBuf buf) {
-        int n = buf.readInt();
-        List<String> list = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) list.add(readUtf(buf));
-        return list;
+        return PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
     }
 
     public void handle(IPayloadContext ctx) {
@@ -105,18 +109,17 @@ public record ServerboundChannelActionPayload(
             var player = ctx.player();
             var server = player.getServer();
             if (server == null) return;
+            UUID realUuid = player.getUUID();
             ModServerChannels msc = ModServerChannels.getInstance(server);
             switch (action) {
-                case CREATE -> msc.createChannel(channelId, ownerUuid, isPublic, showInExplore);
-                case UPDATE_CONFIG -> msc.updateChannelConfig(channelId, isPublic, description, displayName, admins, mutedPlayers, invitedPlayers, inviteCode, ownerUuid, showInExplore);
+                case CREATE -> msc.createChannel(channelId, realUuid, isPublic, showInExplore, mainChatEnabled, defaultSubChannel);
+                case UPDATE_CONFIG -> msc.updateChannelConfig(channelId, isPublic, description, displayName, admins, mutedPlayers, invitedPlayers, inviteCode, realUuid, showInExplore, mainChatEnabled, defaultSubChannel);
                 case JOIN_MEMBER -> {
-                    if (ownerUuid != null) {
-                        msc.addMemberToChannel(channelId, ownerUuid.toString());
-                    }
+                    msc.addMemberToChannel(channelId, realUuid.toString());
                 }
                 case JOIN_BY_CODE -> {
-                    if (ownerUuid != null && inviteCode != null && !inviteCode.isEmpty()) {
-                        String result = msc.joinByCode(inviteCode, ownerUuid);
+                    if (inviteCode != null && !inviteCode.isEmpty()) {
+                        String result = msc.joinByCode(inviteCode, realUuid);
                         if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
                             Component msg = switch (result) {
                                 case "already_member" -> Component.translatable(
@@ -131,27 +134,36 @@ public record ServerboundChannelActionPayload(
                     }
                 }
                 case SEND_CHAT -> {
-                    if (ownerUuid != null && !channelId.isEmpty() && !description.isEmpty()) {
+                    if (!channelId.isEmpty() && !description.isEmpty()) {
                         String senderName = player.getName().getString();
                         String convType;
+                        String chatChannelId = channelId;
                         UUID targetUuid = null;
                         boolean muted = false;
                         boolean notMember = false;
 
-                        if (channelId.contains(":")) {
+                        if (chatChannelId.contains(":")) {
                             convType = "PRIVATE";
-                            String senderStr = ownerUuid.toString();
-                            String[] parts = channelId.split(":");
+                            String senderStr = realUuid.toString();
+                            String[] parts = chatChannelId.split(":");
                             String otherStr = parts[0].equals(senderStr) ? parts[1] : parts[0];
                             try { targetUuid = UUID.fromString(otherStr); } catch (Exception ignored) {}
                         } else {
                             convType = "CHANNEL";
-                            var entry = msc.getChannel(channelId);
-                            if (entry == null || !entry.members().contains(ownerUuid.toString())) {
+                            String chatTarget = msc.resolveChatChannel(chatChannelId);
+                            if (chatTarget == null) {
+                                if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                                    sp.sendSystemMessage(Component.translatable("chatsphere.chat_disabled.feedback"), false);
+                                }
+                                return;
+                            }
+                            var entry = msc.getChannel(chatTarget);
+                            if (entry == null || !msc.effectiveMembers(chatTarget).contains(realUuid.toString())) {
                                 notMember = true;
-                            } else if (entry.mutedPlayers().contains(ownerUuid.toString())) {
+                            } else if (msc.isMuted(chatTarget, realUuid.toString())) {
                                 muted = true;
                             }
+                            chatChannelId = chatTarget;
                         }
                         if (notMember) return;
                         if (muted) {
@@ -177,10 +189,10 @@ public record ServerboundChannelActionPayload(
                                 } catch (java.util.regex.PatternSyntaxException ignored) {}
                             }
                         }
-                        msc.addChatMessage(senderName, ownerUuid, description, channelId, convType, replyContent, replySender, itemNbt);
+                        msc.addChatMessage(senderName, realUuid, description, chatChannelId, convType, replyContent, replySender, itemNbt);
                         long now = System.currentTimeMillis();
                         ClientboundChatPayload relay = new ClientboundChatPayload(
-                                new ClientboundChatPayload.StoredMessage(senderName, ownerUuid, description, now, channelId, convType, replyContent, replySender, itemNbt));
+                                new ClientboundChatPayload.StoredMessage(senderName, realUuid, description, now, chatChannelId, convType, replyContent, replySender, itemNbt));
 
                         if (targetUuid != null) {
                             ServerPlayer target = server.getPlayerList().getPlayer(targetUuid);
@@ -188,8 +200,10 @@ public record ServerboundChannelActionPayload(
                                 target.connection.send(new ClientboundCustomPayloadPacket(relay));
                             }
                         } else {
+                            List<String> recipients = msc.effectiveMembers(chatChannelId);
                             for (ServerPlayer other : server.getPlayerList().getPlayers()) {
-                                if (!other.getUUID().equals(ownerUuid)) {
+                                if (recipients.contains(other.getUUID().toString())
+                                        && !other.getUUID().equals(realUuid)) {
                                     other.connection.send(new ClientboundCustomPayloadPacket(relay));
                                 }
                             }
@@ -197,30 +211,30 @@ public record ServerboundChannelActionPayload(
                     }
                 }
                 case REMOVE_CHANNEL -> {
-                    msc.removeChannel(channelId, ownerUuid);
+                    msc.removeChannel(channelId, realUuid);
                 }
                 case TOGGLE_MUTE -> {
                     if (!description.isEmpty() && !channelId.isEmpty()) {
-                        msc.toggleMute(channelId, description, ownerUuid);
+                        msc.toggleMute(channelId, description, realUuid);
                     }
                 }
                 case TOGGLE_ADMIN -> {
                     if (!description.isEmpty() && !channelId.isEmpty()) {
-                        msc.toggleAdmin(channelId, description, ownerUuid);
+                        msc.toggleAdmin(channelId, description, realUuid);
                     }
                 }
                 case TOGGLE_INVITE -> {
                     if (!description.isEmpty() && !channelId.isEmpty()) {
-                        msc.toggleInvite(channelId, description, ownerUuid);
+                        msc.toggleInvite(channelId, description, realUuid);
                     }
                 }
                 case KICK_MEMBER -> {
                     if (!description.isEmpty() && !channelId.isEmpty()) {
-                        msc.kickMember(channelId, description, ownerUuid);
+                        msc.kickMember(channelId, description, realUuid);
                     }
                 }
                 case LEAVE_CHANNEL -> {
-                    msc.leaveChannel(channelId, ownerUuid);
+                    msc.leaveChannel(channelId, realUuid);
                 }
                 case LIST_PUBLIC -> {
                     if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
@@ -231,22 +245,41 @@ public record ServerboundChannelActionPayload(
                 }
                 case CREATE_VOICE_ROOM -> {
                     if (!description.isEmpty()) {
-                        msc.createVoiceRoom(channelId, description, ownerUuid);
+                        msc.createVoiceRoom(channelId, description, realUuid);
                     }
                 }
                 case DELETE_VOICE_ROOM -> {
                     if (!description.isEmpty()) {
-                        msc.deleteVoiceRoom(channelId, description, ownerUuid);
+                        msc.deleteVoiceRoom(channelId, description, realUuid);
                     }
                 }
                 case JOIN_VOICE_ROOM -> {
                     if (!description.isEmpty()) {
-                        msc.joinVoiceRoom(channelId, description, ownerUuid);
+                        msc.joinVoiceRoom(channelId, description, realUuid);
                     }
                 }
                 case LEAVE_VOICE_ROOM -> {
                     if (!description.isEmpty()) {
-                        msc.leaveVoiceRoom(channelId, description, ownerUuid);
+                        msc.leaveVoiceRoom(channelId, description, realUuid);
+                    }
+                }
+                case RENAME_SUBCHANNEL -> {
+                    if (!channelId.isEmpty() && !displayName.isEmpty()) {
+                        msc.renameChannel(channelId, displayName, realUuid);
+                    }
+                }
+                case REORDER_CHANNEL -> {
+                    if (!description.isEmpty()) {
+                        List<String> ids = new ArrayList<>();
+                        for (String s : description.split(",")) {
+                            if (!s.trim().isEmpty()) ids.add(s.trim());
+                        }
+                        msc.reorderChannels(ids, realUuid);
+                    }
+                }
+                case MOVE_CHANNEL -> {
+                    if (!channelId.isEmpty() && !description.isEmpty()) {
+                        msc.moveChannel(channelId, description, realUuid);
                     }
                 }
             }
@@ -261,5 +294,5 @@ public record ServerboundChannelActionPayload(
     public enum Action { CREATE, UPDATE_CONFIG, JOIN_MEMBER, JOIN_BY_CODE, SEND_CHAT, REMOVE_CHANNEL,
         TOGGLE_MUTE, TOGGLE_ADMIN, TOGGLE_INVITE, LEAVE_CHANNEL, LIST_PUBLIC,
         CREATE_VOICE_ROOM, DELETE_VOICE_ROOM, JOIN_VOICE_ROOM, LEAVE_VOICE_ROOM,
-        KICK_MEMBER }
+        KICK_MEMBER, RENAME_SUBCHANNEL, REORDER_CHANNEL, MOVE_CHANNEL }
 }

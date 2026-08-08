@@ -23,6 +23,11 @@ public final class Theme {
         return cornerStyle() == 2;
     }
 
+    /** Stream-style layout & message rendering (4th corner style). */
+    public static boolean stream() {
+        return cornerStyle() == 3;
+    }
+
     // ---------- Seed-based tonal derivation ----------
 
     /**
@@ -259,11 +264,40 @@ public final class Theme {
         return ov(isDark(), "toolbarBg", 0x88000000, 0x88000000);
     }
 
+    /** Stream-style: left icon rail background (#1E1F22 dark / #E3E5E8 light). */
+    public static int railBg() {
+        return ov(isDark(), "railBg", 0xFF1E1F22, 0xFFE3E5E8);
+    }
+
+    /** Stream-style message row hover background (#2E3035 dark). */
+    public static int msgHover() {
+        return ov(isDark(), "msgHover", 0xFF2E3035, 0xFFF4F4F7);
+    }
+
+    /** Stream-style input pill background (#383A40 dark / white light). */
+    public static int inputPillBg() {
+        return ov(isDark(), "inputPillBg", 0xFF383A40, 0xFFFFFFFF);
+    }
+
+    /** Stream-style input pill border (#404249 dark). */
+    public static int inputPillBorder() {
+        return ov(isDark(), "inputPillBorder", 0xFF404249, 0xFFB0B4BB);
+    }
+
     public static int previewSwatchBg() {
         return ov(isDark(), "previewSwatchBg", 0xFF3A3A4A, 0xFFDDDDE8);
     }
 
     // ---------- Borders & lines ----------
+
+    /**
+     * Whether popup/screen outline borders are drawn. Controlled by the popupBorder
+     * config option and forced off for square/pixel corner styles.
+     */
+    public static boolean popupBorderVisible() {
+        return cn.sarskin.ChatSphere.config.ModClientConfig.CONFIG.popupBorder.get()
+                && cornerStyle() == 2;
+    }
 
     public static int popupOutline() {
         return ov(isDark(), "popupOutline", 0x66FFFFFF, 0x66000000);
@@ -359,6 +393,12 @@ public final class Theme {
 
     public static int text() {
         return ov(isDark(), "text", 0xFFFFFFFF, 0xFF1A1A1A);
+    }
+
+    /** Stable per-name hue color (Stream-style username coloring). */
+    public static int nameColor(String name) {
+        int h = Math.floorMod(name.hashCode(), 360);
+        return isDark() ? hslToRgb(h, 0.55f, 0.72f) : hslToRgb(h, 0.50f, 0.32f);
     }
 
     public static int textMain() {
@@ -461,9 +501,10 @@ public final class Theme {
 
     // ---------- Style numbers (custom theme) ----------
 
+    /** Bubble corner radius; theme-file only (styles.bubble-corner-radius), 4px default. */
     public static int bubbleCornerRadius() {
         Integer v = CustomTheme.INSTANCE.style("bubbleCornerRadius");
-        return v != null ? v : ModClientConfig.CONFIG.bubbleCornerRadius.get();
+        return v != null ? v : 4;
     }
 
     public static int messageLineSpacing() {

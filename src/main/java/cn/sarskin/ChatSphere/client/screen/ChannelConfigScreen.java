@@ -6,6 +6,7 @@ import cn.sarskin.ChatSphere.client.voice.VoiceIntegration;
 import cn.sarskin.ChatSphere.client.voice.VoiceRoom;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.UiToggle;
 import cn.sarskin.ChatSphere.client.widget.CopyToast;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
@@ -45,6 +46,18 @@ public class ChannelConfigScreen extends Screen {
     private StyledButton regenBtn;
     private Runnable configChangeListener;
 
+    private int subChannelTabIdx = -1;
+    private boolean dragActive;
+    private int dragSection;
+    private int dragFrom;
+    private int dragTo;
+    private int dragInsertPos = -1;
+    private String setParentId;
+    private final List<String> subOrder = new ArrayList<>();
+    private EditBox subCreateInput;
+    private String renamingId;
+    private EditBox renameBox;
+
     private interface WidgetFactory { AbstractWidget create(int y); }
     private record Opt(String key, WidgetFactory factory) {}
     private record Cat(String key, List<Opt> opts) {}
@@ -65,9 +78,14 @@ public class ChannelConfigScreen extends Screen {
     private void buildCats() {
         cats = new ArrayList<>();
 
+        boolean isSub = ChatHistoryManager.isSubChannel(channelId);
+
         List<Opt> general = new ArrayList<>();
-        general.add(new Opt("screen.chatsphere.channel_config.public_label", y -> mkPublicToggle(y)));
-        general.add(new Opt("screen.chatsphere.channel_config.show_in_explore", y -> mkExploreToggle(y)));
+        if (!isSub) {
+            general.add(new Opt("screen.chatsphere.channel_config.public_label", y -> mkPublicToggle(y)));
+            general.add(new Opt("screen.chatsphere.channel_config.show_in_explore", y -> mkExploreToggle(y)));
+            general.add(new Opt("screen.chatsphere.channel_config.main_chat_label", y -> mkChatToggle(y)));
+        }
         general.add(new Opt("screen.chatsphere.channel_config.display_name", y -> {
             EditBox box = new EditBox(font, inputX, y, btnW, 16,
                 Component.translatable("screen.chatsphere.channel_config.display_name_hint"));
@@ -80,6 +98,21 @@ public class ChannelConfigScreen extends Screen {
             });
             return box;
         }));
+        if (!isSub) {
+            general.add(new Opt("screen.chatsphere.channel_config.default_sub_label", y -> {
+                EditBox box = new EditBox(font, inputX, y, btnW, 16,
+                    Component.translatable("screen.chatsphere.channel_config.default_sub_hint"));
+                box.setMaxLength(32);
+                box.setBordered(true);
+                box.setValue(config.defaultSubChannel);
+                box.setVisible(!config.mainChatEnabled);
+                box.setResponder(val -> {
+                    config.defaultSubChannel = val.trim();
+                    ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
+                });
+                return box;
+            }));
+        }
         general.add(new Opt("screen.chatsphere.channel_config.description", y -> {
             EditBox box = new EditBox(font, inputX, y, btnW, 16,
                 Component.translatable("screen.chatsphere.channel_config.description_hint"));
@@ -92,39 +125,42 @@ public class ChannelConfigScreen extends Screen {
             });
             return box;
         }));
-        general.add(new Opt("screen.chatsphere.channel_config.invite_code", y -> {
-            String code = config.inviteCode.isEmpty() ? "N/A" : config.inviteCode;
-            inviteCodeBtn = StyledButton.styledBuilder(
-                Component.literal(code),
-                btn -> {
-                    if (!config.inviteCode.isEmpty()) {
-                        minecraft.keyboardHandler.setClipboard(config.inviteCode);
-                        copyToast.show();
+        if (!isSub) {
+            general.add(new Opt("screen.chatsphere.channel_config.invite_code", y -> {
+                String code = config.inviteCode.isEmpty() ? "N/A" : config.inviteCode;
+                inviteCodeBtn = StyledButton.styledBuilder(
+                    Component.literal(code),
+                    btn -> {
+                        if (!config.inviteCode.isEmpty()) {
+                            minecraft.keyboardHandler.setClipboard(config.inviteCode);
+                            copyToast.show();
+                        }
                     }
-                }
-            ).bounds(inputX, y, btnW - 90, 20).tooltip(
-                Component.translatable("screen.chatsphere.channel_config.tip_invite_code")
-            ).build();
-            return inviteCodeBtn;
-        }));
-        general.add(new Opt("", y -> {
-            int regenBtnW = 80;
-            regenBtn = StyledButton.styledBuilder(
-                Component.translatable("screen.chatsphere.channel_config.regenerate_code"),
-                btn -> {
-                    config.inviteCode = generateCode();
-                    if (inviteCodeBtn != null)
-                        inviteCodeBtn.setMessage(Component.literal(config.inviteCode));
-                    ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
-                }
-            ).bounds(inputX + btnW - regenBtnW, y, regenBtnW, 20).tooltip(
-                Component.translatable("screen.chatsphere.channel_config.tip_regen_code")
-            ).build();
-            return regenBtn;
-        }));
+                ).bounds(inputX, y, btnW - 90, 20).tooltip(
+                    Component.translatable("screen.chatsphere.channel_config.tip_invite_code")
+                ).build();
+                return inviteCodeBtn;
+            }));
+            general.add(new Opt("", y -> {
+                int regenBtnW = 80;
+                regenBtn = StyledButton.styledBuilder(
+                    Component.translatable("screen.chatsphere.channel_config.regenerate_code"),
+                    btn -> {
+                        config.inviteCode = generateCode();
+                        if (inviteCodeBtn != null)
+                            inviteCodeBtn.setMessage(Component.literal(config.inviteCode));
+                        ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
+                    }
+                ).bounds(inputX + btnW - regenBtnW, y, regenBtnW, 20).tooltip(
+                    Component.translatable("screen.chatsphere.channel_config.tip_regen_code")
+                ).build();
+                return regenBtn;
+            }));
+        }
         cats.add(new Cat("screen.chatsphere.channel_config.tab_general", general));
 
         List<Opt> members = new ArrayList<>();
+        if (!isSub) {
         members.add(new Opt("", y -> {
             int memberCount = config.members.size();
             long onlineCount = config.members.stream()
@@ -168,6 +204,13 @@ public class ChannelConfigScreen extends Screen {
             ).build()
         ));
         cats.add(new Cat("screen.chatsphere.channel_config.tab_members", members));
+        }
+
+        if (isAdmin() && !ChatHistoryManager.isSubChannel(channelId)) {
+            List<Opt> subOpts = new ArrayList<>();
+            cats.add(new Cat("screen.chatsphere.channel_config.tab_subchannels", subOpts));
+            subChannelTabIdx = cats.size() - 1;
+        }
 
         if (VoiceIntegration.isAnyVoiceModPresent()) {
         List<Opt> voiceOpts = new ArrayList<>();
@@ -263,6 +306,9 @@ public class ChannelConfigScreen extends Screen {
             ChatDataStore.ChannelConfig latest = ChatHistoryManager.getInstance().getChannelConfig(channelId);
             if (latest != config) {
                 config = latest;
+                // Do not rebuild while the player is typing in an edit box — rebuilding
+                // mid-input clears focus and loses the caret.
+                if (getFocused() instanceof EditBox) return;
                 clearWidgets();
                 init();
             }
@@ -279,6 +325,18 @@ public class ChannelConfigScreen extends Screen {
 
         scrollWidgets.clear();
         scrollOffset = Mth.clamp(scrollOffset, 0, calcMaxScroll());
+
+        if (selectedCat == subChannelTabIdx) {
+            subOrder.clear();
+            subOrder.addAll(history.getDescendantChannels(channelId));
+            renamingId = null;
+            renameBox = null;
+            subCreateInput = new EditBox(font, 30, 0, Math.max(100, btnW - 60), 16,
+                Component.translatable("screen.chatsphere.channel_config.subchannel_name_hint"));
+            subCreateInput.setMaxLength(32);
+            subCreateInput.setBordered(true);
+            addRenderableWidget(subCreateInput);
+        }
 
         int y = CONTENT_Y - scrollOffset;
         for (Opt opt : cats.get(selectedCat).opts()) {
@@ -305,49 +363,36 @@ public class ChannelConfigScreen extends Screen {
             || ChatHistoryManager.getInstance().isAdmin(channelId, playerUuid));
     }
 
-    private StyledButton mkPublicToggle(int y) {
-        return StyledButton.styledBuilder(
-            buildPublicLabel(),
-            btn -> {
-                config.isPublic = !config.isPublic;
-                btn.setMessage(buildPublicLabel());
-                ((StyledButton) btn).setStyle(config.isPublic ? StyledButton.Style.TOGGLE_ON : StyledButton.Style.TOGGLE_OFF);
+    private UiToggle mkPublicToggle(int y) {
+        UiToggle toggle = new UiToggle(inputX, y, btnW, 20, config.isPublic,
+            v -> {
+                config.isPublic = v;
                 ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
-            }
-        ).bounds(inputX, y, btnW, 20).style(
-            config.isPublic ? StyledButton.Style.TOGGLE_ON : StyledButton.Style.TOGGLE_OFF
-        ).tooltip(
-            Component.translatable("screen.chatsphere.config.tip_toggle")
-        ).build();
+            });
+        toggle.setTooltip(Tooltip.create(Component.translatable("screen.chatsphere.config.tip_toggle")));
+        return toggle;
     }
 
-    private Component buildPublicLabel() {
-        if (config.isPublic) {
-            return Component.translatable("screen.chatsphere.channel_config.enabled");
-        }
-        return Component.translatable("screen.chatsphere.channel_config.disabled");
-    }
-
-    private StyledButton mkExploreToggle(int y) {
-        return StyledButton.styledBuilder(
-            buildExploreLabel(),
-            btn -> {
-                config.showInExplore = !config.showInExplore;
-                btn.setMessage(buildExploreLabel());
-                ((StyledButton) btn).setStyle(config.showInExplore ? StyledButton.Style.TOGGLE_ON : StyledButton.Style.TOGGLE_OFF);
+    private UiToggle mkExploreToggle(int y) {
+        UiToggle toggle = new UiToggle(inputX, y, btnW, 20, config.showInExplore,
+            v -> {
+                config.showInExplore = v;
                 ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
-            }
-        ).bounds(inputX, y, btnW, 20).style(
-            config.showInExplore ? StyledButton.Style.TOGGLE_ON : StyledButton.Style.TOGGLE_OFF
-        ).tooltip(
-            Component.translatable("screen.chatsphere.config.tip_toggle")
-        ).build();
+            });
+        toggle.setTooltip(Tooltip.create(Component.translatable("screen.chatsphere.config.tip_toggle")));
+        return toggle;
     }
 
-    private Component buildExploreLabel() {
-        return Component.translatable(config.showInExplore
-            ? "screen.chatsphere.channel_config.enabled"
-            : "screen.chatsphere.channel_config.disabled");
+    private UiToggle mkChatToggle(int y) {
+        UiToggle toggle = new UiToggle(inputX, y, btnW, 20, config.mainChatEnabled,
+            v -> {
+                config.mainChatEnabled = v;
+                ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
+                clearWidgets();
+                init();
+            });
+        toggle.setTooltip(Tooltip.create(Component.translatable("screen.chatsphere.channel_config.tip_main_chat")));
+        return toggle;
     }
 
     private void switchCategory(int idx) {
@@ -374,6 +419,11 @@ public class ChannelConfigScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        int contentBottom = height - 48;
+        for (AbstractWidget w : scrollWidgets) {
+            int wy = w.getY();
+            w.visible = wy >= CONTENT_Y && wy + ROW_H <= contentBottom;
+        }
         super.render(g, mouseX, mouseY, partialTick);
         g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
 
@@ -394,10 +444,9 @@ public class ChannelConfigScreen extends Screen {
 
         g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
-        int contentBottom = height - 48;
         int y = CONTENT_Y - scrollOffset;
         for (Opt opt : cats.get(selectedCat).opts()) {
-            if (y > -ROW_H && y < contentBottom) {
+            if (y >= CONTENT_Y && y + ROW_H <= contentBottom) {
                 if (!opt.key().isEmpty()) {
                     g.drawString(font, Component.translatable(opt.key()), optLabelX, y + 6, Theme.text(), false);
                 }
@@ -405,7 +454,191 @@ public class ChannelConfigScreen extends Screen {
             y += ROW_H;
         }
 
+        if (selectedCat == subChannelTabIdx) {
+            renderSubChannelTab(g, mouseX, mouseY);
+        }
+
         copyToast.render(g, 0, width);
+    }
+
+    private void renderSubChannelTab(GuiGraphics g, int mouseX, int mouseY) {
+        int contentBottom = height - 48;
+        int ry = CONTENT_Y - scrollOffset;
+        int labelX = 30;
+        boolean visible;
+
+        visible = ry >= CONTENT_Y && ry + ROW_H <= contentBottom;
+        if (visible) {
+            g.drawString(font, Component.translatable("screen.chatsphere.channel_config.subchannels_title"),
+                    labelX, ry + 4, Theme.accent(), false);
+        }
+        ry += ROW_H;
+
+        if (subCreateInput != null) {
+            visible = ry >= CONTENT_Y && ry + ROW_H <= contentBottom;
+            subCreateInput.visible = visible;
+            if (visible) {
+                subCreateInput.setY(ry + 1);
+                g.drawString(font, Component.translatable("screen.chatsphere.channel_config.subchannel_create"),
+                        labelX, ry + 8, Theme.text(), false);
+                int boxX = labelX + 110;
+                int boxW = Math.max(80, width - boxX - 90);
+                subCreateInput.setX(boxX);
+                subCreateInput.setWidth(boxW);
+                int btnX = boxX + boxW + 6;
+                boolean hover = mouseX >= btnX && mouseX <= btnX + 64 && mouseY >= ry && mouseY <= ry + ROW_H;
+                g.fill(btnX, ry + 2, btnX + 64, ry + 20, hover ? Theme.accent() : 0xFF2A5A2A);
+                g.renderOutline(btnX, ry + 2, 64, 18, 0xFF489A48);
+                Component txt = Component.translatable("screen.chatsphere.channel_config.subchannel_add");
+                g.drawString(font, txt, btnX + (64 - font.width(txt)) / 2, ry + 7, 0xFFFFFFFF, false);
+            }
+            ry += ROW_H;
+        }
+
+        if (subOrder.isEmpty()) {
+            visible = ry >= CONTENT_Y && ry + ROW_H <= contentBottom;
+            if (visible) {
+                g.drawString(font, Component.translatable("screen.chatsphere.channel_config.subchannel_empty"),
+                        labelX + 8, ry + 6, Theme.textDim(), false);
+            }
+            ry += ROW_H;
+        }
+        int renameRowY = -1;
+        for (int i = 0; i < subOrder.size(); i++) {
+            visible = ry >= CONTENT_Y && ry + ROW_H <= contentBottom;
+            String rowId = subOrder.get(i);
+            if (rowId.equals(renamingId)) {
+                renameRowY = visible ? ry : -1;
+            }
+            if (visible) {
+                if (dragActive && dragInsertPos == i) {
+                    renderInsertLine(g, ry);
+                }
+                renderReorderRow(g, ry, mouseX, mouseY, rowId, i, false, ChatHistoryManager.channelDepth(rowId));
+            }
+            ry += ROW_H;
+        }
+        if (dragActive && dragInsertPos == subOrder.size()) {
+            renderInsertLine(g, ry);
+        }
+
+        if (renamingId != null && renameBox != null) {
+            if (renameRowY >= 0) {
+                renameBox.visible = true;
+                renameBox.setY(renameRowY + 1);
+                renameBox.setX(30 + 12);
+                renameBox.setWidth(Math.max(100, Math.min(btnW, width - 30 - 12 - 60)));
+            } else {
+                renameBox.visible = false;
+            }
+        }
+
+        if (setParentId != null) {
+            boolean candVisible = ry >= CONTENT_Y && ry + ROW_H <= contentBottom;
+            if (candVisible) {
+                g.drawString(font, Component.translatable("screen.chatsphere.channel_config.subchannel_parent_pick",
+                        parentDisplayName(setParentId)), labelX, ry + 4, Theme.accent(), false);
+            }
+            ry += ROW_H;
+            List<String> candidates = parentCandidates(setParentId);
+            for (String cid : candidates) {
+                candVisible = ry >= CONTENT_Y && ry + ROW_H <= contentBottom;
+                if (candVisible) {
+                    boolean hover = mouseY >= ry && mouseY < ry + ROW_H && mouseX >= labelX && mouseX < width - 16;
+                    g.fill(labelX, ry + 1, width - 16, ry + ROW_H - 1, hover ? 0x22FFFFFF : 0x00000000);
+                    Component cname = cid.isEmpty()
+                            ? Component.translatable("screen.chatsphere.channel_config.subchannel_parent_top")
+                            : Component.literal(parentDisplayName(cid));
+                    g.drawString(font, Component.literal(cid.isEmpty() ? "" : "  ").append(cname),
+                            labelX + 8, ry + 6, Theme.text(), false);
+                }
+                ry += ROW_H;
+            }
+        }
+    }
+
+    private String parentDisplayName(String id) {
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        Component name = history.getConversationDisplayName(id);
+        return name != null ? name.getString() : id;
+    }
+
+    private List<String> parentCandidates(String childId) {
+        List<String> candidates = new ArrayList<>();
+        candidates.add(""); // top level (main channel)
+        String currentParent = ChatHistoryManager.subParentOf(childId);
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        for (String id : subOrder) {
+            if (ChatHistoryManager.channelDepth(id) == 1 && !id.equals(childId)
+                    && !id.equals(currentParent)) {
+                candidates.add(id);
+            }
+        }
+        return candidates;
+    }
+
+    private void renderInsertLine(GuiGraphics g, int y) {
+        int x0 = 30;
+        g.fill(x0, y - 1, width - 16, y + 1, Theme.accent());
+        g.fill(x0 - 3, y - 3, x0 + 3, y + 3, Theme.accent());
+    }
+
+    private void renderReorderRow(GuiGraphics g, int ry, int mouseX, int mouseY,
+                                  String id, int index, boolean isTopSection, int indent) {
+        boolean isDragged = dragActive && index == dragFrom;
+        int rowX = 30 + indent * 12;
+        if (isDragged) {
+            g.fill(rowX - 8, ry + 1, width - 16, ry + ROW_H - 1, 0x30FFFFFF);
+        }
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        Component name = history.getConversationDisplayName(id);
+        String nameStr = name != null ? name.getString() : id;
+
+        boolean renamingThis = id.equals(renamingId);
+
+        if (!renamingThis) {
+            int handleW = 12;
+            g.drawString(font, Component.literal("\u2630"), rowX, ry + 7,
+                    mouseY >= ry && mouseY < ry + ROW_H && mouseX >= rowX && mouseX < rowX + handleW + 8
+                            ? Theme.accent() : Theme.textDim(), false);
+
+            g.drawString(font, Component.literal(nameStr), rowX + 22, ry + 6, Theme.text(), false);
+
+            int rightEdge = width - 16;
+            int delW = 18;
+            int delX = rightEdge - delW;
+            int renameW = 22;
+            int renameX = delX - 6 - renameW;
+            int parentW = 22;
+            int parentX = renameX - 6 - parentW;
+
+            boolean delHover = mouseX >= delX && mouseX < delX + delW && mouseY >= ry && mouseY < ry + ROW_H;
+            g.fill(delX, ry + 3, delX + delW, ry + 19, delHover ? 0xFF7A2828 : 0xFF5A1E1E);
+            g.drawString(font, Component.literal("×"), delX + (delW - font.width("×")) / 2, ry + 7, 0xFFFFFFFF, false);
+            if (delHover) {
+                g.renderTooltip(font, Component.translatable("screen.chatsphere.channel_config.subchannel_delete_tip"), mouseX, mouseY);
+            }
+
+            boolean renameHover = mouseX >= renameX && mouseX < renameX + renameW && mouseY >= ry && mouseY < ry + ROW_H;
+            g.fill(renameX, ry + 3, renameX + renameW, ry + 19, renameHover ? 0xFF3A5A8A : 0xFF2A3A5A);
+            Component editTxt = Component.literal("✎");
+            g.drawString(font, editTxt, renameX + (renameW - font.width(editTxt)) / 2, ry + 7, 0xFFFFFFFF, false);
+            if (renameHover) {
+                g.renderTooltip(font, Component.translatable("screen.chatsphere.channel_config.subchannel_rename_tip"), mouseX, mouseY);
+            }
+
+            boolean parentHover = mouseX >= parentX && mouseX < parentX + parentW && mouseY >= ry && mouseY < ry + ROW_H;
+            g.fill(parentX, ry + 3, parentX + parentW, ry + 19, parentHover ? 0xFF3A5A5A : 0xFF2A3A3A);
+            Component parentTxt = Component.literal("⇄");
+            g.drawString(font, parentTxt, parentX + (parentW - font.width(parentTxt)) / 2, ry + 7, 0xFFFFFFFF, false);
+            if (parentHover) {
+                g.renderTooltip(font, Component.translatable("screen.chatsphere.channel_config.subchannel_parent_tip"), mouseX, mouseY);
+            }
+        }
+    }
+
+    private int subRowStartY() {
+        return CONTENT_Y - scrollOffset + ROW_H + (subCreateInput != null ? ROW_H : 0);
     }
 
     @Override
@@ -420,8 +653,208 @@ public class ChannelConfigScreen extends Screen {
                 }
                 cx += w + 6;
             }
+            if (selectedCat == subChannelTabIdx) {
+                if (handleSubChannelClick(mouseX, mouseY)) return true;
+            }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    private boolean handleSubChannelClick(double mouseX, double mouseY) {
+        int ry = CONTENT_Y - scrollOffset + ROW_H;
+        if (subCreateInput != null && mouseY >= ry && mouseY < ry + ROW_H) {
+            int boxX = 30 + 110;
+            int boxW = Math.max(80, width - boxX - 90);
+            int btnX = boxX + boxW + 6;
+            if (mouseX >= btnX && mouseX <= btnX + 64) {
+                String name = subCreateInput.getValue().trim();
+                if (!name.isEmpty() && minecraft != null && minecraft.player != null
+                        && minecraft.getConnection() != null) {
+                    if (!name.contains("/")) {
+                        String newId = channelId + "/" + name;
+                        var conn = minecraft.getConnection().getConnection();
+                        conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
+                                new ServerboundChannelActionPayload(
+                                        ServerboundChannelActionPayload.Action.CREATE,
+                                        newId, minecraft.player.getUUID(), false, "", "",
+                                        List.<String>of(), List.<String>of(), List.<String>of(),
+                                        "", false, "", "", "", false, "")));
+                        subCreateInput.setValue("");
+                    }
+                }
+                return true;
+            }
+            ry += ROW_H;
+        } else if (subCreateInput != null) {
+            ry += ROW_H;
+        }
+
+        for (int i = 0; i < subOrder.size(); i++) {
+            if (mouseY >= ry && mouseY < ry + ROW_H) {
+                String id = subOrder.get(i);
+                if (id.equals(renamingId)) return false;
+                int rowX = 30 + ChatHistoryManager.channelDepth(id) * 12;
+                if (mouseX >= rowX && mouseX < rowX + 20) {
+                    startDrag(1, i);
+                    return true;
+                }
+                int rightEdge = width - 16;
+                int delX = rightEdge - 18;
+                int renameX = delX - 6 - 22;
+                int parentX = renameX - 6 - 22;
+                if (mouseX >= delX && mouseX < delX + 18) {
+                    if (minecraft != null && minecraft.player != null && minecraft.getConnection() != null) {
+                        var conn = minecraft.getConnection().getConnection();
+                        conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
+                                new ServerboundChannelActionPayload(
+                                        ServerboundChannelActionPayload.Action.REMOVE_CHANNEL,
+                                        id, minecraft.player.getUUID(), false, "", "",
+                                        List.<String>of(), List.<String>of(), List.<String>of(),
+                                        "", false, "", "", "", false, "")));
+                    }
+                    return true;
+                }
+                if (mouseX >= renameX && mouseX < renameX + 22) {
+                    beginRename(id);
+                    return true;
+                }
+                if (mouseX >= parentX && mouseX < parentX + 22) {
+                    setParentId = id.equals(setParentId) ? null : id;
+                    return true;
+                }
+                return false;
+            }
+            ry += ROW_H;
+        }
+
+        if (setParentId != null) {
+            ry += ROW_H; // header row
+            List<String> candidates = parentCandidates(setParentId);
+            for (String cid : candidates) {
+                if (mouseY >= ry && mouseY < ry + ROW_H) {
+                    if (minecraft != null && minecraft.player != null && minecraft.getConnection() != null) {
+                        if (cid.isEmpty()) {
+                            ChatHistoryManager.getInstance().sendMoveSubChannel(setParentId, channelId);
+                        } else {
+                            ChatHistoryManager.getInstance().sendMoveSubChannel(setParentId, cid);
+                        }
+                        setParentId = null;
+                    }
+                    return true;
+                }
+                ry += ROW_H;
+            }
+            setParentId = null;
+            return true;
+        }
+        return false;
+    }
+
+    private void beginRename(String id) {
+        if (renameBox != null) {
+            removeWidget(renameBox);
+        }
+        renamingId = id;
+        renameBox = new EditBox(font, 30, 0, Math.max(100, btnW), 16,
+                Component.translatable("screen.chatsphere.channel_config.subchannel_name_hint"));
+        renameBox.setMaxLength(32);
+        renameBox.setBordered(true);
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        Component cur = history.getConversationDisplayName(id);
+        if (cur != null) renameBox.setValue(cur.getString());
+        addRenderableWidget(renameBox);
+        setFocused(renameBox);
+    }
+
+    private void confirmRename() {
+        if (renamingId != null && renameBox != null) {
+            String name = renameBox.getValue().trim();
+            if (!name.isEmpty() && !name.contains("/")) {
+                ChatHistoryManager.getInstance().sendRenameSubChannel(renamingId, name);
+            }
+        }
+        renamingId = null;
+        renameBox = null;
+        clearWidgets();
+        init();
+    }
+
+    private void startDrag(int section, int index) {
+        dragActive = true;
+        dragSection = section;
+        dragFrom = index;
+        dragTo = index;
+        dragInsertPos = -1;
+        if (subCreateInput != null) subCreateInput.setFocused(false);
+        if (renameBox != null) renameBox.setFocused(false);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (dragActive && button == 0 && selectedCat == subChannelTabIdx) {
+            int startY = subRowStartY();
+            int idx = (int) Math.floor((mouseY - startY) / ROW_H);
+            idx = Math.max(0, Math.min(subOrder.size() - 1, idx));
+            String srcId = subOrder.get(dragFrom);
+            String tgtId = subOrder.get(idx);
+            int srcDepth = ChatHistoryManager.channelDepth(srcId);
+            int tgtDepth = ChatHistoryManager.channelDepth(tgtId);
+            // Same-level insert line: upper half = before the row, lower half = after it.
+            if (srcDepth == tgtDepth && !tgtId.equals(srcId)) {
+                double inRow = mouseY - startY - idx * ROW_H;
+                dragInsertPos = inRow < ROW_H / 2.0 ? idx : idx + 1;
+            } else {
+                dragInsertPos = -1;
+            }
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (dragActive && button == 0) {
+            dragActive = false;
+            int insertPos = dragInsertPos;
+            dragInsertPos = -1;
+            if (insertPos >= 0 && insertPos != dragFrom && insertPos != dragFrom + 1
+                    && minecraft != null && minecraft.player != null
+                    && minecraft.getConnection() != null) {
+                String srcId = subOrder.get(dragFrom);
+                String srcParent = ChatHistoryManager.subParentOf(srcId);
+                String src = subOrder.remove(dragFrom);
+                int insert = insertPos > dragFrom ? insertPos - 1 : insertPos;
+                subOrder.add(Math.min(insert, subOrder.size()), src);
+                List<String> siblings = new ArrayList<>();
+                int srcDepth = ChatHistoryManager.channelDepth(srcId);
+                for (String id : subOrder) {
+                    if (ChatHistoryManager.channelDepth(id) == srcDepth
+                            && ChatHistoryManager.subParentOf(id).equals(srcParent)) {
+                        siblings.add(id);
+                    }
+                }
+                ChatHistoryManager.getInstance().sendReorderChannels(srcParent, siblings);
+            }
+            dragFrom = dragTo = -1;
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (renameBox != null && renameBox.isFocused() && (keyCode == 257 || keyCode == 335)) {
+            confirmRename();
+            return true;
+        }
+        if (renameBox != null && renameBox.isFocused() && keyCode == 256) {
+            renamingId = null;
+            renameBox = null;
+            clearWidgets();
+            init();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
@@ -441,7 +874,16 @@ public class ChannelConfigScreen extends Screen {
     }
 
     private int calcMaxScroll() {
-        int total = cats.get(selectedCat).opts().size() * ROW_H;
+        int total;
+        if (selectedCat == subChannelTabIdx) {
+            total = ROW_H + (subCreateInput != null ? ROW_H : 0);
+            total += Math.max(ROW_H, subOrder.size() * ROW_H);
+            if (setParentId != null) {
+                total += ROW_H + parentCandidates(setParentId).size() * ROW_H;
+            }
+        } else {
+            total = cats.get(selectedCat).opts().size() * ROW_H;
+        }
         return Math.max(0, CONTENT_Y + total - (height - 48));
     }
 

@@ -23,7 +23,10 @@ public class ExploreServersScreen extends Screen {
     private final List<ChannelRow> rows = new ArrayList<>();
     private final List<AbstractWidget> scrollWidgets = new ArrayList<>();
     private int scrollOffset;
-    private boolean requested;
+    private boolean requestInFlight;
+    private long lastRequestMs;
+
+    private static final long REQUEST_RETRY_MS = 3000;
 
     public ExploreServersScreen(Screen parent) {
         super(Component.translatable("screen.chatsphere.explore.title"));
@@ -36,10 +39,9 @@ public class ExploreServersScreen extends Screen {
         scrollWidgets.forEach(this::removeWidget);
         scrollWidgets.clear();
 
-        if (!requested) {
-            requested = true;
-            sendRequest();
-        }
+        requestInFlight = false;
+        lastRequestMs = 0;
+        sendRequest();
 
         List<ClientboundPublicChannelListPayload.PublicChannelEntry> data =
                 ChatHistoryManager.getInstance().getPublicChannels();
@@ -67,7 +69,7 @@ public class ExploreServersScreen extends Screen {
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.LIST_PUBLIC,
                                 "", minecraft.player != null ? minecraft.player.getUUID() : null,
-                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "")));
+                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "")));
     }
 
     private void repositionWidgets() {
@@ -105,7 +107,7 @@ public class ExploreServersScreen extends Screen {
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.JOIN_MEMBER,
                                 channelId, minecraft.player.getUUID(),
-                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "")));
+                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "")));
     }
 
     @Override
@@ -126,10 +128,19 @@ public class ExploreServersScreen extends Screen {
         List<ClientboundPublicChannelListPayload.PublicChannelEntry> data =
                 history.getPublicChannels();
 
-        if (data == null || history.isPublicChannelsDirty()) {
-            if (history.isPublicChannelsDirty()) {
+        boolean dirty = history.isPublicChannelsDirty();
+        if (dirty) {
+            long now = System.currentTimeMillis();
+            if (!requestInFlight || now - lastRequestMs > REQUEST_RETRY_MS) {
+                requestInFlight = true;
+                lastRequestMs = now;
                 sendRequest();
             }
+        } else {
+            requestInFlight = false;
+        }
+
+        if (data == null || dirty) {
             Component loading = Component.translatable("screen.chatsphere.explore.loading");
             g.drawString(font, loading, width / 2 - font.width(loading) / 2,
                     height / 2 - 10, Theme.textDim(), false);

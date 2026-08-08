@@ -1,0 +1,147 @@
+CS1;
+// ChatSphere preset: Stream-style layout (rail + channel sidebar + row messages)
+theme "Stream Preset" version 1;
+
+styles {
+    uiCornerStyle: stream;
+    bubbleCornerRadius: 16;
+    messageLineSpacing: 0;
+    sidebarWidth: 240px;
+    avatarRadius: 20;
+    blurIntensity: 100%;
+}
+
+dark {
+    // surfaces
+    screenBg: 313338;
+    sidebarBg: 2B2D31;
+    railBg: 1E1F22;
+    panelBg: 2B2D31;
+    panelBg2: 232428;
+    popupBg: 111214;
+    popupBg2: 232428;
+    popupBg3: 1E1F22;
+    searchBg: 1E1F22;
+    inputBg: 383A40;
+    inputPillBg: 383A40;
+    inputPillBorder: 404249;
+    notifGradTop: 232B31;
+    notifGradBot: 2B2D31;
+    replyBarBg: 33363B;
+    previewSwatchBg: 3F4147;
+    toolbarBg: 1F2225;
+    msgHover: 2E3035;
+
+    // lines & outlines
+    popupOutline: 5526262B;
+    popupOutline2: 663F4147;
+    emojiOutline: 4426262B;
+    itemPickerOutline: 4426262B;
+    divider: F3F4147;
+    accentLine: 3F4147;
+    sectionLine: 26272C;
+    scrollThumb: 1A1B1E;
+    scrollTrack: 2B2D31;
+
+    // accent & selection
+    accent: 5865F2;
+    hoverRow: 3F4043;
+    activeRow: 404249;
+    menuHover: 404249;
+    iconBtnBg: FF2B2D31;
+    iconBtnHover: FF404249;
+    searchCloseBg: FF3F4147;
+    emojiCellBg: FF3F4147;
+    emojiTabBg: 1E1F22;
+    emojiTabHover: 3F4043;
+    emojiTabSel: 5865F2;
+    slotBg: FF2B2D31;
+    slotHover: FF404249;
+
+    // text
+    text: DBDEE1;
+    textMain: B5BAC1;
+    textDim: 949BA4;
+    textFaint: 80848E;
+    textInactive: 949BA4;
+    floatingText: DBDEE1;
+    floatingTextDim: 99DBDEE1;
+    inputText: DBDEE1;
+    searchPlaceholder: 6D6F78;
+
+    // bubbles (unused by row layout, kept for fallback)
+    bubbleOwn: FF2B2D31;
+    bubbleOther: FF2B2D31;
+    cmdBubbleOwn: FF1E1F22;
+    cmdBubbleOther: FF2B2D31;
+    bubbleInfoLine: 949BA4;
+
+    // toggle
+    toggleOn: 23A55A;
+    toggleOff: 4E5058;
+    toggleKnob: FFFFFF;
+}
+
+light {
+    screenBg: FFFFFF;
+    sidebarBg: F2F3F5;
+    railBg: E3E5E8;
+    panelBg: FFFFFF;
+    panelBg2: E3E6EB;
+    popupBg: FFFFFF;
+    popupBg2: F2F3F5;
+    popupBg3: E3E5E8;
+    searchBg: E3E5E8;
+    inputBg: FFFFFF;
+    inputPillBg: FFFFFF;
+    inputPillBorder: B0B4BB;
+    notifGradTop: E4E8EE;
+    notifGradBot: 81A1C1;
+    replyBarBg: E4E8EE;
+    previewSwatchBg: DEDFE3;
+    toolbarBg: E3E5E8;
+    msgHover: FFFFFF;
+
+    popupOutline: 66000000;
+    popupOutline2: 33000000;
+    emojiOutline: 33000000;
+    itemPickerOutline: 33000000;
+    divider: 20000000;
+    accentLine: 3F4147;
+    sectionLine: 3F4147;
+    scrollThumb: A8AAB0;
+    scrollTrack: 00000000;
+
+    accent: 5865F2;
+    hoverRow: B0B4BB;
+    activeRow: C4C9CD;
+    menuHover: E1E4E8;
+    iconBtnBg: FF00000000;
+    iconBtnHover: FF00000012;
+    emojiCellBg: FF2E3035;
+    emojiTabBg: 00005555;
+    emojiTabHover: FF00000012;
+    emojiTabSel: FF5865F2;
+    slotBg: FF00000000;
+    slotHover: FF00000012;
+
+    text: 060607;
+    textMain: 313338;
+    textDim: 5C5E66;
+    textFaint: 80848E;
+    textInactive: 5C5E66;
+    floatingText: 060607;
+    floatingTextDim: 99060607;
+    inputText: 060607;
+    searchPlaceholder: 6D6F78;
+
+    bubbleInfoLine: 5C5E66;
+    bubbleOwn: FFFFFFFF;
+    bubbleOther: FFFFFFFF;
+    cmdBubbleOwn: FF1E1F22;
+    cmdBubbleOther: FF2B2D31;
+
+    toggleOn: 23A55A;
+    toggleOff: C4C9C3;
+    toggleKnob: FFFFFF;
+}

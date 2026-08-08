@@ -27,8 +27,10 @@ public record ServerboundConfigUpdatePayload(String key, String value) implement
     }
 
     private static ServerboundConfigUpdatePayload read(ByteBuf buf) {
-        int kl = buf.readInt(); byte[] k = new byte[kl]; buf.readBytes(k);
-        int vl = buf.readInt(); byte[] v = new byte[vl]; buf.readBytes(v);
+        int kl = PayloadLimits.readCount(buf, PayloadLimits.MAX_UTF_BYTES);
+        byte[] k = new byte[kl]; buf.readBytes(k);
+        int vl = PayloadLimits.readCount(buf, PayloadLimits.MAX_UTF_BYTES);
+        byte[] v = new byte[vl]; buf.readBytes(v);
         return new ServerboundConfigUpdatePayload(
             new String(k, java.nio.charset.StandardCharsets.UTF_8),
             new String(v, java.nio.charset.StandardCharsets.UTF_8));

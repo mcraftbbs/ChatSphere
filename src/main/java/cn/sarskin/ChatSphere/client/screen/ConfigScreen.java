@@ -90,6 +90,7 @@ public class ConfigScreen extends Screen {
         ui.add(new Opt("config.chatsphere.show_avatar", y -> mkBool(y, ModClientConfig.CONFIG.showAvatar)));
         ui.add(new Opt("config.chatsphere.theme", y -> mkBool(y, ModClientConfig.CONFIG.themeDark)));
         ui.add(new Opt("config.chatsphere.background_blur", y -> mkBool(y, ModClientConfig.CONFIG.backgroundBlur)));
+        ui.add(new Opt("config.chatsphere.popup_border", y -> mkBool(y, ModClientConfig.CONFIG.popupBorder)));
         ui.add(new Opt("config.chatsphere.strong_hint", y -> mkServerBool(y, "showStrongHint", ModServerConfig.CONFIG.showStrongHint)));
         cats.add(Cat.plain("config.chatsphere.ui", ui));
 
@@ -103,7 +104,7 @@ public class ConfigScreen extends Screen {
         behavior.add(new Opt("config.chatsphere.max_command_messages",
             y -> mkIntBox(y, safeGetStr(ModServerConfig.CONFIG.maxCommandMessages, "500"), 50, 2000, 4, v -> sendConfigUpdate("maxCommandMessages", String.valueOf(v))), null));
         behavior.add(new Opt("config.chatsphere.scroll_history_limit",
-            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.scrollHistoryLimit.get()), 50, 500, 3, v -> { ModClientConfig.CONFIG.scrollHistoryLimit.set(v); CONFIG_SPEC.save(); }), null));
+            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.scrollHistoryLimit.get()), 50, 1000, 3, v -> { ModClientConfig.CONFIG.scrollHistoryLimit.set(v); CONFIG_SPEC.save(); }), null));
         behavior.add(new Opt("config.chatsphere.command_history_limit",
             y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.commandHistoryLimit.get()), 10, 500, 3, v -> { ModClientConfig.CONFIG.commandHistoryLimit.set(v); CONFIG_SPEC.save(); }), null));
         cats.add(Cat.plain("config.chatsphere.behavior", behavior));
@@ -119,24 +120,19 @@ public class ConfigScreen extends Screen {
 
         List<Opt> bubble = new ArrayList<>();
         bubble.add(new Opt("config.chatsphere.bubble_color_own",
-            y -> mkHexBox(y, ModClientConfig.CONFIG.bubbleColorOwn.get(), s -> {
+            y -> mkHexBox(y, String.format("#%06X", Theme.bubbleOwnFallback() & 0xFFFFFF), s -> {
                 ModClientConfig.CONFIG.bubbleColorOwn.set(s); CONFIG_SPEC.save();
                 int argb = ModClientConfig.parseHexColor(s, 0xFF8888FF);
                 CustomTheme.INSTANCE.syncValues(null, Map.of("bubbleOwn", argb), Map.of("bubbleOwn", argb));
             }),
             ModClientConfig.CONFIG.bubbleColorOwn::get));
         bubble.add(new Opt("config.chatsphere.bubble_color_other",
-            y -> mkHexBox(y, ModClientConfig.CONFIG.bubbleColorOther.get(), s -> {
+            y -> mkHexBox(y, String.format("#%06X", Theme.bubbleOtherFallback() & 0xFFFFFF), s -> {
                 ModClientConfig.CONFIG.bubbleColorOther.set(s); CONFIG_SPEC.save();
                 int argb = ModClientConfig.parseHexColor(s, 0xFF8888FF);
                 CustomTheme.INSTANCE.syncValues(null, Map.of("bubbleOther", argb), Map.of("bubbleOther", argb));
             }),
             ModClientConfig.CONFIG.bubbleColorOther::get));
-        bubble.add(new Opt("config.chatsphere.bubble_corner_radius",
-            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.bubbleCornerRadius.get()), 0, 8, 1, v -> {
-                ModClientConfig.CONFIG.bubbleCornerRadius.set(v); CONFIG_SPEC.save();
-                CustomTheme.INSTANCE.syncValues(Map.of("bubbleCornerRadius", v), null, null);
-            }), null));
         cats.add(Cat.plain("config.chatsphere.bubble", bubble));
 
         List<Opt> skin = new ArrayList<>();
@@ -161,7 +157,9 @@ public class ConfigScreen extends Screen {
         adv.add(new Group("config.chatsphere.voice_cache", List.of(
             new Opt("config.chatsphere.voice_cache_enabled", y -> mkBool(y, ModClientConfig.CONFIG.voiceCacheEnabled)),
             new Opt("config.chatsphere.voice_cache_max_age",
-                y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.voiceCacheMaxAgeHours.get()), 1, 168, 3, v -> { ModClientConfig.CONFIG.voiceCacheMaxAgeHours.set(v); CONFIG_SPEC.save(); }), null))));
+                y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.voiceCacheMaxAgeHours.get()), 1, 168, 3, v -> { ModClientConfig.CONFIG.voiceCacheMaxAgeHours.set(v); CONFIG_SPEC.save(); }), null),
+            new Opt("config.chatsphere.voice_cache_max_mb",
+                y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.voiceCacheMaxMB.get()), 16, 8192, 5, v -> { ModClientConfig.CONFIG.voiceCacheMaxMB.set(v); CONFIG_SPEC.save(); }), null))));
         if (NCRCompat.isNCRLoaded()) {
             adv.add(new Group("config.chatsphere.ncr", List.of(
                 new Opt("config.chatsphere.ncr_compat", y -> mkBool(y, ModClientConfig.CONFIG.ncrCompat)),
@@ -223,10 +221,10 @@ public class ConfigScreen extends Screen {
         int gap = 24;
         int margin = 16;
         int availW = width - margin * 2;
-        int cardW = Math.max(90, Math.min(150, (availW - gap * 2) / 3));
+        int cardW = Math.max(90, Math.min(150, (availW - gap * 3) / 4));
         int avail = (height - 48) - CONTENT_Y;
         int cardH = Math.max(80, Math.min(152, avail - 8));
-        int totalW = cardW * 3 + gap * 2;
+        int totalW = cardW * 4 + gap * 3;
         int startX = (width - totalW) / 2;
         int cardY = CONTENT_Y + Math.max(6, (avail - cardH) / 2);
         return new int[] { cardW, cardH, gap, startX, cardY };
@@ -236,7 +234,7 @@ public class ConfigScreen extends Screen {
         int style = Theme.cornerStyle();
         int[] l = cornerCardLayout();
         int cardW = l[0], cardH = l[1], gap = l[2], startX = l[3], cardY = l[4];
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 4; i++) {
             int cx = startX + i * (cardW + gap);
             boolean sel = i == style;
             boolean hover = mouseX >= cx && mouseX <= cx + cardW && mouseY >= cardY && mouseY <= cardY + cardH;
@@ -268,6 +266,10 @@ public class ConfigScreen extends Screen {
         double s = pw / 102.0;
         int px = x + (w - pw) / 2;
         int py = y + Math.max(2, (h - ph) / 2);
+        if (style == 3) {
+            drawStreamPreview(g, px, py, pw, ph, s);
+            return;
+        }
         g.fill(x + (int) (8 * s), y + (int) (2 * s), x + w - (int) (8 * s), y + (int) (3 * s), 0x668888CC);
         g.fill(x + (int) (8 * s), y + h - (int) (3 * s), x + w - (int) (8 * s), y + h - (int) (2 * s), 0x668888CC);
         Ui.fillRoundedRectStyle(g, style, px, py, pw, ph, (int) (8 * s), 0xEB2A2A4E);
@@ -278,6 +280,39 @@ public class ConfigScreen extends Screen {
                 (int) (34 * s), (int) (10 * s), (int) (4 * s), 0xFF8888FF);
         g.fill(px + pw - (int) (34 * s), py + ph - (int) (11 * s),
                 px + pw - (int) (22 * s), py + ph - (int) (10 * s), 0xFFFFFFFF);
+    }
+
+    /** Stream-style preview: left icon rail + flat message rows (avatar, name, timestamp, text). */
+    private void drawStreamPreview(GuiGraphics g, int x, int y, int w, int h, double s) {
+        int railW = (int) (13 * s);
+        g.fill(x, y, x + railW, y + h, 0xFF1E1F22);
+        for (int i = 0; i < 3; i++) {
+            int iy = y + (int) (7 * s) + i * (int) (10 * s);
+            int is = (int) (6 * s);
+            g.fill(x + (railW - is) / 2, iy, x + (railW + is) / 2, iy + is, i == 0 ? 0xFFB5BAC1 : 0xFF6A6F78);
+        }
+        int cx = x + railW + (int) (6 * s);
+        int right = x + w - (int) (2 * s);
+        int avatarS = (int) (7 * s);
+        int nameH = (int) (4 * s);
+        int textH = (int) (4 * s);
+        int nameW = (int) (30 * s);
+        int textW = (int) (46 * s);
+        int[] rows = { (int) (3 * s), (int) (12 * s), (int) (21 * s), (int) (30 * s) };
+        for (int r = 0; r < 4; r++) {
+            int ry = y + rows[r];
+            int bx = cx;
+            boolean withAvatar = r % 2 == 0;
+            if (withAvatar) {
+                g.fill(bx, ry, bx + avatarS, ry + avatarS, 0xFFAAAAFF);
+                bx += avatarS + (int) (4 * s);
+            }
+            if (withAvatar) {
+                g.fill(bx, ry, bx + nameW, ry + nameH, 0xFFDDDDEE);
+                g.fill(right - (int) (10 * s), ry, right, ry + (int) (3 * s), 0xFFB8BCC8);
+            }
+            g.fill(bx, ry + (int) (5 * s), bx + textW, ry + (int) (5 * s) + textH, 0xFFDDDDEE);
+        }
     }
 
     @Override
@@ -544,18 +579,22 @@ public class ConfigScreen extends Screen {
                 int style = Theme.cornerStyle();
                 int[] l = cornerCardLayout();
                 int cardW = l[0], cardH = l[1], gap = l[2], startX = l[3], cardY = l[4];
-                for (int i = 0; i < 3; i++) {
+                for (int i = 0; i < 4; i++) {
                     int cx2 = startX + i * (cardW + gap);
                     if (mouseX >= cx2 && mouseX <= cx2 + cardW && mouseY >= cardY && mouseY <= cardY + cardH) {
                         ModClientConfig.CONFIG.uiCornerStyle.set(i);
                         CONFIG_SPEC.save();
-                        String preset = CustomTheme.PRESETS[i] + CustomTheme.EXT;
-                        if (CustomTheme.INSTANCE.isActive() && !CustomTheme.isPreset(CustomTheme.INSTANCE.currentFile())) {
+                        if (CustomTheme.INSTANCE.isActive()) {
+                            // Keep the active theme (preset or custom): only switch the corner
+                            // style so any other live adjustments (radius, blur, colors) persist.
                             CustomTheme.INSTANCE.syncValues(Map.of("uiCornerStyle", i), null, null);
-                        } else if (CustomTheme.INSTANCE.load(preset)) {
-                            ModClientConfig.CONFIG.customThemeFile.set(preset);
-                            ModClientConfig.CONFIG.customThemeActive.set(true);
-                            CONFIG_SPEC.save();
+                        } else {
+                            String preset = CustomTheme.PRESETS[i] + CustomTheme.EXT;
+                            if (CustomTheme.INSTANCE.load(preset)) {
+                                ModClientConfig.CONFIG.customThemeFile.set(preset);
+                                ModClientConfig.CONFIG.customThemeActive.set(true);
+                                CONFIG_SPEC.save();
+                            }
                         }
                         return true;
                     }

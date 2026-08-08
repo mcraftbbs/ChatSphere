@@ -174,7 +174,7 @@ public class ChannelMemberScreen extends Screen {
             minecraft.getConnection().getConnection().send(
                 new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
                     new ServerboundChannelActionPayload(actionType, channelId, minecraft.player.getUUID(),
-                        false, targetUuid, "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "")));
+                        false, targetUuid, "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "")));
         }
         rebuild();
     }

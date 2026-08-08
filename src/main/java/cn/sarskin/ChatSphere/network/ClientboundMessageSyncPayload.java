@@ -36,18 +36,18 @@ public record ClientboundMessageSyncPayload(List<StoredMessage> messages) implem
     }
 
     private static ClientboundMessageSyncPayload read(ByteBuf buf) {
-        int count = buf.readInt();
+        int count = PayloadLimits.readCount(buf, PayloadLimits.MAX_MESSAGES);
         List<StoredMessage> list = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            String senderName = readUtf(buf);
+            String senderName = PayloadLimits.readUtf(buf);
             UUID senderUuid = readUuid(buf);
-            String content = readUtf(buf);
+            String content = PayloadLimits.readUtf(buf);
             long timestamp = buf.readLong();
-            String conversationId = readUtf(buf);
-            String conversationType = readUtf(buf);
-            String replyContent = readUtf(buf);
-            String replySender = readUtf(buf);
-            String itemNbt = readUtf(buf);
+            String conversationId = PayloadLimits.readUtf(buf);
+            String conversationType = PayloadLimits.readUtf(buf);
+            String replyContent = PayloadLimits.readUtf(buf);
+            String replySender = PayloadLimits.readUtf(buf);
+            String itemNbt = PayloadLimits.readUtf(buf);
             list.add(new StoredMessage(senderName, senderUuid, content, timestamp, conversationId, conversationType, replyContent, replySender, itemNbt));
         }
         return new ClientboundMessageSyncPayload(list);
@@ -61,10 +61,7 @@ public record ClientboundMessageSyncPayload(List<StoredMessage> messages) implem
     }
 
     private static String readUtf(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
+        return PayloadLimits.readUtf(buf);
     }
 
     private static void writeUuid(ByteBuf buf, UUID uuid) {

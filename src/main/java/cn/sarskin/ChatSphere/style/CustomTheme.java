@@ -27,7 +27,7 @@ public final class CustomTheme {
     public static final CustomTheme INSTANCE = new CustomTheme();
     public static final String EXT = ".ctheme";
     public static final String LEGACY_EXT = ".csstyle";
-    public static final String[] PRESETS = { "preset-square", "preset-pixel", "preset-original" };
+    public static final String[] PRESETS = { "preset-square", "preset-pixel", "preset-original", "preset-stream" };
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ChatSphere-Theme");
     private static final Path DIR = FMLPaths.CONFIGDIR.get().resolve("chatsphere").resolve("themes");
@@ -335,6 +335,7 @@ public final class CustomTheme {
                 animations {
                     // messageSlideIn: 120ms ease-out;
                     // bubblePopIn: none;
+                    // bubbleFadeIn: 180ms ease-out;
                     // notificationPulse: 400ms ease-in-out;
                 }
                 """;

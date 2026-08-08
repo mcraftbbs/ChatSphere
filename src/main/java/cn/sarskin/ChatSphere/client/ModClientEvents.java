@@ -61,8 +61,15 @@ public class ModClientEvents {
 
         if (connected) {
             UUID sendUuid = sysMsgSender != null ? sysMsgSender : Util.NIL_UUID;
+            RegistryAccess access = mc.level != null ? mc.level.registryAccess() : RegistryAccess.EMPTY;
+            String json;
+            try {
+                json = Component.Serializer.toJson(combined, access);
+            } catch (Exception e) {
+                json = combined.getString();
+            }
             conn.send(new ServerboundCustomPayloadPacket(
-                    new ServerboundCommandMessagePayload(Component.Serializer.toJson(combined, RegistryAccess.EMPTY), sendUuid)));
+                    new ServerboundCommandMessagePayload(json, sendUuid)));
         }
 
         sysMsgBuffer.clear();

@@ -534,6 +534,19 @@ public class EmojiRegistry {
         return containsPua(component.getString());
     }
 
+    /** True when the text contains only emoji (PUA) glyphs, optionally separated by spaces. */
+    public static boolean isEmojiOnly(String text) {
+        if (text == null || text.isEmpty()) return false;
+        int i = 0;
+        while (i < text.length()) {
+            int cp = text.codePointAt(i);
+            if (cp == ' ' || cp == '\t') { i++; continue; }
+            if (cp < PUA_START || cp > PUA_START + ALL.size()) return false;
+            i += Character.charCount(cp);
+        }
+        return true;
+    }
+
     public static boolean isEmojiCodepoint(int cp) {
         return EMOJI_FIRST_CODEPOINTS.contains(cp);
     }
@@ -550,39 +563,34 @@ public class EmojiRegistry {
 
     public static MutableComponent toComponent(String text) {
         if (text == null || text.isEmpty()) return Component.literal("");
-        MutableComponent result = null;
+        MutableComponent result = Component.literal("");
         int i = 0;
         int len = text.length();
         while (i < len) {
             int cp = text.codePointAt(i);
             int charCount = Character.charCount(cp);
-            boolean isPua = cp >= PUA_START && cp <= PUA_START + ALL.size();
-            UnicodeEntry ue = isPua ? null : matchUnicodeEntry(text, i);
-            if (isPua) {
-                String puaStr = text.substring(i, i + charCount);
-                if (result == null) {
-                    result = Component.literal(puaStr).withStyle(EMOJI_STYLE);
-                } else {
-                    result.append(Component.literal(puaStr).withStyle(EMOJI_STYLE));
-                }
+            if (cp >= PUA_START && cp <= PUA_START + ALL.size()) {
+                result.append(Component.literal(text.substring(i, i + charCount)).withStyle(EMOJI_STYLE));
                 i += charCount;
-            } else if (ue != null) {
-                if (result == null) {
-                    result = Component.literal(ue.pua()).withStyle(EMOJI_STYLE);
-                } else {
-                    result.append(Component.literal(ue.pua()).withStyle(EMOJI_STYLE));
-                }
-                i += ue.unicode().length();
             } else {
-                if (result == null) {
-                    result = Component.literal(text.substring(i, i + charCount));
+                UnicodeEntry ue = matchUnicodeEntry(text, i);
+                if (ue != null) {
+                    result.append(Component.literal(ue.pua()).withStyle(EMOJI_STYLE));
+                    i += ue.unicode().length();
                 } else {
-                    result.append(Component.literal(text.substring(i, i + charCount)));
+                    int start = i;
+                    while (i < len) {
+                        cp = text.codePointAt(i);
+                        charCount = Character.charCount(cp);
+                        if (cp >= PUA_START && cp <= PUA_START + ALL.size()) break;
+                        if (matchUnicodeEntry(text, i) != null) break;
+                        i += charCount;
+                    }
+                    result.append(Component.literal(text.substring(start, i)));
                 }
-                i += charCount;
             }
         }
-        return result != null ? result : Component.literal("");
+        return result;
     }
 
     public static FormattedCharSequence toFormattedCharSequence(String text) {

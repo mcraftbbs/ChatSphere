@@ -1,3 +1,25 @@
+## 2.2.0
+
+### Added
+- Stream style (4th corner style, icon-rail layout): 60px icon rail with player avatar / channel groups / console / explore / join / create, flat message rows with row avatars, avatar right-click menu (@mention and Private Message), rail hover animations, unread indicators, date group headers, smart timestamps; compact layout automatically shrinks rail/icons/avatars/sidebar on small windows
+- Sub-channels: create, rename, delete, drag-to-reorder and cascade delete; inherit members/admins/mute state from parent; indented in the sidebar; old save files load automatically
+- Rich text markup in chat messages (toggleable via `renderRichText`): `[b]`, `[i]`, `[u]`, `[s]`, `[o]`, `[color]`, `[gradient]`, `[code]`, `[url]` with escaping and URL whitelist; `bubbleFadeIn` animation
+- Custom theme gallery with real-color preview cards and a load-error banner showing the failing file; parse failures keep the previous theme
+- Voice cache size limit config (`voiceCacheMaxMB`, default 512 MB) with oldest-first eviction
+- Chat history now respects `maxChatHistory` on the server (was hardcoded to 200); scroll range matches (`scrollHistoryLimit` up to 1000)
+
+### Changed
+- Corner style cards show a live miniature preview per style (square / pixel / rounded / stream)
+- Long messages wrap to fit the bubble instead of being truncated (incl. command console)
+- Performance: per-conversation message list caching, message index lookups no longer O(n²) per frame, theme gallery and emoji/component rendering allocation reduced, reply bar component cached
+- Data reliability: corrupt save entries are skipped individually, fully corrupt files are backed up as `.corrupt`; voice cache index written atomically; server channels/messages parse into temp structures; server instances and voice cleaner threads released on ServerStopping
+
+### Fixed
+- Server security: payload decoders enforce size/count limits (no more OOM DoS), identity/authorization always uses the server-verified player UUID (packet-supplied UUIDs ignored), channel chat and login history are filtered by channel membership, sub-channel voice messages reach members (were silently dropped)
+- Stream rows now show the anti-spam duplicate label (`xN`) without overlapping the timestamp
+- History visible after reconnect matches the configured limit; long VoiceMessages (>60 s) are no longer dropped by the audio size cap
+- Crash when a system message with an item hover reached the command console
+
 ## 2.1.2
 
 ### Added

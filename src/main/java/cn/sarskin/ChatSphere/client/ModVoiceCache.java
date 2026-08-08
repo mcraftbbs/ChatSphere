@@ -9,12 +9,15 @@ import com.google.gson.reflect.TypeToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -55,6 +58,7 @@ public class ModVoiceCache {
         cache.put(playbackUuid, new CachedVoice(
                 conversationId, conversationType, senderUuid,
                 System.currentTimeMillis(), frameCount, audioData));
+        enforceSizeLimit();
         saveIndex();
     }
 
@@ -82,9 +86,28 @@ public class ModVoiceCache {
         if (changed) saveIndex();
     }
 
+    private static void enforceSizeLimit() {
+        long maxBytes = ModClientConfig.CONFIG.voiceCacheMaxMB.get() * 1024L * 1024;
+        long total = 0;
+        for (CachedVoice cv : cache.values()) total += cv.audioData().length;
+        if (total <= maxBytes) return;
+        List<Map.Entry<UUID, CachedVoice>> sorted = new ArrayList<>(cache.entrySet());
+        sorted.sort(Map.Entry.comparingByValue((a, b) -> Long.compare(a.timestamp(), b.timestamp())));
+        for (Map.Entry<UUID, CachedVoice> e : sorted) {
+            if (total <= maxBytes) break;
+            total -= e.getValue().audioData().length;
+            cache.remove(e.getKey());
+        }
+        LOGGER.info("Voice cache exceeded {} MB, evicted oldest entries", ModClientConfig.CONFIG.voiceCacheMaxMB.get());
+    }
+
     private static void startCleaner() {
         if (cleaner != null) cleaner.shutdown();
-        cleaner = Executors.newSingleThreadScheduledExecutor();
+        cleaner = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "ChatSphere-VoiceCache-Cleaner");
+            t.setDaemon(true);
+            return t;
+        });
         cleaner.scheduleAtFixedRate(ModVoiceCache::cleanup, 15, 15, TimeUnit.MINUTES);
     }
 
@@ -101,7 +124,10 @@ public class ModVoiceCache {
                 serializable.put(e.getKey().toString(), e.getValue());
             }
             String json = GSON.toJson(serializable);
-            Files.write(getIndexPath(), json.getBytes(StandardCharsets.UTF_8));
+            Path path = getIndexPath();
+            Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+            Files.write(tmp, json.getBytes(StandardCharsets.UTF_8));
+            Files.move(tmp, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception e) {
             LOGGER.error("Failed to save voice cache", e);
         }

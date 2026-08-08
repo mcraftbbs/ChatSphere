@@ -2,7 +2,6 @@ package cn.sarskin.ChatSphere.network;
 
 import cn.sarskin.ChatSphere.ModMain;
 import cn.sarskin.ChatSphere.server.ModServerChannels;
-import cn.sarskin.ChatSphere.server.ModServerChannels.ChannelEntry;
 import cn.sarskin.ChatSphere.server.ModVoiceStorage;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -43,13 +42,14 @@ public record ServerboundVoicePacket(
 
     private static ServerboundVoicePacket read(ByteBuf buf) {
         UUID voiceMessageId = readUuid(buf);
-        String convId = readUtf(buf);
-        String convType = readUtf(buf);
+        String convId = PayloadLimits.readUtf(buf);
+        String convType = PayloadLimits.readUtf(buf);
         UUID senderUuid = readUuid(buf);
         int frameCount = buf.readInt();
-        int len = buf.readInt();
-        byte[] audioData = new byte[len];
-        buf.readBytes(audioData);
+        byte[] audioData = PayloadLimits.readBytes(buf, PayloadLimits.MAX_AUDIO_BYTES);
+        if (frameCount < 0 || frameCount > PayloadLimits.MAX_AUDIO_BYTES) {
+            throw new IllegalStateException("Frame count out of range: " + frameCount);
+        }
         return new ServerboundVoicePacket(voiceMessageId, convId, convType, senderUuid, frameCount, audioData);
     }
 
@@ -64,25 +64,26 @@ public record ServerboundVoicePacket(
             var server = player.getServer();
             if (server == null) return;
 
-            String senderStr = senderUuid.toString();
+            UUID realUuid = player.getUUID();
+            String senderStr = realUuid.toString();
             ClientboundVoicePacket relay = new ClientboundVoicePacket(
-                    voiceMessageId, senderUuid, conversationId, conversationType, frameCount, audioData);
+                    voiceMessageId, realUuid, conversationId, conversationType, frameCount, audioData);
             ModVoiceStorage storage = ModVoiceStorage.getInstance(server);
             ModServerChannels msc = ModServerChannels.getInstance(server);
 
             // Store the chat message placeholder in server message history for sync on reconnect
             String senderName = player.getName().getString();
-            msc.addChatMessage(senderName, senderUuid,
+            msc.addChatMessage(senderName, realUuid,
                     "VoiceMessage#" + voiceMessageId,
                     conversationId, conversationType, "", "", "");
 
             if ("CHANNEL".equals(conversationType)) {
-                ChannelEntry entry = msc.getChannel(conversationId);
-                if (entry == null) return;
-                if (!entry.members().contains(senderStr)) return;
-                if (entry.mutedPlayers().contains(senderStr)) return;
+                if (conversationId == null) return;
+                List<String> recipients = msc.effectiveMembers(conversationId);
+                if (!recipients.contains(senderStr)) return;
+                if (msc.isMuted(conversationId, senderStr)) return;
 
-                for (String memberUuid : entry.members()) {
+                for (String memberUuid : recipients) {
                     if (memberUuid.equals(senderStr)) continue;
                     ServerPlayer target = server.getPlayerList().getPlayer(UUID.fromString(memberUuid));
                     if (target != null) {
@@ -113,10 +114,7 @@ public record ServerboundVoicePacket(
     }
 
     private static String readUtf(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
+        return PayloadLimits.readUtf(buf);
     }
 
     private static void writeUuid(ByteBuf buf, UUID uuid) {

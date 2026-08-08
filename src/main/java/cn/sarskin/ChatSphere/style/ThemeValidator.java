@@ -28,6 +28,7 @@ public final class ThemeValidator {
             return switch (value) {
                 case "square" -> 0;
                 case "pixel" -> 1;
+                case "stream" -> 3;
                 default -> 2;
             };
         }
@@ -39,6 +40,7 @@ public final class ThemeValidator {
             return switch (index) {
                 case 0 -> "square";
                 case 1 -> "pixel";
+                case 3 -> "stream";
                 default -> "rounded";
             };
         }
@@ -69,6 +71,7 @@ public final class ThemeValidator {
                 "emojiCellBg", "emojiTabBg", "emojiTabHover", "emojiTabSel", "slotBg", "slotHover",
                 "text", "textMain", "textDim", "textFaint", "textInactive", "floatingText", "floatingTextDim",
                 "inputText", "searchPlaceholder",
+                "railBg", "msgHover", "inputPillBg", "inputPillBorder",
                 "bubbleOwn", "bubbleOther", "bubbleInfoLine", "cmdBubbleOwn", "cmdBubbleOther",
                 "bubbleGradientTop", "bubbleGradientBottom",
                 "toggleOn", "toggleOff", "toggleKnob")) {
@@ -77,14 +80,15 @@ public final class ThemeValidator {
 
         STYLE_PROPS.put("bubbleCornerRadius", PropDef.num(0, 24));
         STYLE_PROPS.put("messageLineSpacing", PropDef.num(0, 24));
-        STYLE_PROPS.put("sidebarWidth", PropDef.num(60, 200));
+        STYLE_PROPS.put("sidebarWidth", PropDef.num(60, 240));
         STYLE_PROPS.put("avatarRadius", PropDef.num(0, 20));
         STYLE_PROPS.put("blurIntensity", PropDef.percent(0, 100));
-        STYLE_PROPS.put("uiCornerStyle", PropDef.enumOf("square", "pixel", "rounded"));
+        STYLE_PROPS.put("uiCornerStyle", PropDef.enumOf("square", "pixel", "rounded", "stream"));
         STYLE_PROPS.put("colorSeed", PropDef.color());
 
         ANIM_PROPS.put("messageSlideIn", new PropDef(ValType.ANIM, 0, 2000, null));
         ANIM_PROPS.put("bubblePopIn", new PropDef(ValType.ANIM, 0, 2000, null));
+        ANIM_PROPS.put("bubbleFadeIn", new PropDef(ValType.ANIM, 0, 2000, null));
         ANIM_PROPS.put("notificationPulse", new PropDef(ValType.ANIM, 0, 2000, null));
     }
 

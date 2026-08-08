@@ -69,7 +69,9 @@ public class JoinChannelScreen extends Screen {
         int popupY = (this.height - POPUP_HEIGHT) / 2;
 
         guiGraphics.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, Theme.popupBg2());
-        guiGraphics.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline());
+        if (Theme.popupBorderVisible()) {
+            guiGraphics.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline());
+        }
 
         String title = this.title.getString();
         guiGraphics.drawString(this.font, title,
@@ -115,7 +117,7 @@ public class JoinChannelScreen extends Screen {
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.JOIN_BY_CODE,
                                 "", this.minecraft.player.getUUID(),
-                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), code, true, "", "", "")));
+                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), code, true, "", "", "", false, "")));
             }
         }
         if (this.minecraft != null) {

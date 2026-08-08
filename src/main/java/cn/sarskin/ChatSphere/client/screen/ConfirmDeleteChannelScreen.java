@@ -65,7 +65,7 @@ public class ConfirmDeleteChannelScreen extends Screen {
                 new ServerboundChannelActionPayload(
                     ServerboundChannelActionPayload.Action.REMOVE_CHANNEL,
                     channelId, playerUuid, true, "", "",
-                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "")));
+                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "")));
         }
     }
 
@@ -78,7 +78,7 @@ public class ConfirmDeleteChannelScreen extends Screen {
                 new ServerboundChannelActionPayload(
                     ServerboundChannelActionPayload.Action.LEAVE_CHANNEL,
                     channelId, playerUuid, true, "", "",
-                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "")));
+                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "")));
         }
     }
 
@@ -90,7 +90,9 @@ public class ConfirmDeleteChannelScreen extends Screen {
         int popupY = (height - POPUP_HEIGHT) / 2;
 
         g.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, Theme.popupBg3());
-        g.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline2());
+        if (Theme.popupBorderVisible()) {
+            g.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline2());
+        }
 
         String title = this.title.getString();
         g.drawString(font, title, popupX + (POPUP_WIDTH - font.width(title)) / 2, popupY + 8, Theme.text(), false);

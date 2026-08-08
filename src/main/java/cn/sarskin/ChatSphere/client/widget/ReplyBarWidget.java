@@ -4,6 +4,7 @@ import cn.sarskin.ChatSphere.ModMain;
 import cn.sarskin.ChatSphere.client.emoji.EmojiRegistry;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -15,18 +16,18 @@ public class ReplyBarWidget {
     public int targetIndex = -1;
     public String replyText;
     public String replySender;
+    private Component cachedComponent;
+    private String cachedKey;
 
     public void render(GuiGraphics g, int mouseX, int mouseY, int sidebarWidth, int screenWidth, int rightSidebarWidth, boolean showRight) {
         if (targetIndex < 0 || replyText == null) return;
         var font = Minecraft.getInstance().font;
-        int barY = Minecraft.getInstance().getWindow().getGuiScaledHeight() - 28 - 14 - 2;
+        int barY = Minecraft.getInstance().getWindow().getGuiScaledHeight() - 14 - 14 - BAR_HEIGHT - 4;
         int barW = screenWidth - sidebarWidth - 20;
         if (showRight) barW -= rightSidebarWidth;
 
         g.fill(sidebarWidth + 4, barY, sidebarWidth + 4 + barW, barY + BAR_HEIGHT, Theme.replyBarBg());
-        String raw = Component.translatable("screen.chatsphere.reply.prefix", replySender, replyText).getString();
-        String truncated = font.plainSubstrByWidth(raw, barW - 20 - CANCEL_SIZE);
-        Component emojiComponent = EmojiRegistry.toComponent(truncated);
+        Component emojiComponent = componentFor(font, barW - 20 - CANCEL_SIZE);
         int emojiOff = EmojiRegistry.containsPua(emojiComponent) ? EmojiRegistry.EMOJI_Y_OFFSET : 0;
         g.drawString(font, emojiComponent, sidebarWidth + 6, barY + (BAR_HEIGHT - font.lineHeight) / 2 + emojiOff, Theme.accent(), false);
 
@@ -37,9 +38,20 @@ public class ReplyBarWidget {
         g.blit(CLOSE_ICON, cancelX, cancelY, 0, 0, CANCEL_SIZE, CANCEL_SIZE, CANCEL_SIZE, CANCEL_SIZE);
     }
 
+    private Component componentFor(Font font, int maxWidth) {
+        String key = replySender + "\u0000" + replyText + "\u0000" + maxWidth;
+        if (cachedComponent == null || !key.equals(cachedKey)) {
+            cachedKey = key;
+            String raw = Component.translatable("screen.chatsphere.reply.prefix", replySender, replyText).getString();
+            String truncated = font.plainSubstrByWidth(raw, maxWidth);
+            cachedComponent = EmojiRegistry.toComponent(truncated);
+        }
+        return cachedComponent;
+    }
+
     public boolean isOnCancel(double mouseX, double mouseY, int sidebarWidth, int screenWidth, int rightSidebarWidth, boolean showRight) {
         if (targetIndex < 0) return false;
-        int barY = Minecraft.getInstance().getWindow().getGuiScaledHeight() - 28 - 14 - 2;
+        int barY = Minecraft.getInstance().getWindow().getGuiScaledHeight() - 14 - 14 - BAR_HEIGHT - 4;
         int barW = screenWidth - sidebarWidth - 20;
         if (showRight) barW -= rightSidebarWidth;
         int cancelX = sidebarWidth + 4 + barW - BAR_HEIGHT;
@@ -48,7 +60,7 @@ public class ReplyBarWidget {
 
     public boolean isOnBody(double mouseX, double mouseY, int sidebarWidth, int screenWidth, int rightSidebarWidth, boolean showRight) {
         if (targetIndex < 0) return false;
-        int barY = Minecraft.getInstance().getWindow().getGuiScaledHeight() - 28 - 14 - 2;
+        int barY = Minecraft.getInstance().getWindow().getGuiScaledHeight() - 14 - 14 - BAR_HEIGHT - 4;
         int barW = screenWidth - sidebarWidth - 20;
         if (showRight) barW -= rightSidebarWidth;
         int cancelX = sidebarWidth + 4 + barW - BAR_HEIGHT;

@@ -2,11 +2,13 @@ package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.UiToggle;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -15,15 +17,18 @@ import java.util.UUID;
 
 public class CreateChannelScreen extends Screen {
     private static final int POPUP_WIDTH = 280;
-    private static final int POPUP_HEIGHT = 170;
+    private static final int POPUP_HEIGHT = 250;
 
     private final Screen parent;
     private EditBox nameInput;
     private EditBox descInput;
     private StyledButton confirmBtn;
     private StyledButton cancelBtn;
-    private StyledButton publicToggle;
+    private UiToggle publicToggle;
+    private UiToggle chatToggle;
+    private EditBox defaultSubInput;
     private boolean isPublic = true;
+    private boolean mainChatEnabled = true;
 
     public CreateChannelScreen(Screen parent) {
         super(Component.translatable("screen.chatsphere.create_channel.title"));
@@ -52,19 +57,33 @@ public class CreateChannelScreen extends Screen {
         this.descInput.setHint(Component.translatable("screen.chatsphere.channel_config.description_hint"));
         this.addWidget(this.descInput);
 
-        int toggleBtnW = 100;
-        this.publicToggle = this.addRenderableWidget(StyledButton.styledBuilder(
-                buildPublicLabel(),
-                btn -> {
-                    isPublic = !isPublic;
-                    btn.setMessage(buildPublicLabel());
-                    ((StyledButton) btn).setStyle(isPublic ? StyledButton.Style.TOGGLE_ON : StyledButton.Style.TOGGLE_OFF);
-                }
-        ).bounds(popupX + POPUP_WIDTH - 10 - toggleBtnW, popupY + 74, toggleBtnW, 20).style(
-                StyledButton.Style.TOGGLE_ON
-        ).tooltip(
-                Component.translatable("screen.chatsphere.create_channel.tip_toggle_public")
-        ).build());
+        int toggleBtnW = 60;
+        this.publicToggle = this.addRenderableWidget(new UiToggle(
+                popupX + POPUP_WIDTH - 10 - toggleBtnW, popupY + 76, toggleBtnW, 18, isPublic,
+                v -> isPublic = v));
+        this.publicToggle.setTooltip(Tooltip.create(
+                Component.translatable("screen.chatsphere.create_channel.tip_toggle_public")));
+
+        this.chatToggle = this.addRenderableWidget(new UiToggle(
+                popupX + POPUP_WIDTH - 10 - toggleBtnW, popupY + 106, toggleBtnW, 18, mainChatEnabled,
+                v -> {
+                    mainChatEnabled = v;
+                    if (this.defaultSubInput != null) {
+                        this.defaultSubInput.setVisible(!mainChatEnabled);
+                    }
+                    if (!mainChatEnabled && this.defaultSubInput != null) {
+                        this.setFocused(this.defaultSubInput);
+                    }
+                }));
+        this.chatToggle.setTooltip(Tooltip.create(
+                Component.translatable("screen.chatsphere.create_channel.tip_toggle_chat")));
+
+        this.defaultSubInput = new EditBox(this.font, fieldX, popupY + 134, fieldW - 110, 16,
+                Component.translatable("screen.chatsphere.channel_config.default_sub_hint"));
+        this.defaultSubInput.setMaxLength(32);
+        this.defaultSubInput.setBordered(true);
+        this.defaultSubInput.setVisible(!mainChatEnabled);
+        this.addWidget(this.defaultSubInput);
 
         int btnW = 90;
         this.confirmBtn = this.addRenderableWidget(StyledButton.styledBuilder(
@@ -82,13 +101,6 @@ public class CreateChannelScreen extends Screen {
         ).build());
     }
 
-    private Component buildPublicLabel() {
-        if (isPublic) {
-            return Component.translatable("screen.chatsphere.channel_config.enabled");
-        }
-        return Component.translatable("screen.chatsphere.channel_config.disabled");
-    }
-
     @Override
     public void renderBackground(GuiGraphics g, int mx, int my, float pt) {
         super.renderBackground(g, mx, my, pt);
@@ -103,7 +115,9 @@ public class CreateChannelScreen extends Screen {
         int popupY = (this.height - POPUP_HEIGHT) / 2;
 
         guiGraphics.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, Theme.popupBg3());
-        guiGraphics.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline2());
+        if (Theme.popupBorderVisible()) {
+            guiGraphics.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline2());
+        }
 
         String title = this.title.getString();
         guiGraphics.drawString(this.font, title,
@@ -119,8 +133,17 @@ public class CreateChannelScreen extends Screen {
         Component publicLabel = Component.translatable("screen.chatsphere.channel_config.public_label");
         guiGraphics.drawString(this.font, publicLabel, popupX + 10, popupY + 78, Theme.textInactive(), false);
 
+        Component chatLabel = Component.translatable("screen.chatsphere.channel_config.main_chat_label");
+        guiGraphics.drawString(this.font, chatLabel, popupX + 10, popupY + 108, Theme.textInactive(), false);
+
+        if (!mainChatEnabled) {
+            Component subLabel = Component.translatable("screen.chatsphere.channel_config.default_sub_label");
+            guiGraphics.drawString(this.font, subLabel, popupX + 10, popupY + 134 - 10, Theme.textInactive(), false);
+        }
+
         this.nameInput.render(guiGraphics, mouseX, mouseY, partialTick);
         this.descInput.render(guiGraphics, mouseX, mouseY, partialTick);
+        this.defaultSubInput.render(guiGraphics, mouseX, mouseY, partialTick);
 
         for (Renderable renderable : this.renderables) {
             renderable.render(guiGraphics, mouseX, mouseY, partialTick);
@@ -131,9 +154,11 @@ public class CreateChannelScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         this.nameInput.mouseClicked(mouseX, mouseY, button);
         this.descInput.mouseClicked(mouseX, mouseY, button);
+        this.defaultSubInput.mouseClicked(mouseX, mouseY, button);
         if (this.confirmBtn.mouseClicked(mouseX, mouseY, button)) return true;
         if (this.cancelBtn.mouseClicked(mouseX, mouseY, button)) return true;
         if (this.publicToggle.mouseClicked(mouseX, mouseY, button)) return true;
+        if (this.chatToggle.mouseClicked(mouseX, mouseY, button)) return true;
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -152,6 +177,12 @@ public class CreateChannelScreen extends Screen {
 
     private void confirm() {
         String name = this.nameInput.getValue().trim();
+        if (name.contains("/")) {
+            if (this.minecraft != null) {
+                this.minecraft.setScreen(parent);
+            }
+            return;
+        }
         if (!name.isEmpty()) {
             ChatHistoryManager history = ChatHistoryManager.getInstance();
             UUID ownerUuid = this.minecraft != null && this.minecraft.player != null
@@ -161,11 +192,13 @@ public class CreateChannelScreen extends Screen {
             if (ownerUuid != null && history.isServerConnected() && this.minecraft != null
                     && this.minecraft.getConnection() != null) {
                 var conn = this.minecraft.getConnection().getConnection();
+                String defaultSub = mainChatEnabled ? "" : this.defaultSubInput.getValue().trim();
                 conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.CREATE,
                                 channelId, ownerUuid, isPublic, description, "",
-                                List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "")));
+                                List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "",
+                                mainChatEnabled, defaultSub)));
             } else {
                 history.addChannel(name, ownerUuid);
             }

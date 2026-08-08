@@ -41,12 +41,13 @@ public record ClientboundVoicePacket(
     private static ClientboundVoicePacket read(ByteBuf buf) {
         UUID voiceMessageId = readUuid(buf);
         UUID senderUuid = readUuid(buf);
-        String convId = readUtf(buf);
-        String convType = readUtf(buf);
+        String convId = PayloadLimits.readUtf(buf);
+        String convType = PayloadLimits.readUtf(buf);
         int frameCount = buf.readInt();
-        int len = buf.readInt();
-        byte[] audioData = new byte[len];
-        buf.readBytes(audioData);
+        byte[] audioData = PayloadLimits.readBytes(buf, PayloadLimits.MAX_AUDIO_BYTES);
+        if (frameCount < 0 || frameCount > PayloadLimits.MAX_AUDIO_BYTES) {
+            throw new IllegalStateException("Frame count out of range: " + frameCount);
+        }
         return new ClientboundVoicePacket(voiceMessageId, senderUuid, convId, convType, frameCount, audioData);
     }
 
@@ -70,10 +71,7 @@ public record ClientboundVoicePacket(
     }
 
     private static String readUtf(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
+        return PayloadLimits.readUtf(buf);
     }
 
     private static void writeUuid(ByteBuf buf, UUID uuid) {

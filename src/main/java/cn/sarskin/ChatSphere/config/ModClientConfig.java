@@ -24,7 +24,6 @@ public class ModClientConfig {
     public final ModConfigSpec.BooleanValue backgroundBlur;
     public final ModConfigSpec.ConfigValue<String> bubbleColorOwn;
     public final ModConfigSpec.ConfigValue<String> bubbleColorOther;
-    public final ModConfigSpec.IntValue bubbleCornerRadius;
     public final ModConfigSpec.IntValue timeSeparatorMinutes;
     public final ModConfigSpec.BooleanValue soundMention;
     public final ModConfigSpec.BooleanValue soundWhisper;
@@ -34,12 +33,15 @@ public class ModClientConfig {
     public final ModConfigSpec.IntValue scrollHistoryLimit;
     public final ModConfigSpec.IntValue commandHistoryLimit;
     public final ModConfigSpec.BooleanValue renderEmojiShortcodes;
+    public final ModConfigSpec.BooleanValue renderRichText;
+    public final ModConfigSpec.BooleanValue popupBorder;
     public final ModConfigSpec.BooleanValue ncrCompat;
     public final ModConfigSpec.ConfigValue<String> customSkinApiUrl;
     public final ModConfigSpec.BooleanValue avatarCacheEnabled;
     public final ModConfigSpec.BooleanValue allowVanillaConnection;
     public final ModConfigSpec.BooleanValue voiceCacheEnabled;
     public final ModConfigSpec.IntValue voiceCacheMaxAgeHours;
+    public final ModConfigSpec.IntValue voiceCacheMaxMB;
     public final ModConfigSpec.BooleanValue customThemeActive;
     public final ModConfigSpec.ConfigValue<String> customThemeFile;
 
@@ -64,8 +66,11 @@ public class ModClientConfig {
                 .comment("Use dark theme")
                 .define("themeDark", true);
         uiCornerStyle = builder
-                .comment("Corner style for UI panels: 0=square, 1=pixel, 2=rounded")
-                .defineInRange("uiCornerStyle", 2, 0, 2);
+                .comment("Corner style for UI panels: 0=square, 1=pixel, 2=rounded, 3=stream")
+                .defineInRange("uiCornerStyle", 2, 0, 3);
+        popupBorder = builder
+                .comment("Show outline border around popup screens (create/join channel etc.); auto-hidden for square/pixel corner styles")
+                .define("popupBorder", true);
         backgroundBlur = builder
                 .comment("Show blurred game view behind popup/config screens")
                 .define("backgroundBlur", true);
@@ -75,9 +80,6 @@ public class ModClientConfig {
         bubbleColorOther = builder
                 .comment("Other player message bubble color (hex #RRGGBB)")
                 .define("bubbleColorOther", "#FFFFFF");
-        bubbleCornerRadius = builder
-                .comment("Bubble corner radius (0-8)")
-                .defineInRange("bubbleCornerRadius", 4, 0, 8);
         builder.pop();
 
         builder.push("behavior");
@@ -92,10 +94,13 @@ public class ModClientConfig {
                 .defineListAllowEmpty("quickPhrases", ArrayList::new, o -> o instanceof String);
         scrollHistoryLimit = builder
                 .comment("Maximum number of messages to scroll back in chat history")
-                .defineInRange("scrollHistoryLimit", 200, 50, 500);
+                .defineInRange("scrollHistoryLimit", 200, 50, 1000);
         renderEmojiShortcodes = builder
                 .comment("Render :shortcode: emoji patterns as actual emoji in chat messages")
                 .define("renderEmojiShortcodes", true);
+        renderRichText = builder
+                .comment("Render [b]/[i]/[color=#RRGGBB]/[gradient=...]/[url=...] markup in chat messages")
+                .define("renderRichText", true);
         commandHistoryLimit = builder
                 .comment("Maximum number of recent commands to keep for up/down arrow recall")
                 .defineInRange("commandHistoryLimit", 50, 10, 500);
@@ -155,6 +160,9 @@ public class ModClientConfig {
         voiceCacheMaxAgeHours = builder
                 .comment("Maximum age in hours for cached voice messages before cleanup")
                 .defineInRange("voiceCacheMaxAgeHours", 24, 1, 168);
+        voiceCacheMaxMB = builder
+                .comment("Maximum total size in MB for the local voice cache; oldest entries are evicted when exceeded")
+                .defineInRange("voiceCacheMaxMB", 512, 16, 8192);
         builder.pop();
 
         builder.push("theme");

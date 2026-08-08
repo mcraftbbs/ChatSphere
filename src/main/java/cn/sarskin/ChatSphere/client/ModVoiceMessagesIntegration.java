@@ -398,6 +398,10 @@ public class ModVoiceMessagesIntegration {
     }
 
     public static List<short[]> deserializeAudio(byte[] data, int frameCount) throws Exception {
+        if (data == null || frameCount < 0 || frameCount > data.length / 4) {
+            throw new IllegalArgumentException("Invalid audio payload: data="
+                    + (data == null ? "null" : data.length) + " frames=" + frameCount);
+        }
         ByteArrayInputStream bais = new ByteArrayInputStream(data);
         DataInputStream dis = new DataInputStream(bais);
         List<short[]> frames = new ArrayList<>(frameCount);

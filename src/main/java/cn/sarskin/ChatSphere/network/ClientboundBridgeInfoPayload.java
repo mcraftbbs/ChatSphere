@@ -33,12 +33,12 @@ public record ClientboundBridgeInfoPayload(
 
     private static ClientboundBridgeInfoPayload read(ByteBuf buf) {
         int protocolVersion = buf.readInt();
-        String bridgeVersion = readUtf(buf);
+        String bridgeVersion = PayloadLimits.readUtf(buf);
         int capabilities = buf.readInt();
-        int onlineCount = buf.readInt();
+        int onlineCount = PayloadLimits.readCount(buf, PayloadLimits.MAX_PLAYERS);
         Set<String> onlinePlayers = new HashSet<>(onlineCount);
         for (int i = 0; i < onlineCount; i++) {
-            onlinePlayers.add(readUtf(buf));
+            onlinePlayers.add(PayloadLimits.readUtf(buf));
         }
         return new ClientboundBridgeInfoPayload(protocolVersion, bridgeVersion, capabilities, onlinePlayers);
     }
@@ -51,10 +51,7 @@ public record ClientboundBridgeInfoPayload(
     }
 
     private static String readUtf(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
+        return PayloadLimits.readUtf(buf);
     }
 
     public void handle(IPayloadContext ctx) {

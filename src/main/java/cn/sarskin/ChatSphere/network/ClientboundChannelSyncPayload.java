@@ -41,6 +41,10 @@ public record ClientboundChannelSyncPayload(List<ModServerChannels.ChannelEntry>
                 writeUtf(buf, vr.name());
                 writeStringList(buf, vr.members());
             }
+            writeUtf(buf, e.parentId() != null ? e.parentId() : "");
+            buf.writeInt(e.sortOrder());
+            buf.writeBoolean(e.mainChatEnabled());
+            writeUtf(buf, e.defaultSubChannel() != null ? e.defaultSubChannel() : "");
         }
         Map<String, String> kp = p.knownPlayers != null ? p.knownPlayers : Map.of();
         buf.writeInt(kp.size());
@@ -51,34 +55,38 @@ public record ClientboundChannelSyncPayload(List<ModServerChannels.ChannelEntry>
     }
 
     private static ClientboundChannelSyncPayload read(ByteBuf buf) {
-        int count = buf.readInt();
+        int count = PayloadLimits.readCount(buf, PayloadLimits.MAX_CHANNELS);
         List<ModServerChannels.ChannelEntry> list = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            String id = readUtf(buf);
-            String owner = readUtf(buf);
+            String id = PayloadLimits.readUtf(buf);
+            String owner = PayloadLimits.readUtf(buf);
             boolean isPublic = buf.readBoolean();
-            String description = readUtf(buf);
-            String displayName = readUtf(buf);
-            List<String> admins = readStringList(buf);
-            List<String> muted = readStringList(buf);
-            List<String> invited = readStringList(buf);
-            List<String> members = readStringList(buf);
-            String inviteCode = readUtf(buf);
+            String description = PayloadLimits.readUtf(buf);
+            String displayName = PayloadLimits.readUtf(buf);
+            List<String> admins = PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
+            List<String> muted = PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
+            List<String> invited = PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
+            List<String> members = PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
+            String inviteCode = PayloadLimits.readUtf(buf);
             boolean showInExplore = buf.readBoolean();
-            int vrCount = buf.readInt();
+            int vrCount = PayloadLimits.readCount(buf, PayloadLimits.MAX_VOICE_ROOMS);
             List<ModServerChannels.VoiceRoom> rooms = new ArrayList<>(vrCount);
             for (int j = 0; j < vrCount; j++) {
-                String vrName = readUtf(buf);
-                List<String> vrMembers = readStringList(buf);
+                String vrName = PayloadLimits.readUtf(buf);
+                List<String> vrMembers = PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
                 rooms.add(new ModServerChannels.VoiceRoom(vrName, vrMembers));
             }
-            list.add(new ModServerChannels.ChannelEntry(id, owner, isPublic, description, displayName, admins, muted, invited, members, inviteCode, showInExplore, rooms));
+            String parentId = PayloadLimits.readUtf(buf);
+            int sortOrder = buf.readInt();
+            boolean mainChatEnabled = buf.readBoolean();
+            String defaultSubChannel = PayloadLimits.readUtf(buf);
+            list.add(new ModServerChannels.ChannelEntry(id, owner, isPublic, description, displayName, admins, muted, invited, members, inviteCode, showInExplore, rooms, parentId, sortOrder, mainChatEnabled, defaultSubChannel));
         }
-        int kpSize = buf.readInt();
+        int kpSize = PayloadLimits.readCount(buf, PayloadLimits.MAX_PLAYERS);
         Map<String, String> knownPlayers = new HashMap<>(kpSize);
         for (int i = 0; i < kpSize; i++) {
-            String uuid = readUtf(buf);
-            String name = readUtf(buf);
+            String uuid = PayloadLimits.readUtf(buf);
+            String name = PayloadLimits.readUtf(buf);
             knownPlayers.put(uuid, name);
         }
         return new ClientboundChannelSyncPayload(list, knownPlayers);
@@ -91,10 +99,7 @@ public record ClientboundChannelSyncPayload(List<ModServerChannels.ChannelEntry>
     }
 
     private static String readUtf(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
-        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        return PayloadLimits.readUtf(buf);
     }
 
     private static void writeStringList(ByteBuf buf, List<String> list) {
@@ -103,10 +108,7 @@ public record ClientboundChannelSyncPayload(List<ModServerChannels.ChannelEntry>
     }
 
     private static List<String> readStringList(ByteBuf buf) {
-        int n = buf.readInt();
-        List<String> list = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) list.add(readUtf(buf));
-        return list;
+        return PayloadLimits.readStringList(buf, PayloadLimits.MAX_STRINGS_PER_LIST);
     }
 
     public void handle(IPayloadContext ctx) {

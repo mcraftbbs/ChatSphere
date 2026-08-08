@@ -25,9 +25,7 @@ public record ClientboundPermissionResponsePayload(String scope, boolean allowed
     }
 
     private static ClientboundPermissionResponsePayload read(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
+        byte[] bytes = PayloadLimits.readBytes(buf, PayloadLimits.MAX_UTF_BYTES);
         String scope = new String(bytes, StandardCharsets.UTF_8);
         boolean allowed = buf.readBoolean();
         return new ClientboundPermissionResponsePayload(scope, allowed);

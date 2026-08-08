@@ -34,9 +34,17 @@ public class ChatMessageData {
         this.conversationType = conversationType;
         this.isOwn = isOwn;
         this.duplicateCount = 1;
-        this.renderedContent = ModClientConfig.CONFIG.renderEmojiShortcodes.get()
-                ? EmojiRegistry.toComponent(EmojiRegistry.replaceShortcodes(content.getString()))
-                : content;
+        String raw = content.getString();
+        boolean richText = conversationType != ConversationType.COMMAND
+                && ModClientConfig.CONFIG.renderRichText.get()
+                && RichTextParser.containsMarkup(raw);
+        if (richText) {
+            this.renderedContent = RichTextParser.parse(raw);
+        } else {
+            this.renderedContent = ModClientConfig.CONFIG.renderEmojiShortcodes.get()
+                    ? EmojiRegistry.toComponent(EmojiRegistry.replaceShortcodes(raw))
+                    : content;
+        }
     }
 
     public ChatMessageData withReply(String replyContent, String replySender) {

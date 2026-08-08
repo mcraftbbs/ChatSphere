@@ -24,9 +24,7 @@ public record ServerboundPermissionCheckPayload(String scope) implements CustomP
     }
 
     private static ServerboundPermissionCheckPayload read(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] bytes = new byte[len];
-        buf.readBytes(bytes);
+        byte[] bytes = PayloadLimits.readBytes(buf, PayloadLimits.MAX_UTF_BYTES);
         return new ServerboundPermissionCheckPayload(new String(bytes, StandardCharsets.UTF_8));
     }
 

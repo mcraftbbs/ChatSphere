@@ -21,10 +21,22 @@ import net.minecraft.sounds.SoundEvents;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -69,6 +81,9 @@ public class ChatHistoryManager {
     private int conversationIdsCacheVersion = -1;
     private int conversationIdsVersion;
     private int cachedUnreadTotal = -1;
+    private int messagesVersion;
+    private Map<String, List<ChatMessageData>> messagesByConvCache;
+    private int messagesByConvCacheVersion = -1;
 
     public void addChannelConfigChangeListener(Runnable listener) {
         synchronized (channelConfigChangeListeners) {
@@ -141,11 +156,14 @@ public class ChatHistoryManager {
                 msg.setItemNbt(itemNbt);
             }
             messages.add(msg);
+            messagesVersion++;
         }
         if (senderUuid != null && type == ChatMessageData.ConversationType.CHANNEL) {
-            ChatDataStore.ChannelConfig cfg = channelConfigs.get(conversationId);
-            if (cfg != null) {
-                cfg.playerNames.put(senderUuid.toString(), senderName.getString());
+            synchronized (channelConfigs) {
+                ChatDataStore.ChannelConfig cfg = channelConfigs.get(conversationId);
+                if (cfg != null) {
+                    cfg.playerNames.put(senderUuid.toString(), senderName.getString());
+                }
             }
         }
         if (type == ChatMessageData.ConversationType.CHANNEL) {
@@ -310,6 +328,47 @@ public class ChatHistoryManager {
                 .format(TIMESTAMP_FORMATTER);
     }
 
+    /** Same day: HH:mm; this year: M月d日 HH:mm; earlier years: with yyyy. */
+    public static String formatTimestampSmart(long millis) {
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), zone);
+        LocalDateTime now = LocalDateTime.now(zone);
+        String date = dateLabel(dt, now, true);
+        return date + " " + dt.format(TIMESTAMP_FORMATTER);
+    }
+
+    /** Group header label: Today / Yesterday / M月d日 / yyyy年M月d日 (no time). */
+    public static String formatDateHeader(long millis) {
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), zone);
+        LocalDateTime now = LocalDateTime.now(zone);
+        return dateLabel(dt, now, false);
+    }
+
+    private static String dateLabel(LocalDateTime dt, LocalDateTime now, boolean withYear) {
+        if (dt.toLocalDate().equals(now.toLocalDate())) {
+            return net.minecraft.client.resources.language.I18n.get("screen.chatsphere.today");
+        }
+        if (dt.toLocalDate().equals(now.toLocalDate().minusDays(1))) {
+            return net.minecraft.client.resources.language.I18n.get("screen.chatsphere.yesterday");
+        }
+        boolean zh = Locale.getDefault().getLanguage().startsWith("zh");
+        if (dt.getYear() == now.getYear()) {
+            return zh ? dt.format(DateTimeFormatter.ofPattern("M月d日")) : dt.format(DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH));
+        }
+        if (withYear) {
+            return zh ? dt.format(DateTimeFormatter.ofPattern("yyyy年M月d日")) : dt.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH));
+        }
+        return zh ? dt.format(DateTimeFormatter.ofPattern("yyyy年M月d日")) : dt.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH));
+    }
+
+    public static boolean isSameDay(long a, long b) {
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDate da = LocalDate.ofInstant(Instant.ofEpochMilli(a), zone);
+        LocalDate db = LocalDate.ofInstant(Instant.ofEpochMilli(b), zone);
+        return da.equals(db);
+    }
+
     public boolean consumeNewMessageFlag() {
         boolean flag = newMessageSinceLastCheck;
         newMessageSinceLastCheck = false;
@@ -345,9 +404,16 @@ public class ChatHistoryManager {
             }
         }
         synchronized (messages) {
-            return messages.stream()
-                    .filter(m -> m.conversationId().equals(conversationId))
-                    .collect(Collectors.toList());
+            if (messagesByConvCache == null || messagesByConvCacheVersion != messagesVersion) {
+                Map<String, List<ChatMessageData>> fresh = new HashMap<>();
+                for (ChatMessageData m : messages) {
+                    fresh.computeIfAbsent(m.conversationId(), k -> new ArrayList<>()).add(m);
+                }
+                messagesByConvCache = fresh;
+                messagesByConvCacheVersion = messagesVersion;
+            }
+            List<ChatMessageData> list = messagesByConvCache.get(conversationId);
+            return list != null ? list : List.of();
         }
     }
 
@@ -401,7 +467,7 @@ public class ChatHistoryManager {
 
     public List<String> getChannelMembers(String channelId) {
         synchronized (channelConfigs) {
-            ChatDataStore.ChannelConfig cfg = channelConfigs.get(channelId);
+            ChatDataStore.ChannelConfig cfg = channelConfigs.get(effectiveConfigId(channelId));
             if (cfg == null) return List.of();
             return new ArrayList<>(cfg.members);
         }
@@ -409,18 +475,36 @@ public class ChatHistoryManager {
 
     public boolean isOwner(String channelId, UUID playerUuid) {
         if (playerUuid == null) return false;
+        String effectiveId = effectiveConfigId(channelId);
         synchronized (channelConfigs) {
-            ChatDataStore.ChannelConfig cfg = channelConfigs.get(channelId);
+            ChatDataStore.ChannelConfig cfg = channelConfigs.get(effectiveId);
             return cfg != null && cfg.owner.equals(playerUuid.toString());
         }
     }
 
     public boolean isAdmin(String channelId, UUID playerUuid) {
         if (playerUuid == null) return false;
+        String effectiveId = effectiveConfigId(channelId);
         synchronized (channelConfigs) {
-            ChatDataStore.ChannelConfig cfg = channelConfigs.get(channelId);
+            ChatDataStore.ChannelConfig cfg = channelConfigs.get(effectiveId);
             return cfg != null && (cfg.owner.equals(playerUuid.toString()) || cfg.admins.contains(playerUuid.toString()));
         }
+    }
+
+    private String effectiveConfigId(String channelId) {
+        String cur = channelId;
+        int guard = 0;
+        while (isSubChannel(cur) && guard++ < 32) {
+            String parentId = subParentOf(cur);
+            synchronized (channelConfigs) {
+                if (channelConfigs.containsKey(parentId)) {
+                    cur = parentId;
+                    continue;
+                }
+            }
+            break;
+        }
+        return cur;
     }
 
     public ChatDataStore.ChannelConfig getChannelConfig(String channelId) {
@@ -446,9 +530,50 @@ public class ChatHistoryManager {
                                 new ArrayList<>(config.mutedPlayers),
                                 new ArrayList<>(config.invitedPlayers),
                                 config.inviteCode,
-                                config.showInExplore, "", "", "")));
+                                config.showInExplore, "", "", "", config.mainChatEnabled, config.defaultSubChannel)));
             }
         }
+    }
+
+    public void sendRenameSubChannel(String oldId, String newName) {
+        if (oldId == null || oldId.isEmpty() || newName == null || newName.isEmpty()) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.getConnection() == null) return;
+        var conn = mc.getConnection().getConnection();
+        conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
+                new ServerboundChannelActionPayload(
+                        ServerboundChannelActionPayload.Action.RENAME_SUBCHANNEL,
+                        oldId, mc.player.getUUID(), false, "", newName,
+                        List.of(), List.of(), List.of(), "", false, "", "", "", false, "")));
+    }
+
+    public void sendMoveSubChannel(String channelId, String newParentId) {
+        if (channelId == null || channelId.isEmpty() || newParentId == null || newParentId.isEmpty()) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.getConnection() == null) return;
+        var conn = mc.getConnection().getConnection();
+        conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
+                new ServerboundChannelActionPayload(
+                        ServerboundChannelActionPayload.Action.MOVE_CHANNEL,
+                        channelId, mc.player.getUUID(), false, newParentId, "",
+                        List.of(), List.of(), List.of(), "", false, "", "", "", false, "")));
+    }
+
+    public void sendReorderChannels(String groupParent, List<String> orderedIds) {
+        if (orderedIds == null || orderedIds.isEmpty()) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.getConnection() == null) return;
+        StringBuilder sb = new StringBuilder();
+        for (String id : orderedIds) {
+            if (sb.length() > 0) sb.append(",");
+            sb.append(id);
+        }
+        var conn = mc.getConnection().getConnection();
+        conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
+                new ServerboundChannelActionPayload(
+                        ServerboundChannelActionPayload.Action.REORDER_CHANNEL,
+                        groupParent != null ? groupParent : "", mc.player.getUUID(), false,
+                        sb.toString(), "", List.of(), List.of(), List.of(), "", false, "", "", "", false, "")));
     }
 
     public Map<String, ChatDataStore.ChannelConfig> getAllChannelConfigs() {
@@ -502,6 +627,9 @@ public class ChatHistoryManager {
             if (DEFAULT_CHANNEL_ID.equals(conversationId)) {
                 return Component.translatable("screen.chatsphere.mod_chat.general_channel");
             }
+            if (isSubChannel(conversationId)) {
+                return Component.literal(subNameOf(conversationId));
+            }
             return Component.literal(conversationId.substring(1));
         }
         synchronized (conversationDisplayNames) {
@@ -518,6 +646,53 @@ public class ChatHistoryManager {
             return ChatMessageData.ConversationType.CHANNEL;
         }
         return ChatMessageData.ConversationType.PRIVATE;
+    }
+
+    public static boolean isSubChannel(String conversationId) {
+        return conversationId != null && conversationId.contains("/");
+    }
+
+    public static String subParentOf(String conversationId) {
+        if (conversationId == null) return "";
+        int idx = conversationId.lastIndexOf('/');
+        return idx >= 0 ? conversationId.substring(0, idx) : conversationId;
+    }
+
+    public static String subNameOf(String conversationId) {
+        if (conversationId == null) return "";
+        int idx = conversationId.lastIndexOf('/');
+        return idx >= 0 ? conversationId.substring(idx + 1) : conversationId;
+    }
+
+    public List<String> getSubChannels(String parentId) {
+        List<String> result = new ArrayList<>();
+        synchronized (knownChannels) {
+            for (String id : knownChannels) {
+                if (isSubChannel(id) && parentId.equals(subParentOf(id))) result.add(id);
+            }
+        }
+        return result;
+    }
+
+    /** All descendants of parentId (any depth), in server sync order (sortOrder-driven). */
+    public List<String> getDescendantChannels(String parentId) {
+        List<String> result = new ArrayList<>();
+        String prefix = parentId + "/";
+        synchronized (knownChannels) {
+            for (String id : knownChannels) {
+                if (id.startsWith(prefix)) result.add(id);
+            }
+        }
+        return result;
+    }
+
+    public static int channelDepth(String conversationId) {
+        if (conversationId == null) return 0;
+        int depth = 0;
+        for (int i = 0; i < conversationId.length(); i++) {
+            if (conversationId.charAt(i) == '/') depth++;
+        }
+        return depth;
     }
 
     public boolean hasConversation(String conversationId) {
@@ -604,6 +779,7 @@ public class ChatHistoryManager {
     public void clear() {
         synchronized (messages) {
             messages.clear();
+            messagesVersion++;
         }
         synchronized (commandMessages) {
             commandMessages.clear();
@@ -723,6 +899,7 @@ public class ChatHistoryManager {
                     loaded.setDuplicateCount(sm.duplicateCount());
                 messages.add(loaded);
             }
+            messagesVersion++;
         }
 
         synchronized (commandMessages) {
@@ -767,7 +944,9 @@ public class ChatHistoryManager {
 
         synchronized (channelConfigs) {
             data.channelConfigs.clear();
-            data.channelConfigs.putAll(channelConfigs);
+            for (Map.Entry<String, ChatDataStore.ChannelConfig> e : channelConfigs.entrySet()) {
+                data.channelConfigs.put(e.getKey(), copyConfig(e.getValue()));
+            }
         }
 
         synchronized (commandHistory) {
@@ -815,6 +994,30 @@ public class ChatHistoryManager {
 
         data.savedInput = savedInput;
         ChatDataStore.saveAsync(data);
+    }
+
+    private static ChatDataStore.ChannelConfig copyConfig(ChatDataStore.ChannelConfig src) {
+        ChatDataStore.ChannelConfig c = new ChatDataStore.ChannelConfig();
+        c.isPublic = src.isPublic;
+        c.owner = src.owner;
+        c.description = src.description;
+        c.displayName = src.displayName;
+        c.inviteCode = src.inviteCode;
+        c.admins.addAll(src.admins);
+        c.members.addAll(src.members);
+        c.mutedPlayers.addAll(src.mutedPlayers);
+        c.invitedPlayers.addAll(src.invitedPlayers);
+        c.playerNames.putAll(src.playerNames);
+        c.showInExplore = src.showInExplore;
+        c.mainChatEnabled = src.mainChatEnabled;
+        c.defaultSubChannel = src.defaultSubChannel;
+        for (cn.sarskin.ChatSphere.client.voice.VoiceRoom vr : src.voiceRooms) {
+            cn.sarskin.ChatSphere.client.voice.VoiceRoom copy = new cn.sarskin.ChatSphere.client.voice.VoiceRoom();
+            copy.name = vr.name;
+            copy.members.addAll(vr.members);
+            c.voiceRooms.add(copy);
+        }
+        return c;
     }
 
     public boolean isServerConnected() {
@@ -913,6 +1116,8 @@ public class ChatHistoryManager {
                 cfg.members.addAll(e.members());
                 cfg.inviteCode = e.inviteCode();
                 cfg.showInExplore = e.showInExplore();
+                cfg.mainChatEnabled = e.mainChatEnabled();
+                cfg.defaultSubChannel = e.defaultSubChannel() != null ? e.defaultSubChannel() : "";
                 cfg.voiceRooms.clear();
                 for (ModServerChannels.VoiceRoom vr : e.voiceRooms()) {
                     cn.sarskin.ChatSphere.client.voice.VoiceRoom cvr = new cn.sarskin.ChatSphere.client.voice.VoiceRoom();
@@ -937,6 +1142,84 @@ public class ChatHistoryManager {
         }
         refreshPrivateConversationDisplayNames();
         loaded = true;
+        synchronized (channelConfigChangeListeners) {
+            for (Runnable listener : channelConfigChangeListeners) {
+                listener.run();
+            }
+        }
+    }
+
+    public void applyChannelRename(String oldId, String newId) {
+        if (oldId == null || newId == null || oldId.equals(newId)) return;
+        synchronized (knownChannels) {
+            if (knownChannels.remove(oldId)) {
+                knownChannels.add(newId);
+            }
+        }
+        synchronized (channelConfigs) {
+            ChatDataStore.ChannelConfig cfg = channelConfigs.remove(oldId);
+            if (cfg != null) {
+                channelConfigs.put(newId, cfg);
+            }
+        }
+        synchronized (conversationDisplayNames) {
+            Component name = conversationDisplayNames.remove(oldId);
+            if (name != null) {
+                conversationDisplayNames.put(newId, name);
+            }
+        }
+        synchronized (knownPrivateConversations) {
+            if (knownPrivateConversations.remove(oldId)) {
+                knownPrivateConversations.add(newId);
+            }
+        }
+        String oldPrefix = oldId + "/";
+        String newPrefix = newId + "/";
+        synchronized (knownChannels) {
+            List<String> childIds = new ArrayList<>();
+            for (String id : knownChannels) {
+                if (id.startsWith(oldPrefix)) childIds.add(id);
+            }
+            for (String id : childIds) {
+                knownChannels.remove(id);
+                knownChannels.add(newPrefix + id.substring(oldPrefix.length()));
+            }
+        }
+        synchronized (channelConfigs) {
+            Map<String, ChatDataStore.ChannelConfig> childCfgs = new HashMap<>();
+            for (String id : new ArrayList<>(channelConfigs.keySet())) {
+                if (id.startsWith(oldPrefix)) {
+                    childCfgs.put(id, channelConfigs.remove(id));
+                }
+            }
+            for (Map.Entry<String, ChatDataStore.ChannelConfig> en : childCfgs.entrySet()) {
+                channelConfigs.put(newPrefix + en.getKey().substring(oldPrefix.length()), en.getValue());
+            }
+        }
+        synchronized (messages) {
+            List<ChatMessageData> rekeyed = new ArrayList<>();
+            for (int i = 0; i < messages.size(); i++) {
+                ChatMessageData m = messages.get(i);
+                String conv = m.conversationId();
+                String mapped = null;
+                if (oldId.equals(conv)) {
+                    mapped = newId;
+                } else if (conv.startsWith(oldPrefix)) {
+                    mapped = newPrefix + conv.substring(oldPrefix.length());
+                }
+                if (mapped != null) {
+                    ChatMessageData copy = new ChatMessageData(m.senderName(), m.senderUuid(), m.content(),
+                            m.timestamp(), mapped, m.conversationType(), m.isOwn())
+                            .withReply(m.replyContent(), m.replySender())
+                            .withItemNbt(m.itemNbt());
+                    copy.setDuplicateCount(m.duplicateCount());
+                    messages.set(i, copy);
+                }
+            }
+            messagesVersion++;
+        }
+        invalidateConversationIds();
+        save();
         synchronized (channelConfigChangeListeners) {
             for (Runnable listener : channelConfigChangeListeners) {
                 listener.run();
@@ -1000,7 +1283,10 @@ public class ChatHistoryManager {
                     cmdText = Component.literal(senderName);
                 } else {
                     try {
-                        cmdText = Component.Serializer.fromJson(text, RegistryAccess.EMPTY);
+                        RegistryAccess access = Minecraft.getInstance().level != null
+                                ? Minecraft.getInstance().level.registryAccess()
+                                : RegistryAccess.EMPTY;
+                        cmdText = Component.Serializer.fromJson(text, access);
                     } catch (Exception e) {
                         cmdText = Component.literal(text);
                     }
@@ -1073,6 +1359,7 @@ public class ChatHistoryManager {
                     messages.set(i, msg.withReply(replyData[0], replyData[1]));
                 }
             }
+            messagesVersion++;
         }
     }
 
@@ -1145,8 +1432,7 @@ public class ChatHistoryManager {
         UUID playerUuid = mc.player.getUUID();
         var payload = new ServerboundChannelActionPayload(
                 action, channelId, playerUuid, true, roomName, "",
-                List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", ""
-        );
+                List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "");
         mc.getConnection().send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(payload));
     }
 }
