@@ -1,0 +1,21 @@
+{
+    "required": true,
+    "minVersion": "0.8",
+    "package": "cn.sarskin.ChatSphere.mixin",
+    "plugin": "cn.sarskin.ChatSphere.mixin.MixinConfigPlugin",
+    "compatibilityLevel": "JAVA_21",
+    "mixins": [
+        "ServerStatusSerializerMixin",
+        "VoiceMessageServerMixin"
+    ],
+    "client": [
+        "ChatComponentMixin",
+        "MinecraftMixin",
+        "ScreenAccessor",
+        "VoiceMessagesClientMixin",
+        "VoiceMessageConfirmMixin"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

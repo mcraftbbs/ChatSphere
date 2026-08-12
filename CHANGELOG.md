@@ -1,3 +1,28 @@
+## 2.2.1
+
+### Added
+- Multi-platform build (Architectury): **Fabric** support alongside NeoForge for Minecraft 1.21.1, plus a **Fabric 1.20.1** port
+- Bare URLs in messages are auto-linkified and clickable, subject to the URL whitelist config
+- Quoting an item-show message now displays the item name instead of the raw slot placeholder
+- Server config: `voiceStorageMax` (voice retention cap, 16–10000)
+- Voice history re-delivery: players who join receive recent voice messages from their conversations
+
+### Changed
+- Voice playback resolution is event-driven (audio arrival registers the playback directly) with a failure short-circuit — no per-frame reflection in the render loop
+- Voice uploads deduplicated server-side: multiple recipients uploading the same message are recorded and relayed once
+- Config screens debounce per-keystroke saves / config-update packets
+- Bundled presets carry a version marker; stale or corrupt presets are reinstalled from the jar automatically
+- Date formatters precompiled (removes per-frame allocations)
+- Hardcoded UI strings moved to lang keys
+
+### Fixed
+- Server security: voice packets validated before history writes, private-channel join requires membership/invite, forged command-message UUIDs dropped, config-update ints range-checked, item NBT capped on the server and parsed with a size-limited `NbtAccounter` on the client
+- Corrupted config JSON no longer crashes the game (backed up as `.corrupt`, defaults used)
+- Server data files (channels/messages/voice index) written atomically (tmp + atomic move)
+- Lock-order inversion between message history and channel state removed
+- Theme `preset-stream.ctheme` had invalid 10-digit hex values in its light block, rejecting the whole theme
+- Malformed voice frames rejected (frame length validated, no OOM)
+
 ## 2.2.0
 
 ### Added

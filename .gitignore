@@ -5,6 +5,6 @@ build/
 gradle/wrapper/gradle-wrapper.jar
 *.log
 VANILLA_SERVER_GUIDE.md
-docs/*
-!docs/*.md
+docs/
 run/
+*.tmp

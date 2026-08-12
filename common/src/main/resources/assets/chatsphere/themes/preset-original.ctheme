@@ -1,0 +1,13 @@
+CS1;
+// preset-version: 3
+// ChatSphere preset: original rounded style (the built-in look)
+theme "Original Preset" version 1;
+
+styles {
+    uiCornerStyle: rounded;
+    bubbleCornerRadius: 4;
+    messageLineSpacing: 0;
+    sidebarWidth: 100px;
+    avatarRadius: 0;
+    blurIntensity: 100%;
+}

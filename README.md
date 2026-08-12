@@ -4,11 +4,11 @@
 
 ![ChatSphere](https://cdn.modrinth.com/data/cached_images/8cc6c14cc43b82f8053acb11d80eed267154bdab_0.webp)
 
-A modern instant-messaging chat mod for Minecraft NeoForge (1.21.1). Replaces the vanilla chat with channels, private messaging, voice rooms, emoji, and a full GUI.
+A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**, plus a **Fabric (1.20.1)** port. Replaces the vanilla chat with channels, private messaging, voice rooms, emoji, and a full GUI.
 
 > **License:** GNU LGPLv3
 > **Mod ID:** `chatsphere`
-> **Version:** 2.2.0
+> **Version:** 2.2.1
 
 ---
 
@@ -45,8 +45,8 @@ A modern instant-messaging chat mod for Minecraft NeoForge (1.21.1). Replaces th
 | **Private Messaging** | Click any player name (or avatar → Private Message) to start a DM; `/msg` and `/tell` support; grouped under "Private" in sidebar |
 | **Command Console** | Built-in command console with history recall (up/down arrows) |
 | **Emoji Picker** | 349 emoji from twemoji, rendered via custom font (PUA glyphs); category tabs, search, `:shortcode:` autocomplete |
-| **Rich Text** | `[b]`, `[color]`, `[gradient]`, `[url]`, `[code]` markup in messages (toggleable) |
-| **Voice Chat** | Dual integration — supports **Simple Voice Chat** (ISOLATED groups) and **PlasmoVoice** (broadcast source lines); voice messages replay with local cache (size-limit configurable) |
+| **Rich Text** | `[b]`, `[color]`, `[gradient]`, `[url]`, `[code]` markup in messages (toggleable); **bare URLs are auto-linkified** (clickable) with a whitelist filter |
+| **Voice Chat** | Dual integration — supports **Simple Voice Chat** (ISOLATED groups) and **PlasmoVoice** (broadcast source lines); voice messages replay with local cache (size-limit configurable); **voice history persists on the server** and is re-sent to players when they join |
 | **Chat Search** | Search within current conversation with result count and jump navigation |
 | **Reply System** | Quote-reply to any message; referenced in input bar |
 | **Context Menu** | Right-click → Copy, Quote Reply, Block; avatar menu → @mention or Private Message |
@@ -65,8 +65,8 @@ A modern instant-messaging chat mod for Minecraft NeoForge (1.21.1). Replaces th
 
 ## Installation
 
-1. Install **NeoForge 21.1.228** for Minecraft 1.21.1
-2. Drop the ChatSphere `.jar` into both `mods/` folders (client & server)
+1. Install **NeoForge 21.1.228** or **Fabric Loader 0.16.x** (+ Fabric API) for Minecraft 1.21.1 (or the **Fabric 1.20.1** build for Minecraft 1.20.1)
+2. Drop the matching ChatSphere `.jar` into the `mods/` folder (client & server)
 3. (Optional) Install **Simple Voice Chat** and/or **PlasmoVoice** for voice room features
 
 Requires mod on **both server and client** for full functionality. Without server mod, client falls back to local-only storage mode.

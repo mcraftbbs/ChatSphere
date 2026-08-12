@@ -1,0 +1,19 @@
+CS1;
+// preset-version: 3
+// ChatSphere preset: Stream-style layout (rail + channel sidebar + row messages)
+theme "Stream Preset" version 1;
+
+styles {
+    uiCornerStyle: stream;
+    bubbleCornerRadius: 16;
+    messageLineSpacing: 0;
+    sidebarWidth: 100px;
+    avatarRadius: 0;
+    blurIntensity: 100%;
+}
+
+dark {
+}
+
+light {
+}
