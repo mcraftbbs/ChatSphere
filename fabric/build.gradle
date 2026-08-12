@@ -1,0 +1,92 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+    id 'idea'
+    id 'architectury-plugin' version "${architectury_version}"
+    id 'dev.architectury.loom' version "${loom_version}"
+}
+
+architectury {
+    platformSetupLoomIde()
+    fabric()
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    maven { url = 'https://maven.parchmentmc.org' }
+    maven { url = 'https://maven.terraformersmc.com/releases/' }
+}
+
+base {
+    archivesName = "${rootProject.mod_id}-fabric"
+}
+
+configurations {
+    common
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentFabric.extendsFrom common
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    common(project(path: ':common', configuration: 'namedElements')) { transitive false }
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    modCompileOnly "com.terraformersmc:modmenu:7.2.2"
+    modLocalRuntime "com.terraformersmc:modmenu:7.2.2"
+
+    compileOnly "de.maxhenkel.voicechat:voicechat-api:2.1.12"
+    compileOnly "su.plo.voice.api:server:2.1.13"
+}
+
+def fabricModVersion = "${version}"
+
+processResources {
+    filesMatching("fabric.mod.json") {
+        expand "version": fabricModVersion
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+    exclude '**/buildtool/**'
+}
+
+loom {
+    mixin {
+        defaultRefmapName = "chatsphere.refmap.json"
+    }
+    runs {
+        client {
+            client()
+            setConfigName("Fabric Client")
+            ideConfigGenerated(true)
+            runDir("run")
+        }
+        server {
+            server()
+            setConfigName("Fabric Server")
+            ideConfigGenerated(true)
+            runDir("run")
+        }
+    }
+}
+
+remapJar {
+    // Merge the architectury-transformed common output (classes + assets) into the mod jar.
+    dependsOn project(":common").tasks.named("transformProductionFabric")
+    from(project(":common").tasks.named("transformProductionFabric").flatMap { t -> t.archiveFile }.map { f -> zipTree(f) })
+    exclude "architectury.common.json"
+}
+
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

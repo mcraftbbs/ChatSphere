@@ -1,0 +1,31 @@
+{
+    "schemaVersion": 1,
+    "id": "chatsphere",
+    "version": "${version}",
+    "name": "ChatSphere",
+    "description": "Server-side chat channels with a Discord-style UI and voice room integration.",
+    "authors": ["sarskin"],
+    "license": "GNU LGPLv3",
+    "icon": "logo.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": ["cn.sarskin.ChatSphere.fabric.ChatSphereFabric"],
+        "client": ["cn.sarskin.ChatSphere.fabric.client.ChatSphereFabricClient"],
+        "modmenu": ["cn.sarskin.ChatSphere.fabric.client.ModMenuCompat"]
+    },
+    "mixins": [
+        "chatsphere.mixins.json",
+        "chatsphere.fabric.mixins.json"
+    ],
+    "depends": {
+        "fabricloader": ">=0.16.0",
+        "minecraft": ">=1.20.1",
+        "java": ">=17",
+        "fabric-api": "*"
+    },
+    "suggests": {
+        "fabric-api": "*",
+        "voicechat": "*",
+        "plasmovoice": "*"
+    }
+}

@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+    id 'idea'
+    id 'architectury-plugin' version "${architectury_version}"
+    id 'dev.architectury.loom' version "${loom_version}"
+}
+
+architectury {
+    common("neoforge", "fabric")
+}
+
+repositories {
+    maven { url = 'https://maven.parchmentmc.org' }
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+loom {
+    noIntermediateMappings()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.layered {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-${parchment_minecraft_version}:${parchment_mappings_version}@zip")
+    }
+    compileOnly "net.fabricmc:sponge-mixin:0.15.4+mixin.0.8.7"
+    compileOnly "de.maxhenkel.voicechat:voicechat-api:2.1.12"
+    compileOnly "su.plo.voice.api:server:2.1.13"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+    exclude '**/buildtool/**'
+}

@@ -1,0 +1,125 @@
+CS1;
+// preset-version: 3
+// ChatSphere preset: square corners (sharp square corners)
+theme "Square Preset" version 1;
+
+dark {
+    screenBg: #14141D;
+    sidebarBg: #0F0F16;
+    panelBg: #1C1C2A;
+    panelBg2: #181826;
+    popupBg: #1A1A28;
+    popupBg2: #171724;
+    popupBg3: #14141F;
+    searchBg: #101018;
+    inputBg: #33101022;
+    notifGradTop: #CC141428;
+    notifGradBot: #CC1C1C30;
+    replyBarBg: #CC1F1F33;
+    toolbarBg: #AA000000;
+    previewSwatchBg: #FF242434;
+    popupOutline: #AAFFFFFF;
+    popupOutline2: #CCFFFFFF;
+    emojiOutline: #55FFFFFF;
+    itemPickerOutline: #55FFFFFF;
+    divider: #22FFFFFF;
+    accentLine: #66FFFFFF;
+    sectionLine: #55FFFFFF;
+    scrollThumb: #90FFFFFF;
+    scrollTrack: #33FFFFFF;
+    accent: #FF66CCFF;
+    hoverRow: #2233CCFF;
+    activeRow: #5533CCFF;
+    menuHover: #44CCCCFF;
+    iconBtnBg: #44000000;
+    iconBtnHover: #5533CCFF;
+    searchCloseBg: #22FFFFFF;
+    emojiCellBg: #44446688;
+    emojiTabBg: #22000000;
+    emojiTabHover: #44333366;
+    emojiTabSel: #664466AA;
+    slotBg: #44000000;
+    slotHover: #5533CCFF;
+    text: #FFFFFFFF;
+    textMain: #FFCCCCCC;
+    textDim: #FF888888;
+    textFaint: #FF555555;
+    textInactive: #FFAAAAAA;
+    floatingText: #FFFFFFFF;
+    floatingTextDim: #99FFFFFF;
+    inputText: #FFE0E0E0;
+    searchPlaceholder: #FF666666;
+    bubbleOwn: #FF1D3B5C;
+    bubbleOther: #FF26262E;
+    bubbleInfoLine: #FF555555;
+    cmdBubbleOwn: #FF2D2D2D;
+    cmdBubbleOther: #FF1E1E2E;
+    toggleOn: #FF2E7D4F;
+    toggleOff: #FF3A3A4A;
+    toggleKnob: #FFF0F0F0;
+}
+
+light {
+    screenBg: #EFF0F6;
+    sidebarBg: #E2E3EE;
+    panelBg: #F4F4FA;
+    panelBg2: #F0F0F8;
+    popupBg: #F6F6FC;
+    popupBg2: #F2F2F8;
+    popupBg3: #F0F0F6;
+    searchBg: #FFFFFFFF;
+    inputBg: #33000000;
+    notifGradTop: #CCE0E0EA;
+    notifGradBot: #CCEAEAF4;
+    replyBarBg: #CCE4E4EE;
+    toolbarBg: #88000000;
+    previewSwatchBg: #FFDDDDE8;
+    popupOutline: #66000000;
+    popupOutline2: #88000000;
+    emojiOutline: #55000000;
+    itemPickerOutline: #55000000;
+    divider: #33000000;
+    accentLine: #66000000;
+    sectionLine: #44000000;
+    scrollThumb: #90000000;
+    scrollTrack: #33000000;
+    accent: #FF3366CC;
+    hoverRow: #3333CCFF;
+    activeRow: #6633CCFF;
+    menuHover: #44CCCCFF;
+    iconBtnBg: #22FFFFFF;
+    iconBtnHover: #5533CCFF;
+    searchCloseBg: #44AAAAAA;
+    emojiCellBg: #448888CC;
+    emojiTabBg: #22FFFFFF;
+    emojiTabHover: #44AAAAFF;
+    emojiTabSel: #66AAAAFF;
+    slotBg: #22FFFFFF;
+    slotHover: #5533CCFF;
+    text: #FF1A1A1A;
+    textMain: #FF333333;
+    textDim: #FF666666;
+    textFaint: #FF888888;
+    textInactive: #FF666666;
+    floatingText: #FF1A1A1A;
+    floatingTextDim: #991A1A1A;
+    inputText: #FFE0E0E0;
+    searchPlaceholder: #FF888888;
+    bubbleOwn: #FFD9E8FF;
+    bubbleOther: #FFFFFFFF;
+    bubbleInfoLine: #FF888888;
+    cmdBubbleOwn: #FF2D2D2D;
+    cmdBubbleOther: #FF1E1E2E;
+    toggleOn: #FF3BA55D;
+    toggleOff: #FFB8B8C4;
+    toggleKnob: #FFFFFFFF;
+}
+
+styles {
+    uiCornerStyle: square;
+    bubbleCornerRadius: 0;
+    messageLineSpacing: 1px;
+    sidebarWidth: 110px;
+    avatarRadius: 0;
+    blurIntensity: 100%;
+}

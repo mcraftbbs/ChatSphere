@@ -1,0 +1,10 @@
+.gradle/
+build/
+.idea/
+*.iml
+gradle/wrapper/gradle-wrapper.jar
+*.log
+VANILLA_SERVER_GUIDE.md
+docs/
+run/
+*.tmp

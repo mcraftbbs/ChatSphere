@@ -1,0 +1,16 @@
+{
+    "required": true,
+    "minVersion": "0.8",
+    "package": "cn.sarskin.ChatSphere.mixin",
+    "plugin": "cn.sarskin.ChatSphere.mixin.MixinConfigPlugin",
+    "compatibilityLevel": "JAVA_17",
+    "mixins": [],
+    "client": [
+        "ChatComponentMixin",
+        "MinecraftMixin",
+        "ScreenAccessor"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}
