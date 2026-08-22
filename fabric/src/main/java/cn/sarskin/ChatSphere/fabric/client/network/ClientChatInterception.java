@@ -19,11 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Fabric chat interception, mirroring the NeoForge ClientChatReceivedEvent handling.
- * ALLOW_CHAT provides ChatType.Bound (private-message detection) plus the sender
- * GameProfile, so no ChatListener mixin is needed.
- */
+/** Mirror of NeoForge ClientChatReceivedEvent handling; ALLOW_CHAT provides ChatType.Bound plus sender GameProfile, so no ChatListener mixin is needed. */
 public final class ClientChatInterception {
     private static final List<Component> sysMsgBuffer = new ArrayList<>();
     private static UUID sysMsgSender;
@@ -67,13 +63,13 @@ public final class ClientChatInterception {
         }
 
         String content = message.getString();
+        // Skip VoiceMessage# broadcasts; handled by the dedicated voice relay (ChatComponentMixin → handleVoiceChatMessage).
+        if (content.startsWith("VoiceMessage#")) return true;
         Component displayName = Component.literal(sender.getName() != null ? sender.getName() : Component.translatable("chatsphere.system_name").getString());
 
         ChatHistoryManager history = ChatHistoryManager.getInstance();
 
-        // 1.20.1's ChatType.Bound does not expose the chat type key, so vanilla /msg
-        // cannot be detected here; it falls through to the default channel. Private
-        // messaging via the mod UI uses the channel protocol and is fully supported.
+        // 1.20.1 ChatType.Bound lacks the type key, so vanilla /msg falls through to the default channel.
         history.addMessage(displayName, senderUuid, Component.literal(content),
                 ChatHistoryManager.DEFAULT_CHANNEL_ID, ChatMessageData.ConversationType.CHANNEL, false);
         return false;
@@ -102,10 +98,18 @@ public final class ClientChatInterception {
             combined = merged;
         }
 
+        // VoiceMessage# output goes via the dedicated voice relay.
+        if (combined.getString().startsWith("VoiceMessage#")) {
+            sysMsgBuffer.clear();
+            sysMsgSender = null;
+            return;
+        }
+
         history.addCommandMessage(combined, sysMsgSender, Component.literal(""), false);
 
         if (connected) {
-            UUID sendUuid = sysMsgSender != null ? sysMsgSender : Util.NIL_UUID;
+            // Console history is per-player: attribute to the local player so the server only stores/distributes it to them.
+            UUID sendUuid = mc.player.getUUID();
             String json;
             try {
                 json = Component.Serializer.toJson(combined);
@@ -113,7 +117,7 @@ public final class ClientChatInterception {
                 json = combined.getString();
             }
             conn.send(new ServerboundCustomPayloadPacket(ServerboundCommandMessagePayload.ID,
-                    new ServerboundCommandMessagePayload(json, sendUuid).toBuf()));
+                    new ServerboundCommandMessagePayload(json, sendUuid, false).toBuf()));
         }
 
         sysMsgBuffer.clear();

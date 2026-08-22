@@ -64,7 +64,6 @@ public class QuickPhrasesPanel {
         int textRight = panelX + PANEL_W - (hasScroll ? 8 : PAD);
         int textW = textRight - (panelX + PAD) - 14;
 
-        // Scrollbar
         if (hasScroll) {
             int sbX = panelX + PANEL_W - 6;
             int sbTop = listTop;
@@ -77,7 +76,6 @@ public class QuickPhrasesPanel {
             g.fill(sbX, thumbY, sbX + 3, thumbY + thumbH, Theme.scrollThumb());
         }
 
-        // Phrase rows
         int endIdx = Math.min(scroll + VISIBLE_ROWS, phrases.size());
         for (int i = scroll; i < endIdx; i++) {
             int rowY = listTop + (i - scroll) * ROW_H;
@@ -94,7 +92,6 @@ public class QuickPhrasesPanel {
             g.drawString(font, "\u2715", delX + 3, rowY + 3, 0xFFFF6666, false);
         }
 
-        // Add row
         int addY = panelY + ph - ADD_H - PAD;
         g.fill(panelX + PAD, addY, panelX + PANEL_W - PAD, addY + ADD_H, Theme.inputBg());
         g.renderOutline(panelX + PAD, addY, PANEL_W - PAD * 2, ADD_H, Theme.divider());
@@ -132,7 +129,6 @@ public class QuickPhrasesPanel {
         boolean hasScroll = phrases.size() > VISIBLE_ROWS;
         int textRight = panelX + PANEL_W - (hasScroll ? 8 : PAD);
 
-        // Phrase click / delete
         int endIdx = Math.min(scroll + VISIBLE_ROWS, phrases.size());
         for (int i = scroll; i < endIdx; i++) {
             int rowY = listTop + (i - scroll) * ROW_H;
@@ -157,7 +153,6 @@ public class QuickPhrasesPanel {
             }
         }
 
-        // Add button
         int addY = panelY + ph - ADD_H - PAD;
         int addBtnX = panelX + PANEL_W - PAD - 18;
         if (mouseX >= addBtnX && mouseX <= addBtnX + 16 && mouseY >= addY && mouseY <= addY + ADD_H) {
@@ -172,7 +167,6 @@ public class QuickPhrasesPanel {
             return true;
         }
 
-        // Add input focus
         if (mouseX >= panelX + PAD && mouseX <= panelX + PANEL_W - PAD
                 && mouseY >= addY && mouseY <= addY + ADD_H) {
             addFocused = true;

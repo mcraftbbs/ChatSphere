@@ -25,8 +25,20 @@ public record ServerboundChannelActionPayload(
         String replySender,
         String itemNbt,
         boolean mainChatEnabled,
-        String defaultSubChannel
+        String defaultSubChannel,
+        int slowModeSeconds
 )  {
+    /** Convenience ctor for send paths that don't configure slow mode (0 = off). */
+    public ServerboundChannelActionPayload(Action action, String channelId, UUID ownerUuid,
+            boolean isPublic, String description, String displayName,
+            List<String> admins, List<String> mutedPlayers, List<String> invitedPlayers,
+            String inviteCode, boolean showInExplore, String replyContent, String replySender,
+            String itemNbt, boolean mainChatEnabled, String defaultSubChannel) {
+        this(action, channelId, ownerUuid, isPublic, description, displayName, admins,
+                mutedPlayers, invitedPlayers, inviteCode, showInExplore, replyContent,
+                replySender, itemNbt, mainChatEnabled, defaultSubChannel, 0);
+    }
+
     public static final ResourceLocation ID = new ResourceLocation(ModInfo.MODID, "channel_action");
 
     public FriendlyByteBuf toBuf() {
@@ -53,6 +65,7 @@ public record ServerboundChannelActionPayload(
         writeUtf(buf, p.itemNbt);
         buf.writeBoolean(p.mainChatEnabled);
         writeUtf(buf, p.defaultSubChannel);
+        buf.writeInt(p.slowModeSeconds);
     }
 
     public static ServerboundChannelActionPayload read(FriendlyByteBuf buf) {
@@ -81,7 +94,8 @@ public record ServerboundChannelActionPayload(
         String itemNbt = PayloadLimits.readUtf(buf);
         boolean mainChatEnabled = buf.readBoolean();
         String defaultSubChannel = PayloadLimits.readUtf(buf);
-        return new ServerboundChannelActionPayload(action, channelId, owner, isPublic, description, displayName, admins, muted, invited, inviteCode, showInExplore, replyContent, replySender, itemNbt, mainChatEnabled, defaultSubChannel);
+        int slowModeSeconds = buf.readInt();
+        return new ServerboundChannelActionPayload(action, channelId, owner, isPublic, description, displayName, admins, muted, invited, inviteCode, showInExplore, replyContent, replySender, itemNbt, mainChatEnabled, defaultSubChannel, slowModeSeconds);
     }
 
     private static void writeUtf(FriendlyByteBuf buf, String s) {

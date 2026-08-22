@@ -84,6 +84,7 @@ public final class ThemeValidator {
         STYLE_PROPS.put("avatarRadius", PropDef.num(0, 20));
         STYLE_PROPS.put("blurIntensity", PropDef.percent(0, 100));
         STYLE_PROPS.put("uiCornerStyle", PropDef.enumOf("square", "pixel", "rounded", "stream"));
+        STYLE_PROPS.put("popupBorder", PropDef.num(0, 1));
         STYLE_PROPS.put("colorSeed", PropDef.color());
 
         ANIM_PROPS.put("messageSlideIn", new PropDef(ValType.ANIM, 0, 2000, null));

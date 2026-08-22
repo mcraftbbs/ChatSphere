@@ -166,6 +166,7 @@ public class ChatDataStore {
             if (sm.replyContent != null) m.addProperty("replyContent", sm.replyContent);
             if (sm.replySender != null) m.addProperty("replySender", sm.replySender);
             if (sm.itemNbt != null && !sm.itemNbt.isEmpty()) m.addProperty("itemNbt", sm.itemNbt);
+            if (sm.messageId != null) m.addProperty("messageId", sm.messageId.toString());
             messagesArr.add(m);
         }
         root.add("messages", messagesArr);
@@ -184,6 +185,7 @@ public class ChatDataStore {
             if (sm.replyContent != null) m.addProperty("replyContent", sm.replyContent);
             if (sm.replySender != null) m.addProperty("replySender", sm.replySender);
             if (sm.itemNbt != null && !sm.itemNbt.isEmpty()) m.addProperty("itemNbt", sm.itemNbt);
+            if (sm.messageId != null) m.addProperty("messageId", sm.messageId.toString());
             cmdMessagesArr.add(m);
         }
         root.add("commandMessages", cmdMessagesArr);
@@ -238,6 +240,7 @@ public class ChatDataStore {
             c.add("voiceRooms", vrArr);
             c.addProperty("mainChatEnabled", cfg.mainChatEnabled);
             c.addProperty("defaultSubChannel", cfg.defaultSubChannel);
+            if (cfg.slowModeSeconds > 0) c.addProperty("slowModeSeconds", cfg.slowModeSeconds);
             configsObj.add(e.getKey(), c);
         }
         root.add("channelConfigs", configsObj);
@@ -275,6 +278,7 @@ public class ChatDataStore {
                     String replyContent = m.has("replyContent") ? m.get("replyContent").getAsString() : null;
                     String replySender = m.has("replySender") ? m.get("replySender").getAsString() : null;
                     String itemNbt = m.has("itemNbt") ? m.get("itemNbt").getAsString() : null;
+                    String messageId = m.has("messageId") ? m.get("messageId").getAsString() : null;
                     SavedMessage sm = new SavedMessage(
                             m.get("senderName").getAsString(),
                             UUID.fromString(m.get("senderUuid").getAsString()),
@@ -283,7 +287,8 @@ public class ChatDataStore {
                             m.get("conversationId").getAsString(),
                             m.get("conversationType").getAsString(),
                             m.get("isOwn").getAsBoolean(),
-                            dup, replyContent, replySender, itemNbt
+                            dup, replyContent, replySender, itemNbt,
+                            messageId != null ? UUID.fromString(messageId) : null
                     );
                     data.messages.add(sm);
                 } catch (Exception e) {
@@ -301,6 +306,7 @@ public class ChatDataStore {
                     String replyContent = m.has("replyContent") ? m.get("replyContent").getAsString() : null;
                     String replySender = m.has("replySender") ? m.get("replySender").getAsString() : null;
                     String itemNbt = m.has("itemNbt") ? m.get("itemNbt").getAsString() : null;
+                    String messageId = m.has("messageId") ? m.get("messageId").getAsString() : null;
                     data.commandMessages.add(new SavedMessage(
                             m.get("senderName").getAsString(),
                             UUID.fromString(m.get("senderUuid").getAsString()),
@@ -309,7 +315,8 @@ public class ChatDataStore {
                             m.get("conversationId").getAsString(),
                             m.get("conversationType").getAsString(),
                             m.get("isOwn").getAsBoolean(),
-                            dup, replyContent, replySender, itemNbt
+                            dup, replyContent, replySender, itemNbt,
+                            messageId != null ? UUID.fromString(messageId) : null
                     ));
                 } catch (Exception e) {
                     LOGGER.warn("Skipping corrupt command message: {}", e.getMessage());
@@ -387,6 +394,7 @@ public class ChatDataStore {
                     }
                     if (c.has("mainChatEnabled")) cfg.mainChatEnabled = c.get("mainChatEnabled").getAsBoolean();
                     if (c.has("defaultSubChannel")) cfg.defaultSubChannel = c.get("defaultSubChannel").getAsString();
+                    if (c.has("slowModeSeconds")) cfg.slowModeSeconds = c.get("slowModeSeconds").getAsInt();
                     data.channelConfigs.put(e.getKey(), cfg);
                 } catch (Exception ex) {
                     LOGGER.warn("Skipping corrupt channel config {}: {}", e.getKey(), ex.getMessage());
@@ -444,11 +452,11 @@ public class ChatDataStore {
             String senderName, UUID senderUuid, String content,
             long timestamp, String conversationId, String conversationType, boolean isOwn,
             int duplicateCount, String replyContent, String replySender,
-            String itemNbt
+            String itemNbt, UUID messageId
     ) {
         public SavedMessage(String senderName, UUID senderUuid, String content,
                             long timestamp, String conversationId, String conversationType, boolean isOwn) {
-            this(senderName, senderUuid, content, timestamp, conversationId, conversationType, isOwn, 1, null, null, null);
+            this(senderName, senderUuid, content, timestamp, conversationId, conversationType, isOwn, 1, null, null, null, null);
         }
     }
 
@@ -466,6 +474,8 @@ public class ChatDataStore {
         public boolean showInExplore = true;
         public boolean mainChatEnabled = true;
         public String defaultSubChannel = "";
+        /** Slow mode: minimum seconds between messages in this channel; 0 = off. */
+        public int slowModeSeconds = 0;
         public final List<cn.sarskin.ChatSphere.client.voice.VoiceRoom> voiceRooms = new ArrayList<>();
     }
 }

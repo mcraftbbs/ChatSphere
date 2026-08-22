@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.network;
 
 import cn.sarskin.ChatSphere.ModInfo;
+import net.minecraft.Util;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 
@@ -28,6 +29,8 @@ public record ClientboundChatPayload(StoredMessage message)  {
         writeUtf(buf, m.replyContent());
         writeUtf(buf, m.replySender());
         writeUtf(buf, m.itemNbt());
+        writeUuid(buf, m.messageId());
+        buf.writeBoolean(m.isInput());
     }
 
     public static ClientboundChatPayload read(FriendlyByteBuf buf) {
@@ -40,7 +43,9 @@ public record ClientboundChatPayload(StoredMessage message)  {
         String replyContent = PayloadLimits.readUtf(buf);
         String replySender = PayloadLimits.readUtf(buf);
         String itemNbt = PayloadLimits.readUtf(buf);
-        return new ClientboundChatPayload(new StoredMessage(senderName, senderUuid, content, timestamp, conversationId, conversationType, replyContent, replySender, itemNbt));
+        UUID messageId = readUuid(buf);
+        boolean isInput = buf.readBoolean();
+        return new ClientboundChatPayload(new StoredMessage(senderName, senderUuid, content, timestamp, conversationId, conversationType, replyContent, replySender, itemNbt, messageId, isInput));
     }
 
     
@@ -57,6 +62,7 @@ public record ClientboundChatPayload(StoredMessage message)  {
     }
 
     private static void writeUuid(FriendlyByteBuf buf, UUID uuid) {
+        if (uuid == null) uuid = Util.NIL_UUID;
         buf.writeLong(uuid.getMostSignificantBits());
         buf.writeLong(uuid.getLeastSignificantBits());
     }
@@ -68,5 +74,21 @@ public record ClientboundChatPayload(StoredMessage message)  {
     public record StoredMessage(String senderName, UUID senderUuid, String content, long timestamp,
                                 String conversationId, String conversationType,
                                 String replyContent, String replySender,
-                                String itemNbt) {}
+                                String itemNbt, UUID messageId, boolean isInput) {
+        public StoredMessage(String senderName, UUID senderUuid, String content, long timestamp,
+                             String conversationId, String conversationType,
+                             String replyContent, String replySender,
+                             String itemNbt, UUID messageId) {
+            this(senderName, senderUuid, content, timestamp, conversationId, conversationType,
+                    replyContent, replySender, itemNbt, messageId, false);
+        }
+
+        public StoredMessage(String senderName, UUID senderUuid, String content, long timestamp,
+                             String conversationId, String conversationType,
+                             String replyContent, String replySender,
+                             String itemNbt) {
+            this(senderName, senderUuid, content, timestamp, conversationId, conversationType,
+                    replyContent, replySender, itemNbt, Util.NIL_UUID, false);
+        }
+    }
 }

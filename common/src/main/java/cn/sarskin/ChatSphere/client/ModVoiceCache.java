@@ -54,7 +54,6 @@ public class ModVoiceCache {
     public static void init() {
         if (loaded) return;
         loaded = true;
-        // Detect server context
         Minecraft mc = Minecraft.getInstance();
         cacheDir = ModStoragePaths.getClientBaseDir().resolve("voice_cache");
         load();
@@ -122,7 +121,6 @@ public class ModVoiceCache {
         cleaner.scheduleAtFixedRate(ModVoiceCache::cleanup, 15, 15, TimeUnit.MINUTES);
     }
 
-    // Persistence
     private static Path getIndexPath() {
         return cacheDir.resolve("index.json");
     }

@@ -4,13 +4,15 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
+/** Fade-in/out centered toast. Default message is "copied"; callers may show any text. */
 public class CopyToast {
     public int ticks;
+    private Component message = Component.translatable("screen.chatsphere.toast.copied");
 
     public void render(GuiGraphics g, int sidebarWidth, int screenWidth) {
         if (ticks <= 0) return;
         var font = Minecraft.getInstance().font;
-        String text = Component.translatable("screen.chatsphere.toast.copied").getString();
+        String text = message.getString();
         int tw = font.width(text);
         int tx = sidebarWidth + (screenWidth - sidebarWidth - tw) / 2;
         int ty = Minecraft.getInstance().getWindow().getGuiScaledHeight() / 2;
@@ -19,6 +21,18 @@ public class CopyToast {
         g.drawString(font, text, tx, ty, (Math.min(alpha, 255) << 24) | 0xFFFFFF, false);
     }
 
-    public void show() { ticks = 30; }
-    public void tick() { if (ticks > 0) ticks--; }
+    public void show() {
+        message = Component.translatable("screen.chatsphere.toast.copied");
+        ticks = 30;
+    }
+
+    /** Show a custom message. Empty/null hides nothing; pass a real component. */
+    public void show(Component msg) {
+        message = msg == null ? Component.translatable("screen.chatsphere.toast.copied") : msg;
+        ticks = 30;
+    }
+
+    public void tick() {
+        if (ticks > 0) ticks--;
+    }
 }

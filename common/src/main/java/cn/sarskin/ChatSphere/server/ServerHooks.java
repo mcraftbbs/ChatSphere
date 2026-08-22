@@ -1,5 +1,8 @@
 package cn.sarskin.ChatSphere.server;
 
+import cn.sarskin.ChatSphere.config.ModServerConfig;
+import cn.sarskin.ChatSphere.network.ClientboundConfigSyncPayload;
+import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -14,6 +17,9 @@ public final class ServerHooks {
         msc.sendMessagesToPlayer(sp);
         ModVoiceStorage vs = ModVoiceStorage.getInstance(sp.server);
         vs.deliverToPlayer(sp);
+        ModServerEmoji.getInstance(sp.server).syncTo(sp);
+        sp.connection.send(new ClientboundCustomPayloadPacket(ClientboundConfigSyncPayload.ID,
+                new ClientboundConfigSyncPayload(ModServerConfig.snapshot()).toBuf()));
     }
 
     public static void onServerStopping(MinecraftServer server) {
@@ -21,5 +27,6 @@ public final class ServerHooks {
         msc.flush();
         ModServerChannels.removeServer(server);
         ModVoiceStorage.removeServer(server);
+        ModServerEmoji.removeServer(server);
     }
 }

@@ -3,6 +3,7 @@ package cn.sarskin.ChatSphere.mixin;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ModVoiceMessagesIntegration;
 import cn.sarskin.ChatSphere.client.screen.ModChatScreen;
+import cn.sarskin.ChatSphere.config.ModClientConfig;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.GuiMessageTag;
 import net.minecraft.client.Minecraft;
@@ -30,7 +31,9 @@ public class ChatComponentMixin {
                 mc.player.getUUID(),
                 Component.literal(""),
                 false);
-        ci.cancel();
+        if (!ModClientConfig.CONFIG.compatVanillaChat.get()) {
+            ci.cancel();
+        }
     }
 
     @Inject(method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/GuiMessageTag;)V",
@@ -42,11 +45,14 @@ public class ChatComponentMixin {
         String tagStr = tag != null ? tag.logTag() : "";
         if (tagStr.startsWith("VoiceMessage#")) {
             ModVoiceMessagesIntegration.handleVoiceChatMessage(message, tagStr);
+            ci.cancel();
         } else {
             ChatHistoryManager history = ChatHistoryManager.getInstance();
             history.addCommandMessage(message, mc.player.getUUID(), Component.literal(""), false);
+            if (!ModClientConfig.CONFIG.compatVanillaChat.get()) {
+                ci.cancel();
+            }
         }
-        ci.cancel();
     }
 
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)

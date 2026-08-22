@@ -7,7 +7,7 @@ import net.minecraft.resources.ResourceLocation;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
-public record ServerboundCommandMessagePayload(String content, UUID senderUuid)  {
+public record ServerboundCommandMessagePayload(String content, UUID senderUuid, boolean isInput)  {
     public static final ResourceLocation ID = new ResourceLocation(ModInfo.MODID, "command_message");
 
     public FriendlyByteBuf toBuf() {
@@ -22,6 +22,7 @@ public record ServerboundCommandMessagePayload(String content, UUID senderUuid) 
         buf.writeInt(cb.length); buf.writeBytes(cb);
         buf.writeLong(p.senderUuid.getMostSignificantBits());
         buf.writeLong(p.senderUuid.getLeastSignificantBits());
+        buf.writeBoolean(p.isInput);
     }
 
     public static ServerboundCommandMessagePayload read(FriendlyByteBuf buf) {
@@ -29,7 +30,8 @@ public record ServerboundCommandMessagePayload(String content, UUID senderUuid) 
         byte[] cb = new byte[cl]; buf.readBytes(cb);
         String content = new String(cb, StandardCharsets.UTF_8);
         UUID uuid = new UUID(buf.readLong(), buf.readLong());
-        return new ServerboundCommandMessagePayload(content, uuid);
+        boolean isInput = buf.readBoolean();
+        return new ServerboundCommandMessagePayload(content, uuid, isInput);
     }
 
     }

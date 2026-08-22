@@ -45,6 +45,7 @@ dependencies {
 def fabricModVersion = "${version}"
 
 processResources {
+    inputs.property "version", fabricModVersion
     filesMatching("fabric.mod.json") {
         expand "version": fabricModVersion
     }

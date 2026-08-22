@@ -1,3 +1,24 @@
+## 2.3.0-1.20.1
+
+### Added
+- Custom emoji: local png/gif uploads, animated GIFs, server sharing (public or per-channel), configurable limits
+- Channel slow mode
+- Per-player command console history
+- Server-assigned message UUIDs (`messageId`), backward-compatible wire format
+- `Ui` helper layer (`withOpacity`, `visible`, `containsRounded`, `withRoundedClip`)
+- `ThemeSnapshot` for frame-consistent theming
+
+### Changed
+- Chat UI reworked to a modern messenger style (channel info, member list, invite/explore/join/create, block list)
+- Corner radius follows the corner preset; popup borders work in every style
+- Public channels, sub-channels and online status cached with version counters
+- Console input/output stored per player
+
+### Fixed
+- Voice messages sometimes appearing as duplicate rows
+- Crash when queued packets ran after disconnect
+- Console output shown as player-sent messages
+
 ## 2.2.1-1.20.1
 
 ### Added

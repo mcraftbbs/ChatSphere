@@ -75,7 +75,6 @@ public class ModVoiceStorage {
         if (!ModServerConfig.CONFIG.voiceOfflineStorage.get()) return;
         StoredVoice sv = new StoredVoice(voiceMessageId, senderUuid, conversationId, conversationType,
                 System.currentTimeMillis(), frameCount, audioData);
-        // Enforce per-player limit
         String recipientUuid = resolveRecipient(senderUuid, conversationId);
         if (recipientUuid != null) {
             long count = undelivered.stream().filter(v -> {
@@ -125,6 +124,17 @@ public class ModVoiceStorage {
         if (!toDeliver.isEmpty()) save();
     }
 
+    /** Look up a stored voice by id (on-demand fetch). */
+    public synchronized StoredVoice findById(UUID voiceMessageId) {
+        if (voiceMessageId == null) return null;
+        for (StoredVoice v : undelivered) {
+            if (v.voiceMessageId != null && v.voiceMessageId.equals(voiceMessageId)) {
+                return v;
+            }
+        }
+        return null;
+    }
+
     private static String resolveRecipient(String senderUuid, String conversationId) {
         if (conversationId == null || !conversationId.contains(":")) return null;
         String[] parts = conversationId.split(":");
@@ -153,7 +163,6 @@ public class ModVoiceStorage {
         if (cleaner != null) { cleaner.shutdown(); cleaner = null; }
     }
 
-    // Persistence
     private synchronized void save() {
         try {
             Files.createDirectories(storageDir);

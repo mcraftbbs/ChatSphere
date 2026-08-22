@@ -3,15 +3,29 @@ package cn.sarskin.ChatSphere.network;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ChatMessageData;
 import cn.sarskin.ChatSphere.client.ModVoiceMessagesIntegration;
+import cn.sarskin.ChatSphere.config.ModServerConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.Map;
 import java.util.UUID;
 
 /** Client-side payload handling (runs on the client game thread). */
 public final class ClientPayloadHandlers {
+    private static final Logger LOGGER = LoggerFactory.getLogger("ChatSphere-ClientNet");
     private ClientPayloadHandlers() {}
+
+    /** Defensive wrapper: after disconnect the player may be null; log and drop failures instead of crashing the client task loop. */
+    public static void safe(String what, Runnable task) {
+        try {
+            task.run();
+        } catch (Throwable t) {
+            LOGGER.warn("Client task '{}' failed (ignored)", what, t);
+        }
+    }
 
     public static void channelSync(ClientboundChannelSyncPayload p) {
         ChatHistoryManager.getInstance().applyServerChannels(p.channels(), p.knownPlayers());
@@ -45,7 +59,7 @@ public final class ClientPayloadHandlers {
                     Component.literal(cmdText),
                     sm.senderUuid(),
                     Component.literal(""),
-                    isOwn);
+                    sm.isInput());
         } else if (isOwn) {
             // Own messages already added locally by ModChatScreen.sendChatMessage() with reply data
         } else if (ctype == ChatMessageData.ConversationType.PRIVATE) {
@@ -60,7 +74,8 @@ public final class ClientPayloadHandlers {
                     isOwn,
                     sm.replyContent(),
                     sm.replySender(),
-                    sm.itemNbt());
+                    sm.itemNbt(),
+                    sm.messageId());
         } else {
             history.addMessage(
                     Component.literal(sm.senderName()),
@@ -71,7 +86,8 @@ public final class ClientPayloadHandlers {
                     isOwn,
                     sm.replyContent(),
                     sm.replySender(),
-                    sm.itemNbt());
+                    sm.itemNbt(),
+                    sm.messageId());
         }
     }
 
@@ -90,6 +106,12 @@ public final class ClientPayloadHandlers {
         ChatHistoryManager.getInstance().setBridgeInfo(p);
     }
 
+    public static void configSync(ClientboundConfigSyncPayload p) {
+        for (Map.Entry<String, String> e : p.values().entrySet()) {
+            ModServerConfig.applyValue(e.getKey(), e.getValue());
+        }
+    }
+
     public static void voice(ClientboundVoicePacket p) {
         ModVoiceMessagesIntegration.handleIncomingVoice(
                 p.voiceMessageId(), p.senderUuid(), p.conversationId(), p.conversationType(), p.frameCount(), p.audioData());
@@ -97,5 +119,14 @@ public final class ClientPayloadHandlers {
 
     public static void channelRenamed(ClientboundChannelRenamedPayload p) {
         ChatHistoryManager.getInstance().applyChannelRename(p.oldId(), p.newId());
+    }
+
+    /** Received on the client thread. Re-validates before touching disk (defense in depth). */
+    public static void customEmoji(ClientboundCustomEmojiPayload p) {
+        if (p.action() == ClientboundCustomEmojiPayload.Action.ADD) {
+            cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry.receiveServerAdd(p.name(), p.data(), p.channelId());
+        } else if (p.action() == ClientboundCustomEmojiPayload.Action.DELETE) {
+            cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry.receiveServerDelete(p.name(), p.channelId());
+        }
     }
 }

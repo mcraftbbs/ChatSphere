@@ -3,6 +3,7 @@ package cn.sarskin.ChatSphere.network;
 import cn.sarskin.ChatSphere.config.CfgValue;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.server.ModServerChannels;
+import cn.sarskin.ChatSphere.server.ModServerEmoji;
 import cn.sarskin.ChatSphere.server.ModVoiceStorage;
 import net.minecraft.Util;
 import net.minecraft.network.chat.Component;
@@ -14,14 +15,16 @@ import net.minecraft.world.entity.player.Player;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-/**
- * Server-side payload handling, decoupled from the payload records so that
- * servers never load client-only classes (Fabric's environment checker rejects
- * client class references in server-loaded classes).
- */
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/** Decoupled from payload records so servers never load client-only classes (Fabric env checker rejects them). */
 public final class ServerPayloadHandlers {
+    private static final Logger LOGGER = LoggerFactory.getLogger("ChatSphere-ServerNet");
+
     private ServerPayloadHandlers() {}
 
     public static void channelAction(Player player, ServerboundChannelActionPayload p) {
@@ -30,10 +33,10 @@ public final class ServerPayloadHandlers {
         UUID realUuid = player.getUUID();
         ModServerChannels msc = ModServerChannels.getInstance(server);
         switch (p.action()) {
-            case CREATE -> msc.createChannel(p.channelId(), realUuid, p.isPublic(), p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel());
+            case CREATE -> msc.createChannel(p.channelId(), realUuid, p.isPublic(), p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds());
             case UPDATE_CONFIG -> msc.updateChannelConfig(p.channelId(), p.isPublic(), p.description(), p.displayName(),
                     p.admins(), p.mutedPlayers(), p.invitedPlayers(), p.inviteCode(), realUuid,
-                    p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel());
+                    p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds());
             case JOIN_MEMBER -> msc.addMemberToChannel(p.channelId(), realUuid.toString());
             case JOIN_BY_CODE -> {
                 if (p.inviteCode() != null && !p.inviteCode().isEmpty()) {
@@ -131,6 +134,7 @@ public final class ServerPayloadHandlers {
         UUID targetUuid = null;
         boolean muted = false;
         boolean notMember = false;
+        String chatTarget = null;
 
         if (chatChannelId.contains(":")) {
             convType = "PRIVATE";
@@ -143,7 +147,7 @@ public final class ServerPayloadHandlers {
             }
         } else {
             convType = "CHANNEL";
-            String chatTarget = msc.resolveChatChannel(chatChannelId);
+            chatTarget = msc.resolveChatChannel(chatChannelId);
             if (chatTarget == null) {
                 if (player instanceof ServerPlayer sp) {
                     sp.sendSystemMessage(Component.translatable("chatsphere.chat_disabled.feedback"), false);
@@ -166,6 +170,18 @@ public final class ServerPayloadHandlers {
             return;
         }
 
+        // Slow mode (skipped for private conversations).
+        if (convType.equals("CHANNEL") && chatTarget != null) {
+            long remaining = msc.slowModeRemainingMillis(chatTarget, realUuid.toString());
+            if (remaining > 0) {
+                if (player instanceof ServerPlayer sp) {
+                    sp.sendSystemMessage(Component.translatable(
+                            "chatsphere.slowmode.feedback", (remaining + 999) / 1000), false);
+                }
+                return;
+            }
+        }
+
         String bannedRaw = ModServerConfig.CONFIG.bannedWords.get();
         if (!bannedRaw.isEmpty()) {
             String[] patterns = bannedRaw.split("\n");
@@ -184,12 +200,15 @@ public final class ServerPayloadHandlers {
                 }
             }
         }
-        msc.addChatMessage(senderName, realUuid, p.description(), chatChannelId, convType,
-                p.replyContent(), p.replySender(), sanitizeItemNbt(p.itemNbt()));
-        long now = System.currentTimeMillis();
+        ClientboundMessageSyncPayload.StoredMessage stored = msc.addChatMessage(senderName, realUuid, p.description(), chatChannelId, convType,
+                p.replyContent(), p.replySender(), sanitizeItemNbt(p.itemNbt()), false);
+        if (convType.equals("CHANNEL") && chatTarget != null) {
+            msc.recordSlowModeMessage(chatTarget, realUuid.toString());
+        }
         ClientboundChatPayload relay = new ClientboundChatPayload(
-                new ClientboundChatPayload.StoredMessage(senderName, realUuid, p.description(), now,
-                        chatChannelId, convType, p.replyContent(), p.replySender(), sanitizeItemNbt(p.itemNbt())));
+                new ClientboundChatPayload.StoredMessage(stored.senderName(), stored.senderUuid(), stored.content(),
+                        stored.timestamp(), stored.conversationId(), stored.conversationType(),
+                        stored.replyContent(), stored.replySender(), stored.itemNbt(), stored.messageId(), stored.isInput()));
 
         if (targetUuid != null) {
             ServerPlayer target = server.getPlayerList().getPlayer(targetUuid);
@@ -221,14 +240,16 @@ public final class ServerPayloadHandlers {
         ModServerChannels msc = ModServerChannels.getInstance(server);
         String name = player.getName().getString();
         UUID sent = p.senderUuid();
-        // Accept only own uuid or NIL; anything else is a forged injection.
+        // Console history is per-player: NIL (legacy clients) falls back to the sender's own UUID.
         UUID suid;
-        if (sent != null && (sent.equals(player.getUUID()) || sent.equals(Util.NIL_UUID))) {
+        if (sent != null && sent.equals(player.getUUID())) {
             suid = sent;
+        } else if (sent != null && sent.equals(Util.NIL_UUID)) {
+            suid = player.getUUID();
         } else {
             return;
         }
-        msc.addCommandMessage(name, suid, p.content());
+        msc.addCommandMessage(name, suid, p.content(), p.isInput());
     }
 
     public static void permissionCheck(Player player, ServerboundPermissionCheckPayload p) {
@@ -259,6 +280,10 @@ public final class ServerPayloadHandlers {
                 sv.set(p.value());
             }
             ModServerConfig.CONFIG_SPEC.save();
+            ClientboundConfigSyncPayload sync = new ClientboundConfigSyncPayload(Map.of(p.key(), p.value()));
+            for (ServerPlayer target : sp.server.getPlayerList().getPlayers()) {
+                target.connection.send(new ClientboundCustomPayloadPacket(ClientboundConfigSyncPayload.ID, sync.toBuf()));
+            }
         } catch (Exception e) {
             org.slf4j.LoggerFactory.getLogger("ConfigUpdate").warn("Failed to apply config {}={}", p.key(), p.value(), e);
         }
@@ -323,5 +348,94 @@ public final class ServerPayloadHandlers {
                 storage.store(p.voiceMessageId(), senderStr, p.conversationId(), p.conversationType(), p.frameCount(), p.audioData());
             }
         }
+    }
+
+    /** On-demand voice fetch: re-send stored audio for a voice message the client lacks. */
+    public static void voiceRequest(Player player, ServerboundVoiceRequestPayload p) {
+        var server = player.getServer();
+        if (server == null) return;
+        if (p.voiceMessageId() == null) return;
+        ModVoiceStorage storage = ModVoiceStorage.getInstance(server);
+        ModVoiceStorage.StoredVoice sv = storage.findById(p.voiceMessageId());
+        if (sv == null) return;
+        UUID sender;
+        try {
+            sender = UUID.fromString(sv.senderUuid());
+        } catch (IllegalArgumentException e) {
+            return;
+        }
+        ClientboundVoicePacket relay = new ClientboundVoicePacket(
+                sv.voiceMessageId(), sender, sv.conversationId(), sv.conversationType(),
+                sv.frameCount(), sv.audioData());
+        if (player instanceof ServerPlayer sp) {
+            sp.connection.send(new ClientboundCustomPayloadPacket(ClientboundVoicePacket.ID, relay.toBuf()));
+        }
+    }
+
+    /** Emoji actions: all inputs hostile — validated by EmojiFileGuard, gated by config + cooldown, per-folder capped. */
+    public static void customEmoji(Player player, ServerboundCustomEmojiPayload p) {
+        var server = player.getServer();
+        if (server == null) return;
+        if (!ModServerConfig.CONFIG.emojiSharingEnabled.get()) return;
+        if (!(player instanceof ServerPlayer sp)) return;
+
+        switch (p.action()) {
+            case SYNC_REQUEST -> {
+                ModServerEmoji.getInstance(server).syncTo(sp);
+            }
+            case ADD -> {
+                if (!canUpload(player, p.channelId())) {
+                    sp.sendSystemMessage(Component.translatable("chatsphere.emoji.no_permission"), false);
+                    return;
+                }
+                if (!validChannelTarget(sp, p.channelId())) return;
+                ModServerEmoji store = ModServerEmoji.getInstance(server);
+                long cooldown = store.uploadCooldownRemaining(player.getUUID());
+                if (cooldown > 0) {
+                    sp.sendSystemMessage(Component.translatable(
+                            "chatsphere.emoji.cooldown", (cooldown + 999) / 1000), false);
+                    return;
+                }
+                Component err = store.add(p.channelId(), p.name(), p.data());
+                if (err != null) {
+                    sp.sendSystemMessage(err, false);
+                    return;
+                }
+                store.recordUpload(player.getUUID());
+                store.broadcastAdd(p.channelId(), p.name(), p.data());
+                sp.sendSystemMessage(Component.translatable(
+                        "chatsphere.emoji.uploaded", p.name()), false);
+                LOGGER.info("{} uploaded server emoji :{}: to '{}'", player.getName().getString(), p.name(), p.channelId());
+            }
+            case DELETE -> {
+                if (!canUpload(player, p.channelId())) {
+                    sp.sendSystemMessage(Component.translatable("chatsphere.emoji.no_permission"), false);
+                    return;
+                }
+                // deleted channels may still be cleaned up
+                ModServerEmoji store = ModServerEmoji.getInstance(server);
+                Component err = store.delete(p.channelId(), p.name());
+                if (err != null) {
+                    sp.sendSystemMessage(err, false);
+                    return;
+                }
+                store.broadcastDelete(p.channelId(), p.name());
+            }
+        }
+    }
+
+    /** Public uploads keep the OP/switch gate; any player may upload to a channel they can see. */
+    private static boolean canUpload(Player player, String channelId) {
+        return (channelId != null && !channelId.isEmpty())
+                || !ModServerConfig.CONFIG.emojiUploadRequiresOp.get()
+                || player.hasPermissions(2);
+    }
+
+    /** Channel targets must exist; public ("") always valid. */
+    private static boolean validChannelTarget(ServerPlayer sp, String channelId) {
+        if (channelId == null || channelId.isEmpty()) return true;
+        if (ModServerChannels.getInstance(sp.server).getChannel(channelId) != null) return true;
+        sp.sendSystemMessage(Component.translatable("chatsphere.emoji.err_channel"), false);
+        return false;
     }
 }

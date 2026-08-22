@@ -96,6 +96,7 @@ public class ThemeGalleryScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        Theme.beginFrame();
         this.renderBackground(g);
         super.render(g, mouseX, mouseY, partialTick);
         g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
@@ -105,7 +106,6 @@ public class ThemeGalleryScreen extends Screen {
         int[] l = grid();
         int cardW = l[0], gap = l[1], startX = l[2];
 
-        // header row: section title + enable toggle
         int y2 = CONTENT_Y + 2;
         Component sec = Component.translatable("config.chatsphere.custom_themes_section");
         g.drawString(font, sec, 14, y2 + 3, Theme.textDim(), false);
@@ -140,7 +140,7 @@ public class ThemeGalleryScreen extends Screen {
         boolean sel = CustomTheme.INSTANCE.isActive() && file.equals(CustomTheme.INSTANCE.currentFile());
         boolean hover = mouseX >= cx && mouseX <= cx + cardW && mouseY >= cy && mouseY <= cy + cardH;
         Ui.fillRoundedRect(g, cx, cy, cardW, cardH, 6, Theme.panelBg());
-        g.renderOutline(cx, cy, cardW, cardH, sel ? Theme.accent() : (hover ? Theme.popupOutline() : Theme.popupOutline2()));
+        Ui.renderRoundedOutline(g, cx, cy, cardW, cardH, 6, sel ? Theme.accent() : (hover ? Theme.popupOutline() : Theme.popupOutline2()));
         if (sel) {
             Ui.fillRoundedRect(g, cx, cy, cardW, 20, 6, 0x336666DD);
         }

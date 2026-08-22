@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ModVoiceMessagesIntegration {
@@ -118,8 +119,8 @@ public class ModVoiceMessagesIntegration {
                                 boolean isChannel = "CHANNEL".equals(pv.conversationType());
                                 List<short[]> audio = (List<short[]>) playbackGetAudio.invoke(value);
                                 byte[] serialized = serializeAudio(audio);
-                                // Generate a consistent voiceMessageId shared across sender/server/receiver
-                                UUID voiceMessageId = UUID.randomUUID();
+                                // Reuse the VM playback id as voiceMessageId so all sides reference one message (no dup rows)
+                                UUID voiceMessageId = key;
                                 cn.sarskin.ChatSphere.network.ServerboundVoicePacket pkt =
                                     new cn.sarskin.ChatSphere.network.ServerboundVoicePacket(
                                         voiceMessageId, pv.conversationId(), pv.conversationType(),
@@ -128,7 +129,6 @@ public class ModVoiceMessagesIntegration {
                                     mc.getConnection().getConnection().send(
                                         new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(cn.sarskin.ChatSphere.network.ServerboundVoicePacket.ID, pkt.toBuf()));
                                 }
-                                // Add local message for sender
                                 String senderName = localPlayerName;
                                 if (senderName == null) senderName = mc.player.getName().getString();
                                 ChatMessageData.ConversationType ctype = isChannel
@@ -146,8 +146,7 @@ public class ModVoiceMessagesIntegration {
                                 // Save to local cache using the consistent voiceMessageId
                                 cn.sarskin.ChatSphere.client.ModVoiceCache.save(pv.conversationId(),
                                         pv.conversationType(), mc.player.getUUID(), voiceMessageId, serialized, audio.size());
-                                // Also register under voiceMessageId so createPlaybackPlayer(vmId) finds it
-                                super.put(voiceMessageId, value);
+                                // voiceMessageId == key, so the super.put(key, value) below registers it
                             } catch (Exception ignored) {}
                         }
                     }
@@ -163,6 +162,26 @@ public class ModVoiceMessagesIntegration {
         }
     }
 
+    /** Ids for which an on-demand audio fetch was already sent to the server. */
+    private static final Set<UUID> voiceFetchRequested = ConcurrentHashMap.newKeySet();
+
+    /** Make sure the VoiceMessages reflection bridge is initialized (join-time packets need it). */
+    public static void ensureInitialized() {
+        if (!vmAvailable) checkPresence();
+    }
+
+    /** Ask the server to re-send audio for a voice message we have no cached playback for. */
+    private static void requestVoiceAudio(UUID voiceMessageId) {
+        if (voiceMessageId == null) return;
+        if (!voiceFetchRequested.add(voiceMessageId)) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null || mc.player == null) return;
+        mc.getConnection().getConnection().send(
+                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(
+                        cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload.ID,
+                        new cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload(voiceMessageId).toBuf()));
+    }
+
     public static Object createPlaybackPlayer(UUID playbackUuid, int bgColor) {
         if (playbackManager == null || playbackManagerGet == null || playbackPlayerCtor == null) return null;
         try {
@@ -170,15 +189,30 @@ public class ModVoiceMessagesIntegration {
             if (playback == null) {
                 playback = loadFromCache(playbackUuid);
             }
-            if (playback == null) return null;
+            if (playback == null) {
+                requestVoiceAudio(playbackUuid);
+                return null;
+            }
             return playbackPlayerCtor.newInstance(playbackManager, playback, bgColor);
         } catch (Exception e) {
             return null;
         }
     }
 
+    /** SVC client API ready check — VM Playback ctor NPEs on a null api, so defer creation until ready. */
+    private static boolean isVoicechatApiReady() {
+        try {
+            Class<?> pluginCls = Class.forName("ru.dimaskama.voicemessages.VoiceMessagesPlugin");
+            java.lang.reflect.Method getClientApi = pluginCls.getMethod("getClientApi");
+            return getClientApi.invoke(null) != null;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private static Object loadFromCache(UUID playbackUuid) {
         if (playbackCtor == null || playbackGetAudio == null) return null;
+        if (!isVoicechatApiReady()) return null;
         byte[] audioData = ModVoiceCache.getAudioData(playbackUuid);
         Integer frameCount = ModVoiceCache.getFrameCount(playbackUuid);
         if (audioData == null || frameCount == null) return null;
@@ -289,10 +323,7 @@ public class ModVoiceMessagesIntegration {
             }
         }
 
-        ChatHistoryManager.getInstance().addMessage(
-                name, senderUuid,
-                Component.literal("VoiceMessage#" + playbackUuid),
-                convId, convType, isOwn);
+        // Chat row is created only by the server relay (handleIncomingVoice) — never insert a second row
     }
 
     private static UUID resolveUuidByName(String name) {
@@ -344,13 +375,10 @@ public class ModVoiceMessagesIntegration {
 
     public static void handleIncomingVoice(UUID voiceMessageId, UUID senderUuid, String conversationId,
                                              String conversationType, int frameCount, byte[] audioData) {
+        ensureInitialized();
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || playbackCtor == null || playbackManagerAdd == null) return;
+        if (mc.player == null) return;
         try {
-            List<short[]> frames = deserializeAudio(audioData, frameCount);
-            Object playback = playbackCtor.newInstance(frames);
-            playbackManagerAdd.invoke(playbackManager, playback);
-
             Component name = lookupSenderName(senderUuid);
             if (name == null && mc.getConnection() != null) {
                 var info = mc.getConnection().getPlayerInfo(senderUuid);
@@ -366,13 +394,24 @@ public class ModVoiceMessagesIntegration {
             }
 
             boolean isOwn = senderUuid.equals(mc.player.getUUID());
-            ChatHistoryManager.getInstance().addMessage(
-                    name, senderUuid,
-                    Component.literal("VoiceMessage#" + voiceMessageId),
-                    conversationId, ctype, isOwn);
-            // Save to local cache using the consistent voiceMessageId
+            // Skip duplicate row when history sync already has the placeholder.
+            boolean exists = ChatHistoryManager.getInstance().hasVoiceMessage(voiceMessageId);
+            if (!exists) {
+                ChatHistoryManager.getInstance().addMessage(
+                        name, senderUuid,
+                        Component.literal("VoiceMessage#" + voiceMessageId),
+                        conversationId, ctype, isOwn);
+            }
+            // Save audio to cache regardless of VM playback availability (row stays playable later)
             cn.sarskin.ChatSphere.client.ModVoiceCache.save(conversationId,
                     conversationType, senderUuid, voiceMessageId, audioData, frameCount);
+
+            // Playback needs the SVC client API which may not be ready yet (NPE); row + audio already persisted, skip until ready
+            if (playbackCtor == null || playbackManagerAdd == null) return;
+            if (!isVoicechatApiReady()) return;
+            List<short[]> frames = deserializeAudio(audioData, frameCount);
+            Object playback = playbackCtor.newInstance(frames);
+            playbackManagerAdd.invoke(playbackManager, playback);
         } catch (Exception e) {
             LOGGER.error("Failed to handle incoming voice", e);
         }

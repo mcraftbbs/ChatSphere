@@ -5,6 +5,8 @@ import cn.sarskin.ChatSphere.network.ClientboundBridgeInfoPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChatPayload;
+import cn.sarskin.ChatSphere.network.ClientboundConfigSyncPayload;
+import cn.sarskin.ChatSphere.network.ClientboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundPermissionResponsePayload;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
@@ -19,42 +21,52 @@ public final class FabricClientNetwork {
         ClientPlayNetworking.registerGlobalReceiver(ClientboundChannelSyncPayload.ID,
                 (client, networkHandler, buf, responseSender) -> {
                     ClientboundChannelSyncPayload payload = ClientboundChannelSyncPayload.read(buf);
-                    client.execute(() -> ClientPayloadHandlers.channelSync(payload));
+                    client.execute(() -> ClientPayloadHandlers.safe("channelSync", () -> ClientPayloadHandlers.channelSync(payload)));
                 });
         ClientPlayNetworking.registerGlobalReceiver(ClientboundMessageSyncPayload.ID,
                 (client, networkHandler, buf, responseSender) -> {
                     ClientboundMessageSyncPayload payload = ClientboundMessageSyncPayload.read(buf);
-                    client.execute(() -> ClientPayloadHandlers.messageSync(client.player, payload));
+                    client.execute(() -> ClientPayloadHandlers.safe("messageSync", () -> ClientPayloadHandlers.messageSync(client.player, payload)));
                 });
         ClientPlayNetworking.registerGlobalReceiver(ClientboundChatPayload.ID,
                 (client, networkHandler, buf, responseSender) -> {
                     ClientboundChatPayload payload = ClientboundChatPayload.read(buf);
-                    client.execute(() -> ClientPayloadHandlers.chat(client.player, payload));
+                    client.execute(() -> ClientPayloadHandlers.safe("chat", () -> ClientPayloadHandlers.chat(client.player, payload)));
                 });
         ClientPlayNetworking.registerGlobalReceiver(ClientboundPermissionResponsePayload.ID,
                 (client, networkHandler, buf, responseSender) -> {
                     ClientboundPermissionResponsePayload payload = ClientboundPermissionResponsePayload.read(buf);
-                    client.execute(() -> ClientPayloadHandlers.permissionResponse(payload));
+                    client.execute(() -> ClientPayloadHandlers.safe("permissionResponse", () -> ClientPayloadHandlers.permissionResponse(payload)));
                 });
         ClientPlayNetworking.registerGlobalReceiver(ClientboundPublicChannelListPayload.ID,
                 (client, networkHandler, buf, responseSender) -> {
                     ClientboundPublicChannelListPayload payload = ClientboundPublicChannelListPayload.read(buf);
-                    client.execute(() -> ClientPayloadHandlers.publicChannelList(payload));
+                    client.execute(() -> ClientPayloadHandlers.safe("publicChannelList", () -> ClientPayloadHandlers.publicChannelList(payload)));
                 });
         ClientPlayNetworking.registerGlobalReceiver(ClientboundBridgeInfoPayload.ID,
                 (client, networkHandler, buf, responseSender) -> {
                     ClientboundBridgeInfoPayload payload = ClientboundBridgeInfoPayload.read(buf);
-                    client.execute(() -> ClientPayloadHandlers.bridgeInfo(payload));
+                    client.execute(() -> ClientPayloadHandlers.safe("bridgeInfo", () -> ClientPayloadHandlers.bridgeInfo(payload)));
                 });
         ClientPlayNetworking.registerGlobalReceiver(ClientboundVoicePacket.ID,
                 (client, networkHandler, buf, responseSender) -> {
                     ClientboundVoicePacket payload = ClientboundVoicePacket.read(buf);
-                    client.execute(() -> ClientPayloadHandlers.voice(payload));
+                    client.execute(() -> ClientPayloadHandlers.safe("voice", () -> ClientPayloadHandlers.voice(payload)));
                 });
         ClientPlayNetworking.registerGlobalReceiver(ClientboundChannelRenamedPayload.ID,
                 (client, networkHandler, buf, responseSender) -> {
                     ClientboundChannelRenamedPayload payload = ClientboundChannelRenamedPayload.read(buf);
-                    client.execute(() -> ClientPayloadHandlers.channelRenamed(payload));
+                    client.execute(() -> ClientPayloadHandlers.safe("channelRenamed", () -> ClientPayloadHandlers.channelRenamed(payload)));
+                });
+        ClientPlayNetworking.registerGlobalReceiver(ClientboundConfigSyncPayload.ID,
+                (client, networkHandler, buf, responseSender) -> {
+                    ClientboundConfigSyncPayload payload = ClientboundConfigSyncPayload.read(buf);
+                    client.execute(() -> ClientPayloadHandlers.safe("configSync", () -> ClientPayloadHandlers.configSync(payload)));
+                });
+        ClientPlayNetworking.registerGlobalReceiver(ClientboundCustomEmojiPayload.ID,
+                (client, networkHandler, buf, responseSender) -> {
+                    ClientboundCustomEmojiPayload payload = ClientboundCustomEmojiPayload.read(buf);
+                    client.execute(() -> ClientPayloadHandlers.safe("customEmoji", () -> ClientPayloadHandlers.customEmoji(payload)));
                 });
     }
 }

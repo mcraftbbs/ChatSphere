@@ -95,6 +95,11 @@ public class ServerConfigScreen extends Screen {
         voice.add(new Opt("config.chatsphere.voice_storage_max",
             y -> mkIntBox(y, "voiceStorageMax", safeGetStr(ModServerConfig.CONFIG.voiceStorageMax, "512"), 16, 10000, 5)));
         cats.add(new Cat("config.chatsphere.voice_offline", voice));
+
+        List<Opt> emoji = new ArrayList<>();
+        emoji.add(new Opt("config.chatsphere.emoji_max_total",
+            y -> mkIntBox(y, "emojiMaxTotal", safeGetStr(ModServerConfig.CONFIG.emojiMaxTotal, "100"), 1, 10000, 5)));
+        cats.add(new Cat("config.chatsphere.emoji", emoji));
     }
 
     @Override

@@ -53,6 +53,8 @@ public class ModServerChannels {
     private final List<StoredMessage> messageHistory = new ArrayList<>();
     private boolean loaded;
     private long lastBackupTime;
+    /** Slow mode: channelId|playerUuid -> last accepted message time (ms). */
+    private final Map<String, Long> slowModeLastSent = new HashMap<>();
 
     private ModServerChannels(MinecraftServer server) {
         this.server = server;
@@ -147,7 +149,28 @@ public class ModServerChannels {
 
     public synchronized boolean isMuted(String channelId, String playerUuid) {
         ChannelEntry target = resolveTarget(channelId);
-        return target != null && playerUuid != null && target.mutedPlayers().contains(playerUuid);
+        if (target == null || playerUuid == null) return false;
+        return isMutedEntry(target.mutedPlayers(), playerUuid);
+    }
+
+    /** Mute entries: "uuid" (permanent) or "uuid:untilMillis" (timed; expired = unmuted). */
+    private static boolean isMutedEntry(List<String> mutedPlayers, String playerUuid) {
+        long now = System.currentTimeMillis();
+        for (String e : mutedPlayers) {
+            String uuidPart = e;
+            long until = Long.MAX_VALUE;
+            int colon = e.indexOf(':');
+            if (colon > 0) {
+                uuidPart = e.substring(0, colon);
+                try {
+                    until = Long.parseLong(e.substring(colon + 1));
+                } catch (NumberFormatException ignored) {
+                    until = 0;
+                }
+            }
+            if (uuidPart.equals(playerUuid) && until > now) return true;
+        }
+        return false;
     }
 
     /** Redirects sends to the default sub-channel when the main chat is disabled; null if unusable. */
@@ -195,7 +218,7 @@ public class ModServerChannels {
                 channels.put(e.id(), new ChannelEntry(e.id(), e.owner(), e.isPublic(), e.description(),
                         e.displayName(), new ArrayList<>(e.admins()), new ArrayList<>(e.mutedPlayers()),
                         new ArrayList<>(e.invitedPlayers()), new ArrayList<>(e.members()), e.inviteCode(),
-                        e.showInExplore(), e.voiceRooms(), e.parentId(), i, e.mainChatEnabled(), e.defaultSubChannel()));
+                        e.showInExplore(), e.voiceRooms(), e.parentId(), i, e.mainChatEnabled(), e.defaultSubChannel(), e.slowModeSeconds()));
             }
         }
     }
@@ -224,7 +247,7 @@ public class ModServerChannels {
     }
 
     public synchronized void createChannel(String id, UUID ownerUuid, boolean isPublic, boolean showInExplore,
-                                           boolean mainChatEnabled, String defaultSubChannel) {
+                                           boolean mainChatEnabled, String defaultSubChannel, int slowModeSeconds) {
         if (channels.containsKey(id)) return;
         if (id == null || id.isEmpty()) return;
         if (isSubChannel(id)) {
@@ -243,7 +266,7 @@ public class ModServerChannels {
             ChannelEntry child = new ChannelEntry(id, parent.owner(), false, "", "",
                     new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
                     generateInviteCode(), false, new ArrayList<>(), parentId, maxOrder + 1,
-                    true, "");
+                    true, "", 0);
             channels.put(id, child);
             save();
             broadcastSync();
@@ -264,7 +287,7 @@ public class ModServerChannels {
                 .max().orElse(-1);
         ChannelEntry entry = new ChannelEntry(id, ownerStr, isPublic, "", "",
                 admins, new ArrayList<>(), new ArrayList<>(), members, generateInviteCode(), showInExplore, new ArrayList<>(), "", maxOrder + 1,
-                mainChatEnabled, defaultSubChannel != null ? defaultSubChannel : "");
+                mainChatEnabled, defaultSubChannel != null ? defaultSubChannel : "", slowModeSeconds);
         channels.put(id, entry);
         save();
         broadcastSync();
@@ -273,7 +296,8 @@ public class ModServerChannels {
     public synchronized void updateChannelConfig(String channelId, boolean isPublic, String description, String displayName,
                                                   List<String> admins, List<String> mutedPlayers,
                                                   List<String> invitedPlayers, String inviteCode, UUID requester,
-                                                  boolean showInExplore, boolean mainChatEnabled, String defaultSubChannel) {
+                                                  boolean showInExplore, boolean mainChatEnabled, String defaultSubChannel,
+                                                  int slowModeSeconds) {
         ChannelEntry entry = channels.get(channelId);
         if (entry == null) return;
         if (defaultSubChannel != null && defaultSubChannel.contains("/")) return;
@@ -288,7 +312,7 @@ public class ModServerChannels {
         ChannelEntry updated = new ChannelEntry(channelId, entry.owner(), isPublic, description, displayName,
                 new ArrayList<>(admins), new ArrayList<>(mutedPlayers), new ArrayList<>(invitedPlayers),
                 membersToStore, newCode, showInExplore, entry.voiceRooms(), entry.parentId(), entry.sortOrder(),
-                mainChatEnabled, newDefault);
+                mainChatEnabled, newDefault, Math.max(0, Math.min(3600, slowModeSeconds)));
         channels.put(channelId, updated);
         save();
         broadcastSync();
@@ -312,7 +336,7 @@ public class ModServerChannels {
                         new ArrayList<>(parent.mutedPlayers()), new ArrayList<>(parent.invitedPlayers()),
                         new ArrayList<>(parent.members()), parent.inviteCode(), parent.showInExplore(),
                         parent.voiceRooms(), parent.parentId(), parent.sortOrder(),
-                        parent.mainChatEnabled(), newSegment);
+                        parent.mainChatEnabled(), newSegment, parent.slowModeSeconds());
                 channels.put(parent.id(), parentUpdated);
             }
         }
@@ -320,7 +344,7 @@ public class ModServerChannels {
         return true;
     }
 
-    /** Moves a channel and its whole subtree under a new parent (tree-view drag nesting). */
+    /** Tree-view drag nesting: moves a channel and its whole subtree. */
     public synchronized boolean moveChannel(String channelId, String newParentId, UUID requester) {
         ChannelEntry entry = channels.get(channelId);
         if (entry == null || newParentId == null || newParentId.isEmpty()) return false;
@@ -345,7 +369,7 @@ public class ModServerChannels {
         return true;
     }
 
-    /** Re-keys a channel and its whole descendant subtree (ids + message history) and broadcasts sync. */
+    /** Re-keys a channel + subtree (ids and message history) and broadcasts sync. */
     private void rekeyChannelTree(String oldId, String newId, UUID requester, String newParentId) {
         rekeyChannelTree(oldId, newId, requester, newParentId, null);
     }
@@ -358,7 +382,7 @@ public class ModServerChannels {
         ChannelEntry renamed = new ChannelEntry(newId, entry.owner(), entry.isPublic(), entry.description(),
                 entry.displayName(), new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
                 new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()), entry.inviteCode(),
-                entry.showInExplore(), entry.voiceRooms(), effectiveParent, sortOrder, entry.mainChatEnabled(), entry.defaultSubChannel());
+                entry.showInExplore(), entry.voiceRooms(), effectiveParent, sortOrder, entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
         channels.remove(oldId);
         channels.put(newId, renamed);
         Map<String, String> oldToNew = new HashMap<>();
@@ -371,7 +395,7 @@ public class ModServerChannels {
                 ChannelEntry childUpdated = new ChannelEntry(childNewId, sub.owner(), sub.isPublic(), sub.description(),
                         sub.displayName(), new ArrayList<>(sub.admins()), new ArrayList<>(sub.mutedPlayers()),
                         new ArrayList<>(sub.invitedPlayers()), new ArrayList<>(sub.members()), sub.inviteCode(),
-                        sub.showInExplore(), sub.voiceRooms(), subParentOf(childNewId), sub.sortOrder(), sub.mainChatEnabled(), sub.defaultSubChannel());
+                        sub.showInExplore(), sub.voiceRooms(), subParentOf(childNewId), sub.sortOrder(), sub.mainChatEnabled(), sub.defaultSubChannel(), sub.slowModeSeconds());
                 channels.remove(sub.id());
                 channels.put(childNewId, childUpdated);
                 oldToNew.put(sub.id(), childNewId);
@@ -396,7 +420,8 @@ public class ModServerChannels {
                 String mapped = oldToNew.get(m.conversationId());
                 if (mapped != null) {
                     messageHistory.set(i, new StoredMessage(m.senderName(), m.senderUuid(), m.content(),
-                            m.timestamp(), mapped, m.conversationType(), m.replyContent(), m.replySender(), m.itemNbt()));
+                            m.timestamp(), mapped, m.conversationType(), m.replyContent(), m.replySender(), m.itemNbt(),
+                            m.messageId(), m.isInput()));
                 }
             }
         }
@@ -429,7 +454,7 @@ public class ModServerChannels {
             ChannelEntry updated = new ChannelEntry(e.id(), e.owner(), e.isPublic(), e.description(),
                     e.displayName(), new ArrayList<>(e.admins()), new ArrayList<>(e.mutedPlayers()),
                     new ArrayList<>(e.invitedPlayers()), new ArrayList<>(e.members()), e.inviteCode(),
-                    e.showInExplore(), e.voiceRooms(), e.parentId(), base + i, e.mainChatEnabled(), e.defaultSubChannel());
+                    e.showInExplore(), e.voiceRooms(), e.parentId(), base + i, e.mainChatEnabled(), e.defaultSubChannel(), e.slowModeSeconds());
             channels.put(e.id(), updated);
         }
         save();
@@ -459,7 +484,7 @@ public class ModServerChannels {
         return true;
     }
 
-    /** Auto-joins the default channel on login so existing players see the newcomer immediately. */
+    /** Auto-join the default channel on login so existing players see the newcomer. */
     public void onPlayerJoined(ServerPlayer sp) {
         if (ModServerConfig.CONFIG.syncDefaultChannel.get()) {
             addMemberToChannel(DEFAULT_CHANNEL_ID, sp.getUUID().toString());
@@ -489,8 +514,9 @@ public class ModServerChannels {
         String playerUuid = player.getUUID().toString();
         for (StoredMessage m : snapshot) {
             if ("COMMAND".equals(m.conversationType())) {
+                // Console history is per-player: only the owner's messages sync; legacy NIL entries never redistribute.
                 UUID suid = m.senderUuid();
-                if (suid != null && !suid.equals(Util.NIL_UUID) && !suid.toString().equals(playerUuid)) continue;
+                if (suid == null || suid.equals(Util.NIL_UUID) || !suid.toString().equals(playerUuid)) continue;
             } else if ("PRIVATE".equals(m.conversationType())) {
                 String convId = m.conversationId();
                 boolean isForPlayer = m.senderUuid().toString().equals(playerUuid);
@@ -529,7 +555,7 @@ public class ModServerChannels {
                         target.description(), target.displayName(),
                         new ArrayList<>(target.admins()), new ArrayList<>(target.mutedPlayers()),
                         new ArrayList<>(target.invitedPlayers()), newMembers, target.inviteCode(), target.showInExplore(), target.voiceRooms(),
-                        target.parentId(), target.sortOrder(), target.mainChatEnabled(), target.defaultSubChannel());
+                        target.parentId(), target.sortOrder(), target.mainChatEnabled(), target.defaultSubChannel(), target.slowModeSeconds());
                 channels.put(target.id(), updated);
                 save();
                 broadcastSync();
@@ -539,15 +565,25 @@ public class ModServerChannels {
         return "not_found";
     }
 
-    public void addChatMessage(String senderName, UUID senderUuid, String content,
+    public StoredMessage addChatMessage(String senderName, UUID senderUuid, String content,
                                  String conversationId, String conversationType,
                                  String replyContent, String replySender,
                                  String itemNbt) {
+        return addChatMessage(senderName, senderUuid, content, conversationId, conversationType,
+                replyContent, replySender, itemNbt, false);
+    }
+
+
+    public StoredMessage addChatMessage(String senderName, UUID senderUuid, String content,
+                                 String conversationId, String conversationType,
+                                 String replyContent, String replySender,
+                                 String itemNbt, boolean isInput) {
         if (senderUuid != null && !senderUuid.equals(Util.NIL_UUID) && senderName != null && !senderName.isEmpty()) {
             learnPlayerName(senderUuid.toString(), senderName);
         }
         StoredMessage msg = new StoredMessage(senderName, senderUuid, content, System.currentTimeMillis(),
-                conversationId, conversationType, replyContent, replySender, itemNbt);
+                conversationId, conversationType, replyContent, replySender, itemNbt,
+                UUID.randomUUID(), isInput);
         synchronized (messageHistory) {
             messageHistory.add(msg);
             int cap = ModServerConfig.CONFIG.maxChatHistory.get();
@@ -556,6 +592,7 @@ public class ModServerChannels {
             }
         }
         saveMessages();
+        return msg;
     }
 
     public synchronized void addMemberToChannel(String channelId, String playerUuid) {
@@ -573,7 +610,7 @@ public class ModServerChannels {
                     entry.description(), entry.displayName(),
                     new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
                     new ArrayList<>(entry.invitedPlayers()), newMembers, entry.inviteCode(), entry.showInExplore(),
-                    entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel());
+                    entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
             channels.put(entry.id(), updated);
             save();
             broadcastSync();
@@ -596,7 +633,7 @@ public class ModServerChannels {
                 entry.description(), entry.displayName(),
                 new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
                 new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
-                entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel());
+                entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
         channels.put(entry.id(), updated);
         save();
         broadcastSync();
@@ -613,7 +650,7 @@ public class ModServerChannels {
                 entry.description(), entry.displayName(),
                 new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
                 new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
-                entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel());
+                entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
         channels.put(entry.id(), updated);
         save();
         broadcastSync();
@@ -641,7 +678,7 @@ public class ModServerChannels {
                 entry.description(), entry.displayName(),
                 new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
                 new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
-                entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel());
+                entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
         channels.put(entry.id(), updated);
         save();
         broadcastSync();
@@ -663,7 +700,7 @@ public class ModServerChannels {
                         entry.description(), entry.displayName(),
                         new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
                         new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
-                        entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel());
+                        entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
                 channels.put(entry.id(), updated);
                 save();
                 broadcastSync();
@@ -673,19 +710,27 @@ public class ModServerChannels {
         }
     }
 
-    public synchronized void toggleMute(String channelId, String targetUuid, UUID requester) {
+    public synchronized void toggleMute(String channelId, String targetSpec, UUID requester) {
         ChannelEntry entry = resolveTarget(channelId);
         if (entry == null) return;
         String reqStr = requester.toString();
         if (!isOwnerOrAdmin(channelId, reqStr)) return;
-        List<String> newMuted = new ArrayList<>(entry.mutedPlayers());
-        if (newMuted.contains(targetUuid)) newMuted.remove(targetUuid);
-        else newMuted.add(targetUuid);
+        // targetSpec is "uuid" (permanent) or "uuid:untilMillis" (timed mute)
+        String uuid = targetSpec;
+        int colon = targetSpec.indexOf(':');
+        if (colon > 0) uuid = targetSpec.substring(0, colon);
+        List<String> newMuted = new ArrayList<>();
+        boolean had = false;
+        for (String e : entry.mutedPlayers()) {
+            if (e.equals(uuid) || e.startsWith(uuid + ":")) had = true;
+            else newMuted.add(e);
+        }
+        if (!had) newMuted.add(targetSpec);
         channels.put(entry.id(), new ChannelEntry(entry.id(), entry.owner(), entry.isPublic(),
                 entry.description(), entry.displayName(),
                 new ArrayList<>(entry.admins()), newMuted,
                 new ArrayList<>(entry.invitedPlayers()),
-                new ArrayList<>(entry.members()), entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel()));
+                new ArrayList<>(entry.members()), entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
         save();
         broadcastSync();
     }
@@ -703,7 +748,7 @@ public class ModServerChannels {
                 entry.description(), entry.displayName(), newAdmins,
                 new ArrayList<>(entry.mutedPlayers()),
                 new ArrayList<>(entry.invitedPlayers()),
-                new ArrayList<>(entry.members()), entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel()));
+                new ArrayList<>(entry.members()), entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
         save();
         broadcastSync();
     }
@@ -718,7 +763,7 @@ public class ModServerChannels {
                 entry.description(), entry.displayName(),
                 new ArrayList<>(entry.admins()),
                 new ArrayList<>(entry.mutedPlayers()), newInvited,
-                new ArrayList<>(entry.members()), entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel()));
+                new ArrayList<>(entry.members()), entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
         save();
         broadcastSync();
     }
@@ -740,7 +785,7 @@ public class ModServerChannels {
         newMuted.remove(targetUuid);
         channels.put(entry.id(), new ChannelEntry(entry.id(), entry.owner(), entry.isPublic(),
                 entry.description(), entry.displayName(), newAdmins, newMuted,
-                new ArrayList<>(entry.invitedPlayers()), newMembers, entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel()));
+                new ArrayList<>(entry.invitedPlayers()), newMembers, entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
         save();
         broadcastSync();
     }
@@ -757,16 +802,16 @@ public class ModServerChannels {
         channels.put(entry.id(), new ChannelEntry(entry.id(), entry.owner(), entry.isPublic(),
                 entry.description(), entry.displayName(), newAdmins,
                 new ArrayList<>(entry.mutedPlayers()),
-                new ArrayList<>(entry.invitedPlayers()), newMembers, entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel()));
+                new ArrayList<>(entry.invitedPlayers()), newMembers, entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
         save();
         broadcastSync();
     }
 
-    public void addCommandMessage(String senderName, UUID senderUuid, String commandText) {
+    public void addCommandMessage(String senderName, UUID senderUuid, String commandText, boolean isInput) {
         if (commandText.isEmpty()) return;
         addChatMessage(senderName, senderUuid, commandText,
                 "__commands__",
-                "COMMAND", "", "", "");
+                "COMMAND", "", "", "", isInput);
     }
 
     public List<StoredMessage> getRecentMessages(int count) {
@@ -803,6 +848,31 @@ public class ModServerChannels {
         return ModStoragePaths.getServerDataDir().resolve("messages.json");
     }
 
+    /** Remaining slow-mode cooldown (ms); 0 = allowed now. */
+    public synchronized long slowModeRemainingMillis(String channelId, String playerUuid) {
+        ChannelEntry entry = channels.get(channelId);
+        if (entry == null || entry.slowModeSeconds() <= 0) return 0;
+        String key = channelId + "|" + playerUuid;
+        Long last = slowModeLastSent.get(key);
+        if (last == null) return 0;
+        long elapsed = System.currentTimeMillis() - last;
+        if (elapsed >= entry.slowModeSeconds() * 1000L) {
+            slowModeLastSent.remove(key);
+            return 0;
+        }
+        return entry.slowModeSeconds() * 1000L - elapsed;
+    }
+
+    public synchronized void recordSlowModeMessage(String channelId, String playerUuid) {
+        ChannelEntry entry = channels.get(channelId);
+        if (entry == null || entry.slowModeSeconds() <= 0 || playerUuid == null) return;
+        slowModeLastSent.put(channelId + "|" + playerUuid, System.currentTimeMillis());
+        if (slowModeLastSent.size() > 4096) {
+            long cutoff = System.currentTimeMillis() - 3600_000L;
+            slowModeLastSent.entrySet().removeIf(e -> e.getValue() < cutoff);
+        }
+    }
+
     public synchronized void load() {
         if (loaded) return;
         loaded = true;
@@ -811,7 +881,7 @@ public class ModServerChannels {
             channels.clear();
             channels.put(DEFAULT_CHANNEL_ID, new ChannelEntry(DEFAULT_CHANNEL_ID, "", true, "", "",
                     List.of(), List.of(), List.of(), List.of(), generateInviteCode(), true, List.of(), "", 0,
-                    true, ""));
+                    true, "", 0));
             return;
         }
         try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
@@ -839,7 +909,8 @@ public class ModServerChannels {
                             c.has("parentId") ? c.get("parentId").getAsString() : "",
                             c.has("sortOrder") ? c.get("sortOrder").getAsInt() : defaultOrder,
                             !c.has("mainChatEnabled") || c.get("mainChatEnabled").getAsBoolean(),
-                            c.has("defaultSubChannel") ? c.get("defaultSubChannel").getAsString() : ""
+                            c.has("defaultSubChannel") ? c.get("defaultSubChannel").getAsString() : "",
+                            c.has("slowModeSeconds") ? c.get("slowModeSeconds").getAsInt() : 0
                     );
                     loadedChannels.put(entry.id(), entry);
                     defaultOrder++;
@@ -855,7 +926,7 @@ public class ModServerChannels {
             if (!loadedChannels.containsKey(DEFAULT_CHANNEL_ID)) {
                 loadedChannels.put(DEFAULT_CHANNEL_ID, new ChannelEntry(DEFAULT_CHANNEL_ID, "", true, "", "",
                         List.of(), List.of(), List.of(), List.of(), generateInviteCode(), true, List.of(), "", 0,
-                        true, ""));
+                        true, "", 0));
             }
             channels.clear();
             channels.putAll(loadedChannels);
@@ -874,7 +945,7 @@ public class ModServerChannels {
         if (!channels.containsKey(DEFAULT_CHANNEL_ID)) {
             channels.put(DEFAULT_CHANNEL_ID, new ChannelEntry(DEFAULT_CHANNEL_ID, "", true, "", "",
                     List.of(), List.of(), List.of(), List.of(), generateInviteCode(), true, List.of(), "", 0,
-                    true, ""));
+                    true, "", 0));
         }
         loadMessages();
     }
@@ -899,7 +970,9 @@ public class ModServerChannels {
                             m.has("conversationType") ? m.get("conversationType").getAsString() : "CHANNEL",
                             m.has("replyContent") ? m.get("replyContent").getAsString() : "",
                             m.has("replySender") ? m.get("replySender").getAsString() : "",
-                            m.has("itemNbt") ? m.get("itemNbt").getAsString() : ""
+                            m.has("itemNbt") ? m.get("itemNbt").getAsString() : "",
+                            m.has("messageId") ? UUID.fromString(m.get("messageId").getAsString()) : Util.NIL_UUID,
+                            m.has("isInput") && m.get("isInput").getAsBoolean()
                     );
                     loaded.add(sm);
                 } catch (Exception e) {
@@ -937,12 +1010,16 @@ public class ModServerChannels {
                     obj.addProperty("timestamp", m.timestamp());
                     obj.addProperty("conversationId", m.conversationId());
                     obj.addProperty("conversationType", m.conversationType());
+                    obj.addProperty("isInput", m.isInput());
                     if (m.replyContent() != null && !m.replyContent().isEmpty()) {
                         obj.addProperty("replyContent", m.replyContent());
                         obj.addProperty("replySender", m.replySender());
                     }
                     if (m.itemNbt() != null && !m.itemNbt().isEmpty()) {
                         obj.addProperty("itemNbt", m.itemNbt());
+                    }
+                    if (m.messageId() != null) {
+                        obj.addProperty("messageId", m.messageId().toString());
                     }
                     arr.add(obj);
                 }
@@ -985,6 +1062,9 @@ public class ModServerChannels {
                 c.addProperty("mainChatEnabled", e.mainChatEnabled());
                 if (e.defaultSubChannel() != null && !e.defaultSubChannel().isEmpty()) {
                     c.addProperty("defaultSubChannel", e.defaultSubChannel());
+                }
+                if (e.slowModeSeconds() > 0) {
+                    c.addProperty("slowModeSeconds", e.slowModeSeconds());
                 }
                 JsonArray vrArr = new JsonArray();
                 for (VoiceRoom vr : e.voiceRooms()) {
@@ -1120,7 +1200,7 @@ public class ModServerChannels {
             List<String> admins, List<String> mutedPlayers, List<String> invitedPlayers,
             List<String> members, String inviteCode, boolean showInExplore,
             List<VoiceRoom> voiceRooms, String parentId, int sortOrder,
-            boolean mainChatEnabled, String defaultSubChannel
+            boolean mainChatEnabled, String defaultSubChannel, int slowModeSeconds
     ) {
         public ChannelEntry {
             if (inviteCode == null || inviteCode.isEmpty()) {
@@ -1134,6 +1214,9 @@ public class ModServerChannels {
             }
             if (defaultSubChannel == null) {
                 defaultSubChannel = "";
+            }
+            if (slowModeSeconds < 0) {
+                slowModeSeconds = 0;
             }
         }
     }

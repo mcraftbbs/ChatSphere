@@ -34,11 +34,14 @@ public class ModClientConfig {
     public final CfgValue.Int commandHistoryLimit;
     public final CfgValue.Bool renderEmojiShortcodes;
     public final CfgValue.Bool renderRichText;
+    public final CfgValue.Bool customEmojiEnabled;
+    public final CfgValue.Int emojiLocalMaxTotal;
     public final CfgValue.Bool popupBorder;
     public final CfgValue.Bool ncrCompat;
     public final CfgValue.Str customSkinApiUrl;
     public final CfgValue.Bool avatarCacheEnabled;
     public final CfgValue.Bool allowVanillaConnection;
+    public final CfgValue.Bool compatVanillaChat;
     public final CfgValue.Bool voiceCacheEnabled;
     public final CfgValue.Int voiceCacheMaxAgeHours;
     public final CfgValue.Int voiceCacheMaxMB;
@@ -52,7 +55,7 @@ public class ModClientConfig {
         showSenderName = new CfgValue.Bool(store, "showSenderName", true);
         showAvatar = new CfgValue.Bool(store, "showAvatar", true);
         themeDark = new CfgValue.Bool(store, "themeDark", true);
-        uiCornerStyle = new CfgValue.Int(store, "uiCornerStyle", 2);
+        uiCornerStyle = new CfgValue.Int(store, "uiCornerStyle", 3);
         popupBorder = new CfgValue.Bool(store, "popupBorder", true);
         backgroundBlur = new CfgValue.Bool(store, "backgroundBlur", true);
         bubbleColorOwn = new CfgValue.Str(store, "bubbleColorOwn", "#222222");
@@ -65,6 +68,8 @@ public class ModClientConfig {
         scrollHistoryLimit = new CfgValue.Int(store, "scrollHistoryLimit", 200);
         renderEmojiShortcodes = new CfgValue.Bool(store, "renderEmojiShortcodes", true);
         renderRichText = new CfgValue.Bool(store, "renderRichText", true);
+        customEmojiEnabled = new CfgValue.Bool(store, "customEmojiEnabled", true);
+        emojiLocalMaxTotal = new CfgValue.Int(store, "emojiLocalMaxTotal", 100);
         commandHistoryLimit = new CfgValue.Int(store, "commandHistoryLimit", 50);
 
         notificationSound = new CfgValue.Bool(store, "notificationSound", true);
@@ -82,6 +87,8 @@ public class ModClientConfig {
         avatarCacheEnabled = new CfgValue.Bool(store, "avatarCacheEnabled", true);
 
         allowVanillaConnection = new CfgValue.Bool(store, "allowVanillaConnection", false);
+
+        compatVanillaChat = new CfgValue.Bool(store, "compatVanillaChat", false);
 
         voiceCacheEnabled = new CfgValue.Bool(store, "voiceCacheEnabled", true);
         voiceCacheMaxAgeHours = new CfgValue.Int(store, "voiceCacheMaxAgeHours", 24);

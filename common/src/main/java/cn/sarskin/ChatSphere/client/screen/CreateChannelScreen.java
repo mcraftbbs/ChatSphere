@@ -1,7 +1,9 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
+import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.client.ui.UiToggle;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
@@ -15,9 +17,11 @@ import net.minecraft.network.chat.Component;
 import java.util.List;
 import java.util.UUID;
 
+/** Popup for creating a channel. */
 public class CreateChannelScreen extends Screen {
     private static final int POPUP_WIDTH = 280;
-    private static final int POPUP_HEIGHT = 250;
+    private static final int POPUP_HEIGHT = 262;
+    private static final int HEADER_H = 30;
 
     private final Screen parent;
     private EditBox nameInput;
@@ -42,7 +46,7 @@ public class CreateChannelScreen extends Screen {
         int fieldW = POPUP_WIDTH - 20;
         int fieldX = popupX + 10;
 
-        this.nameInput = new EditBox(this.font, fieldX, popupY + 22, fieldW, 16,
+        this.nameInput = new EditBox(this.font, fieldX, popupY + HEADER_H + 4, fieldW, 16,
                 Component.translatable("screen.chatsphere.create_channel.input_label"));
         this.nameInput.setMaxLength(32);
         this.nameInput.setBordered(true);
@@ -50,7 +54,7 @@ public class CreateChannelScreen extends Screen {
         this.addWidget(this.nameInput);
         this.setInitialFocus(this.nameInput);
 
-        this.descInput = new EditBox(this.font, fieldX, popupY + 48, fieldW, 16,
+        this.descInput = new EditBox(this.font, fieldX, popupY + HEADER_H + 30, fieldW, 16,
                 Component.translatable("screen.chatsphere.channel_config.description"));
         this.descInput.setMaxLength(64);
         this.descInput.setBordered(true);
@@ -59,13 +63,13 @@ public class CreateChannelScreen extends Screen {
 
         int toggleBtnW = 60;
         this.publicToggle = this.addRenderableWidget(new UiToggle(
-                popupX + POPUP_WIDTH - 10 - toggleBtnW, popupY + 76, toggleBtnW, 18, isPublic,
+                popupX + POPUP_WIDTH - 10 - toggleBtnW, popupY + HEADER_H + 58, toggleBtnW, 18, isPublic,
                 v -> isPublic = v));
         this.publicToggle.setTooltip(Tooltip.create(
                 Component.translatable("screen.chatsphere.create_channel.tip_toggle_public")));
 
         this.chatToggle = this.addRenderableWidget(new UiToggle(
-                popupX + POPUP_WIDTH - 10 - toggleBtnW, popupY + 106, toggleBtnW, 18, mainChatEnabled,
+                popupX + POPUP_WIDTH - 10 - toggleBtnW, popupY + HEADER_H + 88, toggleBtnW, 18, mainChatEnabled,
                 v -> {
                     mainChatEnabled = v;
                     if (this.defaultSubInput != null) {
@@ -78,7 +82,7 @@ public class CreateChannelScreen extends Screen {
         this.chatToggle.setTooltip(Tooltip.create(
                 Component.translatable("screen.chatsphere.create_channel.tip_toggle_chat")));
 
-        this.defaultSubInput = new EditBox(this.font, fieldX, popupY + 134, fieldW - 110, 16,
+        this.defaultSubInput = new EditBox(this.font, fieldX, popupY + HEADER_H + 116, fieldW - 110, 16,
                 Component.translatable("screen.chatsphere.channel_config.default_sub_hint"));
         this.defaultSubInput.setMaxLength(32);
         this.defaultSubInput.setBordered(true);
@@ -103,42 +107,53 @@ public class CreateChannelScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g) {
+        BackgroundBlur.blurScreen(g, width, height);
         super.renderBackground(g);
         g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        Theme.beginFrame();
         renderBackground(guiGraphics);
 
         int popupX = (this.width - POPUP_WIDTH) / 2;
         int popupY = (this.height - POPUP_HEIGHT) / 2;
 
-        guiGraphics.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, Theme.popupBg3());
+        int radius = Theme.cardRadius();
+        Ui.fillRoundedRect(guiGraphics, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, radius, Theme.popupBg());
         if (Theme.popupBorderVisible()) {
-            guiGraphics.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline2());
+            Ui.renderRoundedOutline(guiGraphics, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, radius, Theme.popupOutline());
         }
 
-        String title = this.title.getString();
-        guiGraphics.drawString(this.font, title,
-                popupX + (POPUP_WIDTH - this.font.width(title)) / 2,
-                popupY + 5, Theme.text(), false);
+        int iconX = popupX + 8;
+        int iconY = popupY + 6;
+        Ui.fillRoundedRect(guiGraphics, iconX, iconY, 18, 18, 5, Theme.iconBtnBg());
+        guiGraphics.drawString(this.font, "#", iconX + (18 - this.font.width("#")) / 2, iconY + 5, Theme.accent(), false);
+        guiGraphics.drawString(this.font, title, iconX + 26, popupY + 10, Theme.text(), false);
 
-        Component nameLabel = Component.translatable("screen.chatsphere.create_channel.input_label");
-        guiGraphics.drawString(this.font, nameLabel, popupX + 10, popupY + 22 - 10, Theme.textInactive(), false);
+        int closeX = popupX + POPUP_WIDTH - 8 - 16;
+        int closeY = popupY + 7;
+        boolean closeHover = mouseX >= closeX && mouseX < closeX + 16 && mouseY >= closeY && mouseY < closeY + 16;
+        if (closeHover) {
+            Ui.fillRoundedRect(guiGraphics, closeX, closeY, 16, 16, 4, Theme.hoverRow());
+        }
+        guiGraphics.drawString(this.font, "×", closeX + (16 - this.font.width("×")) / 2, closeY + 4,
+            closeHover ? Theme.text() : Theme.textInactive(), false);
 
-        Component descLabel = Component.translatable("screen.chatsphere.channel_config.description");
-        guiGraphics.drawString(this.font, descLabel, popupX + 10, popupY + 48 - 10, Theme.textInactive(), false);
-
-        Component publicLabel = Component.translatable("screen.chatsphere.channel_config.public_label");
-        guiGraphics.drawString(this.font, publicLabel, popupX + 10, popupY + 78, Theme.textInactive(), false);
-
-        Component chatLabel = Component.translatable("screen.chatsphere.channel_config.main_chat_label");
-        guiGraphics.drawString(this.font, chatLabel, popupX + 10, popupY + 108, Theme.textInactive(), false);
+        int cy = popupY + HEADER_H;
+        guiGraphics.drawString(this.font, Component.translatable("screen.chatsphere.create_channel.input_label"),
+                popupX + 10, cy + 4 - 10, Theme.textDim(), false);
+        guiGraphics.drawString(this.font, Component.translatable("screen.chatsphere.channel_config.description"),
+                popupX + 10, cy + 30 - 10, Theme.textDim(), false);
+        guiGraphics.drawString(this.font, Component.translatable("screen.chatsphere.channel_config.public_label"),
+                popupX + 10, cy + 60, Theme.textDim(), false);
+        guiGraphics.drawString(this.font, Component.translatable("screen.chatsphere.channel_config.main_chat_label"),
+                popupX + 10, cy + 90, Theme.textDim(), false);
 
         if (!mainChatEnabled) {
-            Component subLabel = Component.translatable("screen.chatsphere.channel_config.default_sub_label");
-            guiGraphics.drawString(this.font, subLabel, popupX + 10, popupY + 134 - 10, Theme.textInactive(), false);
+            guiGraphics.drawString(this.font, Component.translatable("screen.chatsphere.channel_config.default_sub_label"),
+                    popupX + 10, cy + 116 - 10, Theme.textDim(), false);
         }
 
         this.nameInput.render(guiGraphics, mouseX, mouseY, partialTick);
@@ -152,6 +167,16 @@ public class CreateChannelScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            int popupX = (this.width - POPUP_WIDTH) / 2;
+            int popupY = (this.height - POPUP_HEIGHT) / 2;
+            int closeX = popupX + POPUP_WIDTH - 8 - 16;
+            int closeY = popupY + 7;
+            if (mouseX >= closeX && mouseX < closeX + 16 && mouseY >= closeY && mouseY < closeY + 16) {
+                cancel();
+                return true;
+            }
+        }
         this.nameInput.mouseClicked(mouseX, mouseY, button);
         this.descInput.mouseClicked(mouseX, mouseY, button);
         this.defaultSubInput.mouseClicked(mouseX, mouseY, button);
@@ -193,11 +218,12 @@ public class CreateChannelScreen extends Screen {
                     && this.minecraft.getConnection() != null) {
                 var conn = this.minecraft.getConnection().getConnection();
                 String defaultSub = mainChatEnabled ? "" : this.defaultSubInput.getValue().trim();
-                conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
+                conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+                        new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.CREATE,
                                 channelId, ownerUuid, isPublic, description, "",
                                 List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "",
-                                mainChatEnabled, defaultSub).toBuf()));;
+                                mainChatEnabled, defaultSub).toBuf()));
             } else {
                 history.addChannel(name, ownerUuid);
             }
