@@ -1,7 +1,9 @@
 package cn.sarskin.ChatSphere.network;
 
 import cn.sarskin.ChatSphere.ModInfo;
+import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload.StoredMessage;
 import io.netty.buffer.ByteBuf;
+import net.minecraft.Util;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
@@ -27,6 +29,8 @@ public record ClientboundChatPayload(StoredMessage message) implements CustomPac
         writeUtf(buf, m.replyContent());
         writeUtf(buf, m.replySender());
         writeUtf(buf, m.itemNbt());
+        writeUuid(buf, m.messageId());
+        buf.writeBoolean(m.isInput());
     }
 
     private static ClientboundChatPayload read(ByteBuf buf) {
@@ -39,7 +43,9 @@ public record ClientboundChatPayload(StoredMessage message) implements CustomPac
         String replyContent = PayloadLimits.readUtf(buf);
         String replySender = PayloadLimits.readUtf(buf);
         String itemNbt = PayloadLimits.readUtf(buf);
-        return new ClientboundChatPayload(new StoredMessage(senderName, senderUuid, content, timestamp, conversationId, conversationType, replyContent, replySender, itemNbt));
+        UUID messageId = readUuid(buf);
+        boolean isInput = buf.readBoolean();
+        return new ClientboundChatPayload(new StoredMessage(senderName, senderUuid, content, timestamp, conversationId, conversationType, replyContent, replySender, itemNbt, messageId, isInput));
     }
 
     @Override
@@ -60,6 +66,7 @@ public record ClientboundChatPayload(StoredMessage message) implements CustomPac
     }
 
     private static void writeUuid(ByteBuf buf, UUID uuid) {
+        if (uuid == null) uuid = Util.NIL_UUID;
         buf.writeLong(uuid.getMostSignificantBits());
         buf.writeLong(uuid.getLeastSignificantBits());
     }
@@ -67,9 +74,4 @@ public record ClientboundChatPayload(StoredMessage message) implements CustomPac
     private static UUID readUuid(ByteBuf buf) {
         return new UUID(buf.readLong(), buf.readLong());
     }
-
-    public record StoredMessage(String senderName, UUID senderUuid, String content, long timestamp,
-                                String conversationId, String conversationType,
-                                String replyContent, String replySender,
-                                String itemNbt) {}
 }

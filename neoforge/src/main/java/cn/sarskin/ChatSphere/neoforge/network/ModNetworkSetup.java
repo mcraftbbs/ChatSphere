@@ -6,6 +6,8 @@ import cn.sarskin.ChatSphere.network.ClientboundBridgeInfoPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChatPayload;
+import cn.sarskin.ChatSphere.network.ClientboundConfigSyncPayload;
+import cn.sarskin.ChatSphere.network.ClientboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundPermissionResponsePayload;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
@@ -14,8 +16,10 @@ import cn.sarskin.ChatSphere.network.ServerPayloadHandlers;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
+import cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.network.ServerboundPermissionCheckPayload;
 import cn.sarskin.ChatSphere.network.ServerboundVoicePacket;
+import cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
@@ -42,17 +46,17 @@ public class ModNetworkSetup {
         registrar.playToClient(
                 ClientboundChannelSyncPayload.TYPE,
                 ClientboundChannelSyncPayload.STREAM_CODEC,
-                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.channelSync(p))
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("channelSync", () -> ClientPayloadHandlers.channelSync(p)))
         );
         registrar.playToClient(
                 ClientboundMessageSyncPayload.TYPE,
                 ClientboundMessageSyncPayload.STREAM_CODEC,
-                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.messageSync(ctx.player(), p))
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("messageSync", () -> ClientPayloadHandlers.messageSync(ctx.player(), p)))
         );
         registrar.playToClient(
                 ClientboundChatPayload.TYPE,
                 ClientboundChatPayload.STREAM_CODEC,
-                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.chat(ctx.player(), p))
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("chat", () -> ClientPayloadHandlers.chat(ctx.player(), p)))
         );
         registrar.playToServer(
                 ServerboundPermissionCheckPayload.TYPE,
@@ -62,17 +66,17 @@ public class ModNetworkSetup {
         registrar.playToClient(
                 ClientboundPermissionResponsePayload.TYPE,
                 ClientboundPermissionResponsePayload.STREAM_CODEC,
-                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.permissionResponse(p))
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("permissionResponse", () -> ClientPayloadHandlers.permissionResponse(p)))
         );
         registrar.playToClient(
                 ClientboundPublicChannelListPayload.TYPE,
                 ClientboundPublicChannelListPayload.STREAM_CODEC,
-                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.publicChannelList(p))
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("publicChannelList", () -> ClientPayloadHandlers.publicChannelList(p)))
         );
         registrar.playToClient(
                 ClientboundBridgeInfoPayload.TYPE,
                 ClientboundBridgeInfoPayload.STREAM_CODEC,
-                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.bridgeInfo(p))
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("bridgeInfo", () -> ClientPayloadHandlers.bridgeInfo(p)))
         );
         registrar.playToServer(
                 ServerboundConfigUpdatePayload.TYPE,
@@ -85,6 +89,11 @@ public class ModNetworkSetup {
                 (p, ctx) -> ctx.enqueueWork(() -> ServerPayloadHandlers.voicePacket(ctx.player(), p))
         );
         registrar.playToServer(
+                ServerboundVoiceRequestPayload.TYPE,
+                ServerboundVoiceRequestPayload.STREAM_CODEC,
+                (p, ctx) -> ctx.enqueueWork(() -> ServerPayloadHandlers.voiceRequest(ctx.player(), p))
+        );
+        registrar.playToServer(
                 ServerboundCommandMessagePayload.TYPE,
                 ServerboundCommandMessagePayload.STREAM_CODEC,
                 (p, ctx) -> ctx.enqueueWork(() -> ServerPayloadHandlers.commandMessage(ctx.player(), p))
@@ -92,12 +101,27 @@ public class ModNetworkSetup {
         registrar.playToClient(
                 ClientboundVoicePacket.TYPE,
                 ClientboundVoicePacket.STREAM_CODEC,
-                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.voice(p))
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("voice", () -> ClientPayloadHandlers.voice(p)))
         );
         registrar.playToClient(
                 ClientboundChannelRenamedPayload.TYPE,
                 ClientboundChannelRenamedPayload.STREAM_CODEC,
-                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.channelRenamed(p))
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("channelRenamed", () -> ClientPayloadHandlers.channelRenamed(p)))
+        );
+        registrar.playToClient(
+                ClientboundConfigSyncPayload.TYPE,
+                ClientboundConfigSyncPayload.STREAM_CODEC,
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("configSync", () -> ClientPayloadHandlers.configSync(p)))
+        );
+        registrar.playToServer(
+                ServerboundCustomEmojiPayload.TYPE,
+                ServerboundCustomEmojiPayload.STREAM_CODEC,
+                (p, ctx) -> ctx.enqueueWork(() -> ServerPayloadHandlers.customEmoji(ctx.player(), p))
+        );
+        registrar.playToClient(
+                ClientboundCustomEmojiPayload.TYPE,
+                ClientboundCustomEmojiPayload.STREAM_CODEC,
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("customEmoji", () -> ClientPayloadHandlers.customEmoji(p)))
         );
     }
 }

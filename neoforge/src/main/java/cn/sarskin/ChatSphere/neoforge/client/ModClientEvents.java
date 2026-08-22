@@ -56,10 +56,18 @@ public class ModClientEvents {
             combined = merged;
         }
 
+        // VoiceMessage# output goes via the dedicated voice relay.
+        if (combined.getString().startsWith("VoiceMessage#")) {
+            sysMsgBuffer.clear();
+            sysMsgSender = null;
+            return;
+        }
+
         history.addCommandMessage(combined, sysMsgSender, Component.literal(""), false);
 
         if (connected) {
-            UUID sendUuid = sysMsgSender != null ? sysMsgSender : Util.NIL_UUID;
+            // Console history is per-player: attribute to the local player so the server only stores/distributes it to them.
+            UUID sendUuid = mc.player.getUUID();
             RegistryAccess access = mc.level != null ? mc.level.registryAccess() : RegistryAccess.EMPTY;
             String json;
             try {
@@ -68,7 +76,7 @@ public class ModClientEvents {
                 json = combined.getString();
             }
             conn.send(new ServerboundCustomPayloadPacket(
-                    new ServerboundCommandMessagePayload(json, sendUuid)));
+                    new ServerboundCommandMessagePayload(json, sendUuid, false)));
         }
 
         sysMsgBuffer.clear();
@@ -115,19 +123,15 @@ public class ModClientEvents {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
-        // Cancel every chat event to hide vanilla chat display
         event.setCanceled(true);
 
         Component message = event.getMessage();
         UUID sender = event.getSender();
 
-        // ALL system messages (screenshots, command feedback, overlays, etc.) → COMMAND console
         if (event.isSystem()) {
-            // For system events from ChatListener, get the overlay flag
             if (event instanceof ClientChatReceivedEvent.System sys && sys.isOverlay()) {
                 return;
             }
-            // Buffer system messages to group multi-packet output (e.g. /help)
             if (sysMsgBuffer.isEmpty()) {
                 sysMsgSender = sender != null ? sender : Util.NIL_UUID;
             }
@@ -136,7 +140,6 @@ public class ModClientEvents {
             return;
         }
 
-        // Non-system message: flush any pending system message buffer first
         if (!sysMsgBuffer.isEmpty()) {
             flushSysMsgBuffer();
         }
@@ -151,6 +154,9 @@ public class ModClientEvents {
 
         Component senderName;
         String content;
+
+        // Skip VoiceMessage# broadcasts; handled by the dedicated voice relay (ChatComponentMixin → handleVoiceChatMessage).
+        if (text.startsWith("VoiceMessage#")) return;
 
         if (text.startsWith("<") && text.contains("> ")) {
             int endBracket = text.indexOf("> ");
@@ -169,7 +175,6 @@ public class ModClientEvents {
 
         ChatHistoryManager history = ChatHistoryManager.getInstance();
 
-        // Detect private messages via boundChatType
         ChatType.Bound boundChatType = event.getBoundChatType();
         if (boundChatType != null) {
             var optKey = boundChatType.chatType().unwrapKey();
@@ -196,7 +201,6 @@ public class ModClientEvents {
             }
         }
 
-        // Standard player chat goes to default channel
         history.addMessage(senderName, sender, Component.literal(content),
                 ChatHistoryManager.DEFAULT_CHANNEL_ID, ChatMessageData.ConversationType.CHANNEL, false);
     }

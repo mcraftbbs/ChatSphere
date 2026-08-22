@@ -2,6 +2,7 @@ package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import net.minecraft.client.gui.GuiGraphics;
@@ -12,9 +13,10 @@ import net.minecraft.resources.ResourceLocation;
 import java.util.List;
 import java.util.UUID;
 
+/** Confirm popup for deleting/leaving a channel. */
 public class ConfirmDeleteChannelScreen extends Screen {
     private static final int POPUP_WIDTH = 240;
-    private static final int POPUP_HEIGHT = 120;
+    private static final int POPUP_HEIGHT = 124;
 
     private final Screen parent;
     private final String channelId;
@@ -89,19 +91,32 @@ public class ConfirmDeleteChannelScreen extends Screen {
         int popupX = (width - POPUP_WIDTH) / 2;
         int popupY = (height - POPUP_HEIGHT) / 2;
 
-        g.fill(popupX, popupY, popupX + POPUP_WIDTH, popupY + POPUP_HEIGHT, Theme.popupBg3());
+        int radius = Theme.cardRadius();
+        Ui.fillRoundedRect(g, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, radius, Theme.popupBg3());
         if (Theme.popupBorderVisible()) {
-            g.renderOutline(popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, Theme.popupOutline2());
+            Ui.renderRoundedOutline(g, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, radius, Theme.popupOutline2());
         }
 
-        String title = this.title.getString();
-        g.drawString(font, title, popupX + (POPUP_WIDTH - font.width(title)) / 2, popupY + 8, Theme.text(), false);
+        int iconX = popupX + 8;
+        int iconY = popupY + 6;
+        Ui.fillRoundedRect(g, iconX, iconY, 18, 18, 5, 0x335A1E1E);
+        g.drawString(font, "!", iconX + (18 - font.width("!")) / 2, iconY + 5, 0xFFFF6666, false);
+        g.drawString(font, title, iconX + 26, popupY + 10, Theme.text(), false);
+
+        int closeX = popupX + POPUP_WIDTH - 8 - 16;
+        int closeY = popupY + 7;
+        boolean closeHover = mouseX >= closeX && mouseX < closeX + 16 && mouseY >= closeY && mouseY < closeY + 16;
+        if (closeHover) {
+            Ui.fillRoundedRect(g, closeX, closeY, 16, 16, 4, Theme.hoverRow());
+        }
+        g.drawString(font, "×", closeX + (16 - font.width("×")) / 2, closeY + 4,
+            closeHover ? Theme.text() : Theme.textInactive(), false);
 
         Component warn = Component.translatable(leaveMode ? "screen.chatsphere.confirm_leave.warning" : "screen.chatsphere.confirm_delete.warning");
-        g.drawString(font, warn, popupX + 10, popupY + 34, 0xFFFF6666, false);
+        g.drawString(font, warn, popupX + 10, popupY + 38, 0xFFFF6666, false);
 
         Component hint = Component.translatable(leaveMode ? "screen.chatsphere.confirm_leave.hint" : "screen.chatsphere.confirm_delete.hint");
-        g.drawString(font, hint, popupX + 10, popupY + 50, Theme.textInactive(), false);
+        g.drawString(font, hint, popupX + 10, popupY + 54, Theme.textInactive(), false);
 
         for (var renderable : ((cn.sarskin.ChatSphere.mixin.ScreenAccessor) this).chatsphere$getRenderables()) {
             renderable.render(g, mouseX, mouseY, partialTick);
@@ -110,6 +125,16 @@ public class ConfirmDeleteChannelScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            int popupX = (width - POPUP_WIDTH) / 2;
+            int popupY = (height - POPUP_HEIGHT) / 2;
+            int closeX = popupX + POPUP_WIDTH - 8 - 16;
+            int closeY = popupY + 7;
+            if (mouseX >= closeX && mouseX < closeX + 16 && mouseY >= closeY && mouseY < closeY + 16) {
+                onClose();
+                return true;
+            }
+        }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 

@@ -1,5 +1,5 @@
 CS1;
-// preset-version: 3
+// preset-version: 4
 // ChatSphere preset: original rounded style (the built-in look)
 theme "Original Preset" version 1;
 
@@ -10,4 +10,5 @@ styles {
     sidebarWidth: 100px;
     avatarRadius: 0;
     blurIntensity: 100%;
+    popupBorder: 1;
 }

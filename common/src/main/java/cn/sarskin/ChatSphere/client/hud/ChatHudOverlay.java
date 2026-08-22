@@ -54,6 +54,7 @@ public class ChatHudOverlay implements LayeredDraw.Layer {
 
     @Override
     public void render(GuiGraphics guiGraphics, DeltaTracker deltaTracker) {
+        Theme.beginFrame();
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.options.hideGui) return;
 
@@ -121,8 +122,8 @@ public class ChatHudOverlay implements LayeredDraw.Layer {
         boolean showTime = ModClientConfig.CONFIG.showTimestamp.get();
 
         if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) {
-            text.append(Component.literal(msg.isOwn() ? "> " : "→ ").withStyle(ChatFormatting.GRAY));
-            text.append(msg.senderName().copy().withStyle(msg.isOwn() ? ChatFormatting.GREEN : ChatFormatting.WHITE));
+            text.append(Component.literal(msg.isInput() ? "> " : "→ ").withStyle(ChatFormatting.GRAY));
+            text.append(msg.senderName().copy().withStyle(msg.isInput() ? ChatFormatting.GREEN : ChatFormatting.WHITE));
             if (showTime) {
                 text.append("  ").append(Component.literal(ChatHistoryManager.formatTimestampSmart(msg.timestamp())).withStyle(ChatFormatting.GRAY));
             }
@@ -144,7 +145,6 @@ public class ChatHudOverlay implements LayeredDraw.Layer {
         if (showTime) {
             text.append("  ").append(Component.literal(ChatHistoryManager.formatTimestampSmart(msg.timestamp())).withStyle(ChatFormatting.GRAY));
         }
-        // Duplicate count
         if (msg.duplicateCount() > 1) {
             text.append(Component.literal(" x" + msg.duplicateCount()).withStyle(ChatFormatting.GOLD));
         }

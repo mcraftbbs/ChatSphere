@@ -20,11 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Fabric chat interception, mirroring the NeoForge ClientChatReceivedEvent handling.
- * ALLOW_CHAT provides ChatType.Bound (private-message detection) plus the sender
- * GameProfile, so no ChatListener mixin is needed.
- */
+/** Mirror of NeoForge ClientChatReceivedEvent handling; ALLOW_CHAT provides ChatType.Bound plus sender GameProfile, so no ChatListener mixin is needed. */
 public final class ClientChatInterception {
     private static final List<Component> sysMsgBuffer = new ArrayList<>();
     private static UUID sysMsgSender;
@@ -68,6 +64,8 @@ public final class ClientChatInterception {
         }
 
         String content = message.getString();
+        // Skip VoiceMessage# broadcasts; handled by the dedicated voice relay (ChatComponentMixin → handleVoiceChatMessage).
+        if (content.startsWith("VoiceMessage#")) return true;
         Component displayName = Component.literal(sender.getName() != null ? sender.getName() : Component.translatable("chatsphere.system_name").getString());
 
         ChatHistoryManager history = ChatHistoryManager.getInstance();
@@ -118,10 +116,18 @@ public final class ClientChatInterception {
             combined = merged;
         }
 
+        // VoiceMessage# output goes via the dedicated voice relay.
+        if (combined.getString().startsWith("VoiceMessage#")) {
+            sysMsgBuffer.clear();
+            sysMsgSender = null;
+            return;
+        }
+
         history.addCommandMessage(combined, sysMsgSender, Component.literal(""), false);
 
         if (connected) {
-            UUID sendUuid = sysMsgSender != null ? sysMsgSender : Util.NIL_UUID;
+            // Console history is per-player: attribute to the local player so the server only stores/distributes it to them.
+            UUID sendUuid = mc.player.getUUID();
             RegistryAccess access = mc.level != null ? mc.level.registryAccess() : RegistryAccess.EMPTY;
             String json;
             try {
@@ -130,7 +136,7 @@ public final class ClientChatInterception {
                 json = combined.getString();
             }
             conn.send(new ServerboundCustomPayloadPacket(
-                    new ServerboundCommandMessagePayload(json, sendUuid)));
+                    new ServerboundCommandMessagePayload(json, sendUuid, false)));
         }
 
         sysMsgBuffer.clear();

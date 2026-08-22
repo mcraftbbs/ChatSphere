@@ -17,6 +17,8 @@ public class ChatMessageData {
     private final String conversationId;
     private final ConversationType conversationType;
     private final boolean isOwn;
+    private final boolean isInput;
+    private final UUID messageId;
     private int duplicateCount;
     private String replyContent;
     private String replySender;
@@ -26,6 +28,18 @@ public class ChatMessageData {
     public ChatMessageData(Component senderName, UUID senderUuid, Component content,
                            long timestamp, String conversationId,
                            ConversationType conversationType, boolean isOwn) {
+        this(senderName, senderUuid, content, timestamp, conversationId, conversationType, isOwn, null, false);
+    }
+
+    public ChatMessageData(Component senderName, UUID senderUuid, Component content,
+                           long timestamp, String conversationId,
+                           ConversationType conversationType, boolean isOwn, UUID messageId) {
+        this(senderName, senderUuid, content, timestamp, conversationId, conversationType, isOwn, messageId, false);
+    }
+
+    public ChatMessageData(Component senderName, UUID senderUuid, Component content,
+                           long timestamp, String conversationId,
+                           ConversationType conversationType, boolean isOwn, UUID messageId, boolean isInput) {
         this.senderName = senderName;
         this.senderUuid = senderUuid;
         this.content = content;
@@ -33,6 +47,8 @@ public class ChatMessageData {
         this.conversationId = conversationId;
         this.conversationType = conversationType;
         this.isOwn = isOwn;
+        this.isInput = isInput;
+        this.messageId = messageId != null ? messageId : UUID.randomUUID();
         this.duplicateCount = 1;
         String raw = content.getString();
         boolean richText = conversationType != ConversationType.COMMAND
@@ -49,7 +65,7 @@ public class ChatMessageData {
 
     public ChatMessageData withReply(String replyContent, String replySender) {
         ChatMessageData copy = new ChatMessageData(senderName, senderUuid, content,
-                timestamp, conversationId, conversationType, isOwn);
+                timestamp, conversationId, conversationType, isOwn, messageId, isInput);
         copy.duplicateCount = this.duplicateCount;
         copy.replyContent = replyContent;
         copy.replySender = replySender;
@@ -80,6 +96,8 @@ public class ChatMessageData {
     public String conversationId() { return conversationId; }
     public ConversationType conversationType() { return conversationType; }
     public boolean isOwn() { return isOwn; }
+    public boolean isInput() { return isInput; }
+    public UUID messageId() { return messageId; }
     public int duplicateCount() { return duplicateCount; }
     public void setDuplicateCount(int count) { this.duplicateCount = count; }
     public String replyContent() { return replyContent; }

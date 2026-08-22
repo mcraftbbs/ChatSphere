@@ -1,5 +1,5 @@
 CS1;
-// preset-version: 3
+// preset-version: 4
 // ChatSphere preset: pixel corners (pixel-art style)
 theme "Pixel Preset" version 1;
 
@@ -122,4 +122,5 @@ styles {
     sidebarWidth: 100px;
     avatarRadius: 3px;
     blurIntensity: 100%;
+    popupBorder: 1;
 }

@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
+import cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry;
 import cn.sarskin.ChatSphere.compat.ncr.NCRCompat;
 import cn.sarskin.ChatSphere.config.CfgValue;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
@@ -45,6 +46,8 @@ public class ConfigScreen extends Screen {
     private int selectedCat;
     private int scrollOffset;
     private final List<AbstractWidget> scrollWidgets = new ArrayList<>();
+    private String draftBase;
+    private boolean confirmed;
 
     private interface WidgetFactory {
         AbstractWidget create(int y);
@@ -84,6 +87,30 @@ public class ConfigScreen extends Screen {
         if (cats != null) return;
         cats = new ArrayList<>();
 
+        List<Opt> sound = new ArrayList<>();
+        sound.add(new Opt("config.chatsphere.notification_sound", y -> mkBool(y, ModClientConfig.CONFIG.notificationSound)));
+        sound.add(new Opt("config.chatsphere.notification_badge", y -> mkBool(y, ModClientConfig.CONFIG.notificationBadge)));
+        sound.add(new Opt("config.chatsphere.sound_mention", y -> mkBool(y, ModClientConfig.CONFIG.soundMention)));
+        sound.add(new Opt("config.chatsphere.sound_whisper", y -> mkBool(y, ModClientConfig.CONFIG.soundWhisper)));
+        sound.add(new Opt("config.chatsphere.sound_system", y -> mkBool(y, ModClientConfig.CONFIG.soundSystem)));
+        sound.add(new Opt("config.chatsphere.sound_public", y -> mkBool(y, ModClientConfig.CONFIG.soundPublic)));
+
+        List<Opt> bubble = new ArrayList<>();
+        bubble.add(new Opt("config.chatsphere.bubble_color_own",
+            y -> mkHexBox(y, String.format("#%06X", Theme.bubbleOwnFallback() & 0xFFFFFF), s -> {
+                ModClientConfig.CONFIG.bubbleColorOwn.set(s); scheduleConfigSave();
+                int argb = ModClientConfig.parseHexColor(s, 0xFF8888FF);
+                CustomTheme.INSTANCE.syncValues(null, Map.of("bubbleOwn", argb), Map.of("bubbleOwn", argb));
+            }),
+            ModClientConfig.CONFIG.bubbleColorOwn::get));
+        bubble.add(new Opt("config.chatsphere.bubble_color_other",
+            y -> mkHexBox(y, String.format("#%06X", Theme.bubbleOtherFallback() & 0xFFFFFF), s -> {
+                ModClientConfig.CONFIG.bubbleColorOther.set(s); scheduleConfigSave();
+                int argb = ModClientConfig.parseHexColor(s, 0xFF8888FF);
+                CustomTheme.INSTANCE.syncValues(null, Map.of("bubbleOther", argb), Map.of("bubbleOther", argb));
+            }),
+            ModClientConfig.CONFIG.bubbleColorOther::get));
+
         List<Opt> ui = new ArrayList<>();
         ui.add(new Opt("config.chatsphere.show_timestamp", y -> mkBool(y, ModClientConfig.CONFIG.showTimestamp)));
         ui.add(new Opt("config.chatsphere.show_sender_name", y -> mkBool(y, ModClientConfig.CONFIG.showSenderName)));
@@ -92,13 +119,27 @@ public class ConfigScreen extends Screen {
         ui.add(new Opt("config.chatsphere.background_blur", y -> mkBool(y, ModClientConfig.CONFIG.backgroundBlur)));
         ui.add(new Opt("config.chatsphere.popup_border", y -> mkBool(y, ModClientConfig.CONFIG.popupBorder)));
         ui.add(new Opt("config.chatsphere.strong_hint", y -> mkServerBool(y, "showStrongHint", ModServerConfig.CONFIG.showStrongHint)));
-        cats.add(Cat.plain("config.chatsphere.ui", ui));
+
+        // UI tab first; sound and bubble groups under it.
+        List<Group> uiGroups = new ArrayList<>();
+        uiGroups.add(new Group(null, ui));
+        uiGroups.add(new Group("config.chatsphere.sound_settings", sound));
+        uiGroups.add(new Group("config.chatsphere.bubble", bubble));
+        cats.add(new Cat("config.chatsphere.ui", uiGroups));
 
         cats.add(new Cat("config.chatsphere.corner_style_cat", List.of()));
 
         List<Opt> behavior = new ArrayList<>();
         behavior.add(new Opt("config.chatsphere.anti_spam", y -> mkServerBool(y, "antiSpam", ModServerConfig.CONFIG.antiSpam)));
         behavior.add(new Opt("config.chatsphere.preserve_input", y -> mkBool(y, ModClientConfig.CONFIG.preserveInput)));
+        behavior.add(new Opt("config.chatsphere.custom_emoji",
+            y -> mkBool(y, ModClientConfig.CONFIG.customEmojiEnabled, v -> CustomEmojiRegistry.scan())));
+        behavior.add(new Opt("config.chatsphere.emoji_max_local",
+            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.emojiLocalMaxTotal.get()), 1, 10000, 5,
+                    v -> { ModClientConfig.CONFIG.emojiLocalMaxTotal.set(v); scheduleConfigSave(); }), null));
+        behavior.add(new Opt("config.chatsphere.emoji_max_total",
+            y -> mkIntBox(y, safeGetStr(ModServerConfig.CONFIG.emojiMaxTotal, "100"), 1, 10000, 5,
+                    v -> sendConfigUpdate("emojiMaxTotal", String.valueOf(v))), null));
         behavior.add(new Opt("config.chatsphere.max_chat_history",
             y -> mkIntBox(y, safeGetStr(ModServerConfig.CONFIG.maxChatHistory, "50"), 50, 1000, 4, v -> sendConfigUpdate("maxChatHistory", String.valueOf(v))), null));
         behavior.add(new Opt("config.chatsphere.max_command_messages",
@@ -119,32 +160,6 @@ public class ConfigScreen extends Screen {
             }), null));
         cats.add(Cat.plain("config.chatsphere.behavior", behavior));
 
-        List<Opt> sound = new ArrayList<>();
-        sound.add(new Opt("config.chatsphere.notification_sound", y -> mkBool(y, ModClientConfig.CONFIG.notificationSound)));
-        sound.add(new Opt("config.chatsphere.notification_badge", y -> mkBool(y, ModClientConfig.CONFIG.notificationBadge)));
-        sound.add(new Opt("config.chatsphere.sound_mention", y -> mkBool(y, ModClientConfig.CONFIG.soundMention)));
-        sound.add(new Opt("config.chatsphere.sound_whisper", y -> mkBool(y, ModClientConfig.CONFIG.soundWhisper)));
-        sound.add(new Opt("config.chatsphere.sound_system", y -> mkBool(y, ModClientConfig.CONFIG.soundSystem)));
-        sound.add(new Opt("config.chatsphere.sound_public", y -> mkBool(y, ModClientConfig.CONFIG.soundPublic)));
-        cats.add(Cat.plain("config.chatsphere.sound_settings", sound));
-
-        List<Opt> bubble = new ArrayList<>();
-        bubble.add(new Opt("config.chatsphere.bubble_color_own",
-            y -> mkHexBox(y, String.format("#%06X", Theme.bubbleOwnFallback() & 0xFFFFFF), s -> {
-                ModClientConfig.CONFIG.bubbleColorOwn.set(s); scheduleConfigSave();
-                int argb = ModClientConfig.parseHexColor(s, 0xFF8888FF);
-                CustomTheme.INSTANCE.syncValues(null, Map.of("bubbleOwn", argb), Map.of("bubbleOwn", argb));
-            }),
-            ModClientConfig.CONFIG.bubbleColorOwn::get));
-        bubble.add(new Opt("config.chatsphere.bubble_color_other",
-            y -> mkHexBox(y, String.format("#%06X", Theme.bubbleOtherFallback() & 0xFFFFFF), s -> {
-                ModClientConfig.CONFIG.bubbleColorOther.set(s); scheduleConfigSave();
-                int argb = ModClientConfig.parseHexColor(s, 0xFF8888FF);
-                CustomTheme.INSTANCE.syncValues(null, Map.of("bubbleOther", argb), Map.of("bubbleOther", argb));
-            }),
-            ModClientConfig.CONFIG.bubbleColorOther::get));
-        cats.add(Cat.plain("config.chatsphere.bubble", bubble));
-
         List<Opt> skin = new ArrayList<>();
         skin.add(new Opt("config.chatsphere.custom_skin_api_url",
             y -> mkStrBox(y, ModClientConfig.CONFIG.customSkinApiUrl.get(), s -> { ModClientConfig.CONFIG.customSkinApiUrl.set(s); scheduleConfigSave(); }), null));
@@ -164,6 +179,8 @@ public class ConfigScreen extends Screen {
             new Opt("config.chatsphere.enable_channels", y -> mkServerBool(y, "enableChannels", ModServerConfig.CONFIG.enableChannels)))));
         adv.add(new Group("config.chatsphere.network", List.of(
             new Opt("config.chatsphere.allow_vanilla_connection", y -> mkBool(y, ModClientConfig.CONFIG.allowVanillaConnection)))));
+        adv.add(new Group("config.chatsphere.compat", List.of(
+            new Opt("config.chatsphere.compat_vanilla_chat", y -> mkBool(y, ModClientConfig.CONFIG.compatVanillaChat)))));
         adv.add(new Group("config.chatsphere.voice_cache", List.of(
             new Opt("config.chatsphere.voice_cache_enabled", y -> mkBool(y, ModClientConfig.CONFIG.voiceCacheEnabled)),
             new Opt("config.chatsphere.voice_cache_max_age",
@@ -249,7 +266,7 @@ public class ConfigScreen extends Screen {
             boolean sel = i == style;
             boolean hover = mouseX >= cx && mouseX <= cx + cardW && mouseY >= cardY && mouseY <= cardY + cardH;
             Ui.fillRoundedRect(g, cx, cardY, cardW, cardH, 6, Theme.panelBg());
-            g.renderOutline(cx, cardY, cardW, cardH, sel ? Theme.accent() : (hover ? Theme.popupOutline() : Theme.popupOutline2()));
+            Ui.renderRoundedOutline(g, cx, cardY, cardW, cardH, 6, sel ? Theme.accent() : (hover ? Theme.popupOutline() : Theme.popupOutline2()));
             if (sel) {
                 Ui.fillRoundedRect(g, cx, cardY, cardW, 20, 6, 0x336666DD);
             }
@@ -328,6 +345,7 @@ public class ConfigScreen extends Screen {
     @Override
     protected void init() {
         buildCats();
+        if (draftBase == null) draftBase = CONFIG_SPEC.exportJson();
 
         int totalTabW = 0;
         for (Cat c : cats) totalTabW += font.width(Component.translatable(c.key())) + TAB_PAD * 2 + 4;
@@ -351,7 +369,10 @@ public class ConfigScreen extends Screen {
             }
         }
 
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, btn -> onClose())
+        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, btn -> {
+                confirmed = true;
+                onClose();
+            })
             .bounds(width / 2 - 100, height - 32, 200, 20)
             .tooltip(Tooltip.create(Component.translatable("screen.chatsphere.config.tip_done"))).build());
 
@@ -417,12 +438,17 @@ public class ConfigScreen extends Screen {
     }
 
     private AbstractWidget mkBool(int y, CfgValue.Bool cfg) {
+        return mkBool(y, cfg, v -> {});
+    }
+
+    private AbstractWidget mkBool(int y, CfgValue.Bool cfg, Consumer<Boolean> onChange) {
         if (Theme.originalStyle()) {
             return Button.builder(
                     Component.translatable(cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"),
                     btn -> {
                         cfg.set(!cfg.get());
                         CONFIG_SPEC.save();
+                        onChange.accept(cfg.get());
                         btn.setMessage(Component.translatable(
                                 cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"));
                     })
@@ -432,6 +458,7 @@ public class ConfigScreen extends Screen {
         return new UiToggle(inputX, y, btnW, 20, cfg.get(), v -> {
             cfg.set(v);
             CONFIG_SPEC.save();
+            onChange.accept(v);
         });
     }
 
@@ -506,6 +533,30 @@ public class ConfigScreen extends Screen {
         }
     }
 
+    /** ESC/cancel reverts the edit session back to the open-time snapshot. */
+    @Override
+    public void onClose() {
+        if (!confirmed && draftBase != null) {
+            CONFIG_SPEC.importJson(draftBase);
+            rollbackThemeState();
+            Theme.invalidateSnapshot();
+        }
+        CONFIG_SPEC.save();
+        if (minecraft != null) minecraft.setScreen(lastScreen);
+    }
+
+    private void rollbackThemeState() {
+        boolean wantActive = ModClientConfig.CONFIG.customThemeActive.get();
+        if (!wantActive) {
+            if (CustomTheme.INSTANCE.isActive()) CustomTheme.INSTANCE.unload();
+            return;
+        }
+        String f = ModClientConfig.CONFIG.customThemeFile.get();
+        if (f != null && !f.isEmpty() && !CustomTheme.INSTANCE.isActive()) {
+            CustomTheme.INSTANCE.load(f);
+        }
+    }
+
     public void onPermissionResponse(String scope, boolean allowed) {
         pendingOpMsg = null;
         if (minecraft == null) return;
@@ -527,6 +578,7 @@ public class ConfigScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        Theme.beginFrame();
         int contentBottom = height - 48;
         for (AbstractWidget w : scrollWidgets) {
             int wy = w.getY();
@@ -634,12 +686,6 @@ public class ConfigScreen extends Screen {
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    @Override
-    public void onClose() {
-        CONFIG_SPEC.save();
-        if (minecraft != null) minecraft.setScreen(lastScreen);
     }
 
     private long scheduledSaveAt = -1;

@@ -4,12 +4,13 @@ import cn.sarskin.ChatSphere.network.ServerPayloadHandlers;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
+import cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.network.ServerboundPermissionCheckPayload;
 import cn.sarskin.ChatSphere.network.ServerboundVoicePacket;
+import cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 
-/** Server-side receiver registration. Kept separate from the client registration
- *  so that dedicated servers never load client-only classes. */
+/** Server-side receiver registration, separate from client so dedicated servers never load client-only classes. */
 public final class FabricServerNetwork {
     private FabricServerNetwork() {}
 
@@ -24,7 +25,11 @@ public final class FabricServerNetwork {
                 ctx.server().execute(() -> ServerPayloadHandlers.configUpdate(ctx.player(), p)));
         ServerPlayNetworking.registerGlobalReceiver(ServerboundVoicePacket.TYPE, (p, ctx) ->
                 ctx.server().execute(() -> ServerPayloadHandlers.voicePacket(ctx.player(), p)));
+        ServerPlayNetworking.registerGlobalReceiver(ServerboundVoiceRequestPayload.TYPE, (p, ctx) ->
+                ctx.server().execute(() -> ServerPayloadHandlers.voiceRequest(ctx.player(), p)));
         ServerPlayNetworking.registerGlobalReceiver(ServerboundCommandMessagePayload.TYPE, (p, ctx) ->
                 ctx.server().execute(() -> ServerPayloadHandlers.commandMessage(ctx.player(), p)));
+        ServerPlayNetworking.registerGlobalReceiver(ServerboundCustomEmojiPayload.TYPE, (p, ctx) ->
+                ctx.server().execute(() -> ServerPayloadHandlers.customEmoji(ctx.player(), p)));
     }
 }

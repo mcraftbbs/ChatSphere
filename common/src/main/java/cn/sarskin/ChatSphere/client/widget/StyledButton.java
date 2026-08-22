@@ -76,6 +76,11 @@ public class StyledButton extends Button {
         final int disabledBorderColor;
         final int disabledTextColor;
 
+        public int getBgColor() { return bgColor; }
+        public int getHoverColor() { return hoverColor; }
+        public int getBorderColor() { return borderColor; }
+        public int getTextColor() { return textColor; }
+
         Style(int bg, int hover, int border, int text,
               int disabledBg, int disabledBorder, int disabledText) {
             this.bgColor = bg;

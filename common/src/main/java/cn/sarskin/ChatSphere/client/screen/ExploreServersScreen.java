@@ -3,26 +3,34 @@ package cn.sarskin.ChatSphere.client.screen;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
+import cn.sarskin.ChatSphere.mixin.ScreenAccessor;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/** Server explorer: rows with icon, name, description, member count and join button. */
 public class ExploreServersScreen extends Screen {
+    private static final int PAD = 12;
+    private static final int HEADER_H = 36;
     private static final int ROW_H = 42;
-    private static final int CONTENT_Y = 68;
+    private static final int BTN_W = 58;
 
     private final Screen parent;
     private final List<ChannelRow> rows = new ArrayList<>();
     private final List<AbstractWidget> scrollWidgets = new ArrayList<>();
     private int scrollOffset;
+    private int scrollMax;
+    private int btnAreaX;
+    private long lastVersion = -1;
     private boolean requestInFlight;
     private long lastRequestMs;
 
@@ -51,15 +59,16 @@ public class ExploreServersScreen extends Screen {
             }
         }
 
-        int btnY = Math.max(CONTENT_Y + 10, height - 32);
+        btnAreaX = width - PAD - BTN_W - 4;
+        createRowButtons();
+        lastVersion = ChatHistoryManager.getInstance().getPublicChannelsVersion();
+
         addRenderableWidget(StyledButton.styledBuilder(
                 Component.translatable("screen.chatsphere.explore.back"),
                 btn -> onClose()
-        ).bounds(width / 2 - 50, btnY, 100, 20).style(StyledButton.Style.CONFIRM).tooltip(
+        ).bounds(width - 10 - 8 - 100, height - 32, 100, 20).style(StyledButton.Style.CONFIRM).tooltip(
                 Component.translatable("screen.chatsphere.explore.tip_back")
         ).build());
-
-        repositionWidgets();
     }
 
     private void sendRequest() {
@@ -72,32 +81,40 @@ public class ExploreServersScreen extends Screen {
                                 true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "")));
     }
 
-    private void repositionWidgets() {
+    private void createRowButtons() {
         scrollWidgets.forEach(this::removeWidget);
         scrollWidgets.clear();
-
-        int btnH = 18;
-        int btnW = 50;
-        int btnAreaX = width - btnW - 20;
-
-        for (int i = 0; i < rows.size(); i++) {
-            ChannelRow r = rows.get(i);
-            int y = CONTENT_Y + ROW_H + i * ROW_H - scrollOffset;
-
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        for (ChannelRow r : rows) {
+            boolean joined = history.getChannels().contains(r.entry.channelId());
             StyledButton joinBtn = StyledButton.styledBuilder(
-                    Component.translatable("screen.chatsphere.explore.join"),
+                    Component.translatable(joined ? "screen.chatsphere.explore.joined" : "screen.chatsphere.explore.join"),
                     b -> doJoin(r.entry.channelId())
-            ).bounds(btnAreaX, y + (ROW_H - btnH) / 2, btnW, btnH)
-                    .style(StyledButton.Style.CONFIRM)
-                    .tooltip(Component.translatable("screen.chatsphere.explore.tip_join")).build();
+            ).bounds(btnAreaX, 0, BTN_W, 20)
+                    .style(joined ? StyledButton.Style.TOGGLE_ON : StyledButton.Style.CONFIRM)
+                    .tooltip(Component.translatable(joined
+                            ? "screen.chatsphere.explore.tip_joined"
+                            : "screen.chatsphere.explore.tip_join")).build();
+            joinBtn.active = !joined;
             addActionWidget(joinBtn);
             r.joinBtn = joinBtn;
+            r.joined = joined;
         }
     }
 
-    private AbstractWidget addActionWidget(AbstractWidget w) {
+    private void addActionWidget(AbstractWidget w) {
         scrollWidgets.add(w);
-        return addRenderableWidget(w);
+        addRenderableWidget(w);
+    }
+
+    private void repositionButtons() {
+        int y = HEADER_H + 8 - scrollOffset;
+        for (ChannelRow r : rows) {
+            if (r.joinBtn != null) {
+                r.joinBtn.setY(y + (ROW_H - 20) / 2);
+            }
+            y += ROW_H;
+        }
     }
 
     private void doJoin(String channelId) {
@@ -119,14 +136,10 @@ public class ExploreServersScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        super.render(g, mouseX, mouseY, partialTick);
-
-        g.drawString(font, title, width / 2 - font.width(title) / 2, 14, Theme.text(), false);
-        g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
+        renderBackground(g, mouseX, mouseY, partialTick);
 
         ChatHistoryManager history = ChatHistoryManager.getInstance();
-        List<ClientboundPublicChannelListPayload.PublicChannelEntry> data =
-                history.getPublicChannels();
+        List<ClientboundPublicChannelListPayload.PublicChannelEntry> data = history.getPublicChannels();
 
         boolean dirty = history.isPublicChannelsDirty();
         if (dirty) {
@@ -140,57 +153,106 @@ public class ExploreServersScreen extends Screen {
             requestInFlight = false;
         }
 
+        // Rebuild rows only on version bump
+        if (data != null) {
+            long v = history.getPublicChannelsVersion();
+            if (v != lastVersion) {
+                lastVersion = v;
+                refresh();
+            }
+        }
+
+        int iconX = PAD;
+        int iconY = (HEADER_H - 18) / 2;
+        Ui.fillRoundedRect(g, iconX, iconY, 18, 18, 5, Theme.iconBtnBg());
+        g.drawString(font, "★", iconX + (18 - font.width("★")) / 2, iconY + 5, Theme.accent(), false);
+
+        Component title = Component.translatable("screen.chatsphere.explore.title");
+        g.drawString(font, title, iconX + 26, (HEADER_H - 8) / 2, Theme.text(), false);
+
+        if (data != null) {
+            Component count = Component.translatable("screen.chatsphere.explore.count", data.size());
+            g.drawString(font, count, width - PAD - 16 - 8 - font.width(count), (HEADER_H - 8) / 2, Theme.textDim(), false);
+        }
+
+        int closeX = width - PAD - 16;
+        int closeY = (HEADER_H - 16) / 2;
+        boolean closeHover = mouseX >= closeX && mouseX < closeX + 16 && mouseY >= closeY && mouseY < closeY + 16;
+        if (closeHover) {
+            Ui.fillRoundedRect(g, closeX, closeY, 16, 16, 4, Theme.hoverRow());
+        }
+        g.drawString(font, "×", closeX + (16 - font.width("×")) / 2, closeY + 4,
+            closeHover ? Theme.text() : Theme.textInactive(), false);
+
+        g.fill(PAD, HEADER_H + 2, width - PAD, HEADER_H + 3, Theme.divider());
+
         if (data == null || dirty) {
             Component loading = Component.translatable("screen.chatsphere.explore.loading");
             g.drawString(font, loading, width / 2 - font.width(loading) / 2,
                     height / 2 - 10, Theme.textDim(), false);
-            return;
-        }
-
-        if (data.isEmpty()) {
+        } else if (data.isEmpty()) {
             Component empty = Component.translatable("screen.chatsphere.explore.empty");
             g.drawString(font, empty, width / 2 - font.width(empty) / 2,
                     height / 2 - 10, Theme.textDim(), false);
-            return;
+        } else {
+            scrollMax = Math.max(0, rows.size() * ROW_H - (height - HEADER_H - 8 - 40));
+            scrollOffset = Mth.clamp(scrollOffset, 0, scrollMax);
+            repositionButtons();
+
+            int y = HEADER_H + 8 - scrollOffset;
+            for (ChannelRow r : rows) {
+                drawRow(g, r.entry, y, mouseX, mouseY);
+                y += ROW_H;
+            }
+
+            if (scrollMax > 0) {
+                int trackTop = HEADER_H + 8;
+                int trackBot = height - 8;
+                int trackH = trackBot - trackTop;
+                int thumbH = Math.max(12, trackH * trackH / (trackH + scrollMax));
+                int thumbY = trackTop + (trackH - thumbH) * scrollOffset / scrollMax;
+                g.fill(width - 5, trackTop, width - 2, trackBot, Theme.scrollTrack());
+                g.fill(width - 5, thumbY, width - 2, thumbY + thumbH, Theme.scrollThumb());
+            }
         }
 
-        // Refresh rows if data changed (e.g., initial load)
-        if (rows.isEmpty()) {
-            refresh();
+        for (var renderable : ((ScreenAccessor) this).chatsphere$getRenderables()) {
+            renderable.render(g, mouseX, mouseY, partialTick);
+        }
+    }
+
+    private void drawRow(GuiGraphics g, ClientboundPublicChannelListPayload.PublicChannelEntry entry,
+                         int y, int mouseX, int mouseY) {
+        int rowW = width - PAD * 2;
+        boolean hovered = mouseX >= PAD && mouseX < width - PAD && mouseY >= y && mouseY < y + ROW_H;
+        if (hovered) {
+            Ui.fillRoundedRect(g, PAD, y, rowW, ROW_H, 6, Theme.hoverRow());
         }
 
-        Component info = Component.translatable("screen.chatsphere.explore.count", data.size());
-        g.drawString(font, info, 30, CONTENT_Y + 4, Theme.textDim(), false);
+        int iconX = PAD + 4;
+        int iconY = y + (ROW_H - 28) / 2;
+        Ui.fillRoundedRect(g, iconX, iconY, 28, 28, 7, Theme.iconBtnBg());
+        Ui.renderRoundedOutline(g, iconX, iconY, 28, 28, 7, Theme.divider());
+        g.drawString(font, "#", iconX + (28 - font.width("#")) / 2, iconY + 10, Theme.accent(), false);
 
-        int y = CONTENT_Y + ROW_H;
-        for (int i = 0; i < rows.size(); i++) {
-            ChannelRow r = rows.get(i);
-            int ry = y + i * ROW_H - scrollOffset;
-            if (ry < CONTENT_Y - ROW_H || ry > height) continue;
+        int textX = iconX + 28 + 12;
+        int textW = btnAreaX - textX - 8;
 
-            boolean hover = mouseY >= ry && mouseY < ry + ROW_H && mouseX >= 10 && mouseX <= width - 10;
-            if (hover) g.fill(10, ry, width - 10, ry + ROW_H, Theme.hoverRow());
+        g.drawString(font, Component.literal(entry.displayName()), textX, y + 3, Theme.text(), false);
 
-            var entry = r.entry;
+        String desc = entry.description() != null && !entry.description().isEmpty() ? entry.description() : "";
+        int maxChars = Math.max(20, textW / 6);
+        if (desc.length() > maxChars) desc = desc.substring(0, maxChars - 3) + "...";
+        g.drawString(font, Component.literal(desc), textX, y + 14, Theme.textDim(), false);
 
-            // Channel name
-            g.drawString(font, Component.literal(entry.displayName()),
-                    14, ry + 3, Theme.text(), false);
-
-            // Description (truncated to ~50 chars)
-            String desc = entry.description() != null && !entry.description().isEmpty()
-                    ? entry.description() : "";
-            if (desc.length() > 50) desc = desc.substring(0, 47) + "...";
-            g.drawString(font, Component.literal(desc),
-                    14, ry + 14, Theme.textDim(), false);
-
-            // Member / online count
-            Component countInfo = Component.translatable(
-                    "screen.chatsphere.explore.member_count", entry.memberCount(), entry.onlineCount());
-            g.drawString(font, countInfo, 14, ry + 25, Theme.textInactive(), false);
-
-            // Join button is positioned by repositionWidgets
-        }
+        Component countInfo = Component.translatable(
+                "screen.chatsphere.explore.member_count", entry.memberCount(), entry.onlineCount());
+        int dot = 6;
+        int dotX = textX + 6;
+        // Dot centered on the count text
+        int dotY = y + 28 - dot / 2;
+        Ui.fillRoundedRect(g, dotX - dot / 2, dotY, dot, dot, dot / 2, 0xFF23A55A);
+        g.drawString(font, countInfo, dotX + dot, y + 24, Theme.textInactive(), false);
     }
 
     private void refresh() {
@@ -203,16 +265,27 @@ public class ExploreServersScreen extends Screen {
                 rows.add(new ChannelRow(entry));
             }
         }
-        repositionWidgets();
+        createRowButtons();
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            int closeX = width - PAD - 16;
+            int closeY = (HEADER_H - 16) / 2;
+            if (mouseX >= closeX && mouseX < closeX + 16 && mouseY >= closeY && mouseY < closeY + 16) {
+                onClose();
+                return true;
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (mouseX < 10 || mouseX > width - 10) return false;
-        scrollOffset -= (int) (scrollY * 20);
-        int maxScroll = Math.max(0, rows.size() * ROW_H - (height - CONTENT_Y - ROW_H - 30));
-        scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
-        repositionWidgets();
+        if (mouseX < PAD || mouseX > width - PAD || mouseY < HEADER_H) return false;
+        if (scrollMax <= 0) return false;
+        scrollOffset = Mth.clamp(scrollOffset - (int) (scrollY * 20), 0, scrollMax);
         return true;
     }
 
@@ -227,13 +300,13 @@ public class ExploreServersScreen extends Screen {
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
-
     @Override
     public boolean isPauseScreen() { return false; }
 
     private static class ChannelRow {
         final ClientboundPublicChannelListPayload.PublicChannelEntry entry;
         AbstractWidget joinBtn;
+        boolean joined;
 
         ChannelRow(ClientboundPublicChannelListPayload.PublicChannelEntry entry) {
             this.entry = entry;

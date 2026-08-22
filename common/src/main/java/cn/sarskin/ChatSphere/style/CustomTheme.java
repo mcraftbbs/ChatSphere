@@ -14,22 +14,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Central manager for the active custom theme.
- *
- * Security model:
- *  - themes are read ONLY from config/chatsphere/themes/*.ctheme (path-normalized, local)
- *  - files are parsed by ThemeFileParser with a strict white-list; any failure rejects
- *    the whole file and keeps the previous theme (or built-in defaults)
- *  - values are data-only (ints); nothing is executed
- */
+/** Active custom theme; parsed strictly by ThemeFileParser (data-only values); failures keep the previous theme. */
 public final class CustomTheme {
     public static final CustomTheme INSTANCE = new CustomTheme();
     public static final String EXT = ".ctheme";
     public static final String LEGACY_EXT = ".csstyle";
     public static final String[] PRESETS = { "preset-square", "preset-pixel", "preset-original", "preset-stream" };
     /** Bump to force reinstalling stale bundled presets. */
-    private static final String PRESET_VERSION_MARK = "preset-version: 3";
+    private static final String PRESET_VERSION_MARK = "preset-version: 4";
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ChatSphere-Theme");
     private static final Path DIR = PlatformPaths.configDir().resolve("chatsphere").resolve("themes");
@@ -80,8 +72,6 @@ public final class CustomTheme {
         }
     }
 
-    /** Copy bundled preset themes (mod jar resources) into the themes dir on first run.
-     *  Existing presets are validated; a corrupt/invalid one is reinstalled from the jar. */
     private void installPresets() {
         migrateLegacyFiles();
         for (String preset : PRESETS) {
@@ -163,13 +153,28 @@ public final class CustomTheme {
         return active == null ? null : active.styles.get(key);
     }
 
+    /** Seed the config from styles.popupBorder; the config is the renderer's live value. */
+    private void syncConfigFromStyles() {
+        if (active == null) return;
+        Integer v = active.styles.get("popupBorder");
+        if (v == null) return;
+        try {
+            cn.sarskin.ChatSphere.config.ModClientConfig cfg =
+                    cn.sarskin.ChatSphere.config.ModClientConfig.CONFIG;
+            if (cfg.popupBorder.get() != (v != 0)) {
+                cfg.popupBorder.set(v != 0);
+                cfg.CONFIG_SPEC.save();
+            }
+        } catch (IllegalStateException ignored) {
+            // config not loaded yet
+        }
+    }
+
     public AnimSpec anim(String key) {
         ensureInitialized();
         if (active == null) return AnimSpec.NONE;
         return active.animations.getOrDefault(key, AnimSpec.NONE);
     }
-
-    // ---------- File operations (path-safe, local only) ----------
 
     public List<String> listFiles() {
         List<String> out = new ArrayList<>();
@@ -207,6 +212,7 @@ public final class CustomTheme {
             error = null;
             revision++;
             LOGGER.info("Loaded theme '{}' from {}", spec.name, fileName);
+            syncConfigFromStyles();
             return true;
         } catch (Exception e) {
             error = e.getMessage();
@@ -233,6 +239,7 @@ public final class CustomTheme {
             activeFile = fileName;
             error = null;
             revision++;
+            syncConfigFromStyles();
             return true;
         } catch (Exception e) {
             error = e.getMessage();
@@ -331,12 +338,10 @@ public final class CustomTheme {
         return fileName.endsWith(EXT) ? fileName.substring(0, fileName.length() - EXT.length()) : fileName;
     }
 
-    // ---------- Serialization ----------
-
     public static String template() {
         return """
                 // ChatSphere custom theme (.ctheme)
-                // CS1 marks the format; colors: #RGB | #RRGGBB | #AARRGGBB   Numbers: plain or px/%  Duration: 120ms
+                // CS1; colors #RGB/#RRGGBB/#AARRGGBB; numbers plain/px/%; duration+easing
                 // colorSeed: all unset colors derive from this seed (HCT-style tonal derivation).
                 CS1;
                 theme "My Theme" version 1;

@@ -11,10 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Fabric equivalent of the NeoForge ServerStatusSerializerMixin: re-encodes the
- * server status JSON with the preventsChatReports marker when enabled.
- */
+/** Fabric equivalent of the NeoForge ServerStatusSerializerMixin: re-encode status JSON with the preventsChatReports marker when enabled. */
 @Mixin(ClientboundStatusResponsePacket.class)
 public abstract class ServerStatusMixin {
 

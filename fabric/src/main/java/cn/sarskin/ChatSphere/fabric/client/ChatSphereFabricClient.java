@@ -20,8 +20,7 @@ public class ChatSphereFabricClient implements ClientModInitializer {
         FabricHud.init();
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> ChatSphereClientEvents.onClientLogin());
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ChatSphereClientEvents.onClientDisconnect());
-        // START_CLIENT_TICK runs before vanilla consumes the chat key (END_CLIENT_TICK is too late:
-        // vanilla would already have opened its own ChatScreen).
+        // START_CLIENT_TICK runs before vanilla consumes the chat key; END_CLIENT_TICK would be too late.
         ClientTickEvents.START_CLIENT_TICK.register(ChatSphereClientEvents::onClientTick);
     }
 }

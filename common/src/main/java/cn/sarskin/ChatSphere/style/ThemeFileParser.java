@@ -7,21 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Parser for ChatSphere theme files (.ctheme).
- *
- * Grammar (flat, strict, white-listed):
- *   file       := magic? header? block*
- *   magic      := 'CS' '1' ';'
- *   header     := 'theme' STRING 'version' NUMBER ';'
- *   block      := ('dark'|'light'|'styles'|'animations') '{' prop* '}'
- *   prop       := IDENT ':' value (';')?
- *   value      := COLOR | NUMBER unit? | DURATION EASING | 'none'
- *
- * Any deviation (unknown block, unknown property, bad value, duplicate block,
- * oversize file, too many props) throws ThemeParseException with a line number and
- * the whole file is rejected. Nothing is executed or evaluated.
- */
+/** Strict white-listed .ctheme parser; any deviation rejects the whole file with a line-numbered ThemeParseException. Nothing is executed. */
 public final class ThemeFileParser {
     private ThemeFileParser() {}
 
@@ -250,8 +236,6 @@ public final class ThemeFileParser {
             throw new ThemeParseException("unknown easing for '" + rawName + "'", lineOf(tokens, pos + 2));
         return new AnimSpec(dur, tokens.get(pos + 2).text);
     }
-
-    // ---------- Tokenizer ----------
 
     private static List<Token> tokenize(String text) throws ThemeParseException {
         List<Token> out = new ArrayList<>();

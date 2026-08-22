@@ -79,6 +79,28 @@ public class ConfigStore {
         values.put(key, value);
     }
 
+    /** Serializes the current values (defaults merged in) as JSON; used for edit-session snapshots. */
+    public synchronized String exportJson() {
+        for (Map.Entry<String, Object> e : defaults.entrySet()) {
+            values.putIfAbsent(e.getKey(), e.getValue());
+        }
+        return GSON.toJson(values);
+    }
+
+    /** Replaces all values from a previously exported JSON snapshot and persists it. */
+    public synchronized void importJson(String json) {
+        if (json == null || json.isEmpty()) return;
+        try {
+            Map<String, Object> loaded = GSON.fromJson(json, MAP_TYPE);
+            if (loaded == null) return;
+            values.clear();
+            values.putAll(loaded);
+            save();
+        } catch (RuntimeException e) {
+            LOGGER.warn("Failed to import config {}: {}", file, e.toString());
+        }
+    }
+
     public synchronized void save() {
         try {
             Files.createDirectories(file.getParent());

@@ -46,7 +46,6 @@ public class ModMain {
             } catch (Exception ignored) {}
         }
 
-        // Load PlasmoVoice room addon if PV is installed
         try {
             if (ModList.get().isLoaded("plasmovoice")) {
                 Class<?> pvsClass = Class.forName("su.plo.voice.api.server.PlasmoVoiceServer");

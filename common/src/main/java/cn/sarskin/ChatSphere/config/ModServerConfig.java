@@ -1,6 +1,8 @@
 package cn.sarskin.ChatSphere.config;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -27,6 +29,10 @@ public class ModServerConfig {
     public final CfgValue.Int voiceOfflineMaxAgeHours;
     public final CfgValue.Int voiceOfflineMaxPerPlayer;
     public final CfgValue.Int voiceStorageMax;
+    public final CfgValue.Bool emojiSharingEnabled;
+    public final CfgValue.Bool emojiUploadRequiresOp;
+    public final CfgValue.Int emojiUploadCooldownSeconds;
+    public final CfgValue.Int emojiMaxTotal;
 
     private final Map<String, CfgValue.Bool> boolFields = new HashMap<>();
     private static final Map<String, Boolean> PENDING_BOOLEANS = new ConcurrentHashMap<>();
@@ -57,6 +63,12 @@ public class ModServerConfig {
         voiceOfflineMaxPerPlayer = new CfgValue.Int(store, "voiceOfflineMaxPerPlayer", 10);
         voiceStorageMax = new CfgValue.Int(store, "voiceStorageMax", 512);
 
+        emojiSharingEnabled = new CfgValue.Bool(store, "emojiSharingEnabled", true);
+        emojiUploadRequiresOp = new CfgValue.Bool(store, "emojiUploadRequiresOp", true);
+        emojiUploadCooldownSeconds = new CfgValue.Int(store, "emojiUploadCooldownSeconds", 5);
+        // cap applies per folder
+        emojiMaxTotal = new CfgValue.Int(store, "emojiMaxTotal", 100);
+
         boolFields.put("antiSpam", antiSpam);
         boolFields.put("enableChannels", enableChannels);
         boolFields.put("showStrongHint", showStrongHint);
@@ -65,6 +77,8 @@ public class ModServerConfig {
         boolFields.put("exploreEnabled", exploreEnabled);
         boolFields.put("preventsChatReports", preventsChatReports);
         boolFields.put("voiceOfflineStorage", voiceOfflineStorage);
+        boolFields.put("emojiSharingEnabled", emojiSharingEnabled);
+        boolFields.put("emojiUploadRequiresOp", emojiUploadRequiresOp);
 
         store.save();
     }
@@ -79,7 +93,7 @@ public class ModServerConfig {
         }
     }
 
-    /** Records a boolean change made while offline so it can be synced on next login. */
+    /** Queued while offline; synced on next login. */
     public static void queuePendingUpdate(String fieldName, String value) {
         if (fieldName == null || value == null) return;
         if (!CONFIG.boolFields.containsKey(fieldName)) return;
@@ -101,5 +115,50 @@ public class ModServerConfig {
         }
         PENDING_BOOLEANS.clear();
         return toSend;
+    }
+
+    /** All config values as key → string, for the server → client config sync. */
+    public static Map<String, String> snapshot() {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Field f : ModServerConfig.class.getDeclaredFields()) {
+            if (!CfgValue.class.isAssignableFrom(f.getType())) continue;
+            try {
+                f.setAccessible(true);
+                Object val = f.get(CONFIG);
+                String v;
+                if (val instanceof CfgValue.Bool bv) {
+                    v = String.valueOf(bv.get());
+                } else if (val instanceof CfgValue.Int iv) {
+                    v = String.valueOf(iv.get());
+                } else if (val instanceof CfgValue.Str sv) {
+                    v = sv.get() != null ? sv.get() : "";
+                } else {
+                    continue;
+                }
+                out.put(f.getName(), v);
+            } catch (Exception ignored) {
+            }
+        }
+        return out;
+    }
+
+    /** Applies a server-sent value (keeps the client copy in sync). */
+    public static void applyValue(String key, String value) {
+        if (key == null || value == null) return;
+        try {
+            Field field = ModServerConfig.class.getField(key);
+            Object val = field.get(CONFIG);
+            if (val instanceof CfgValue.Bool bv) {
+                bv.set(Boolean.parseBoolean(value));
+            } else if (val instanceof CfgValue.Int iv) {
+                int v = Integer.parseInt(value);
+                if (v < 0 || v > 1_000_000) return;
+                iv.set(v);
+            } else if (val instanceof CfgValue.Str sv) {
+                sv.set(value);
+            }
+            CONFIG_SPEC.save();
+        } catch (Exception ignored) {
+        }
     }
 }

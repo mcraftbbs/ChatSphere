@@ -3,9 +3,10 @@
     "id": "chatsphere",
     "version": "${version}",
     "name": "ChatSphere",
-    "description": "Server-side chat channels with a Discord-style UI and voice room integration.",
+    "description": "Server-side chat channels with a modern chat UI and voice room integration.",
     "authors": ["sarskin"],
     "license": "GNU LGPLv3",
+    "icon": "logo.png",
     "environment": "*",
     "entrypoints": {
         "main": ["cn.sarskin.ChatSphere.fabric.ChatSphereFabric"],

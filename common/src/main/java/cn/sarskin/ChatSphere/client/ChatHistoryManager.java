@@ -27,6 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 public class ChatHistoryManager {
     public static final String COMMAND_CONVERSATION_ID = "__commands__";
     public static final String DEFAULT_CHANNEL_ID = cn.sarskin.ChatSphere.ModInfo.DEFAULT_CHANNEL_ID;
+    public static final int BRIDGE_PROTOCOL_VERSION = 2;
     private static final ChatHistoryManager INSTANCE = new ChatHistoryManager();
     private static final int MAX_COMMAND_HISTORY = 50;
     private static final int MAX_COMMAND_MESSAGES = 500;
@@ -58,8 +60,13 @@ public class ChatHistoryManager {
     private final Map<String, List<String>> commandHistory = new LinkedHashMap<>();
     private final Map<String, String> knownPlayers = new HashMap<>();
     private final Map<String, Integer> unreadCounts = new HashMap<>();
+    /** Cached online player uuids (event-driven; version bumps only on real changes). */
+    private final Set<String> onlineUuids = new HashSet<>();
+    private long onlineVersion;
     private List<ClientboundPublicChannelListPayload.PublicChannelEntry> publicChannels;
     private boolean publicChannelsDirty;
+    private long publicChannelsVersion;
+    private long subChannelsVersion;
     private boolean loaded;
     private boolean newMessageSinceLastCheck;
     private boolean serverConnected;
@@ -69,6 +76,8 @@ public class ChatHistoryManager {
     private String bridgeVersion;
     private int bridgeCapabilities;
     private Set<String> bridgeOnlinePlayers = Set.of();
+    private boolean bridgeProtocolMismatch;
+    private boolean bridgeMismatchNotified;
     private static final ScheduledExecutorService SAVE_TIMER = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "ChatSphere-SaveTimer");
         t.setDaemon(true);
@@ -119,8 +128,21 @@ public class ChatHistoryManager {
                            String conversationId, ChatMessageData.ConversationType type, boolean isOwn,
                            String replyContent, String replySender,
                            String itemNbt) {
+        addMessage(senderName, senderUuid, content, conversationId, type, isOwn, replyContent, replySender, itemNbt, null);
+    }
+
+    public void addMessage(Component senderName, UUID senderUuid, Component content,
+                           String conversationId, ChatMessageData.ConversationType type, boolean isOwn,
+                           String replyContent, String replySender,
+                           String itemNbt, UUID messageId) {
         String contentStr = content.getString();
         synchronized (messages) {
+            // One row per voice id regardless of delivery path
+            if (contentStr.startsWith("VoiceMessage#")) {
+                for (ChatMessageData m : messages) {
+                    if (contentStr.equals(m.content().getString())) return;
+                }
+            }
             if (ModServerConfig.CONFIG.antiSpam.get() && !messages.isEmpty()) {
                 ChatMessageData last = null;
                 for (int i = messages.size() - 1; i >= 0; i--) {
@@ -145,7 +167,7 @@ public class ChatHistoryManager {
                 messages.remove(0);
             }
             ChatMessageData msg = new ChatMessageData(senderName, senderUuid, content,
-                    System.currentTimeMillis(), conversationId, type, isOwn);
+                    System.currentTimeMillis(), conversationId, type, isOwn, messageId);
             if (replyContent != null && !replyContent.isEmpty() && replySender != null && !replySender.isEmpty()) {
                 msg = msg.withReply(replyContent, replySender);
             } else if (isOwn && pendingReplyContent != null) {
@@ -171,6 +193,7 @@ public class ChatHistoryManager {
             synchronized (knownChannels) {
                 knownChannels.add(conversationId);
             }
+            bumpSubChannels();
         } else {
             synchronized (conversationDisplayNames) {
                 if (!conversationDisplayNames.containsKey(conversationId)) {
@@ -226,7 +249,9 @@ public class ChatHistoryManager {
         if (mc.player == null || !ModClientConfig.CONFIG.notificationSound.get()) return;
         String text = content.getString();
         String playerName = mc.player.getName().getString();
-        if (text.contains("@" + playerName) && ModClientConfig.CONFIG.soundMention.get()) {
+        // Command selectors (@a/@e/@p) are not mentions
+        if (type != ChatMessageData.ConversationType.COMMAND
+                && text.contains("@" + playerName) && ModClientConfig.CONFIG.soundMention.get()) {
             mc.player.playSound(SoundEvents.NOTE_BLOCK_CHIME.value(), 0.6F, 1.0F);
             return;
         }
@@ -332,7 +357,7 @@ public class ChatHistoryManager {
     }
 
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
-    // Precompiled per-locale date formatters: dateLabel() runs once per message per frame.
+    // Precompiled per-locale date formatters (dateLabel runs per message per frame)
     private static final DateTimeFormatter DATE_ZH = DateTimeFormatter.ofPattern("M月d日");
     private static final DateTimeFormatter DATE_EN = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH);
     private static final DateTimeFormatter DATE_ZH_YEAR = DateTimeFormatter.ofPattern("yyyy年M月d日");
@@ -353,7 +378,7 @@ public class ChatHistoryManager {
                 .format(TIMESTAMP_FORMATTER);
     }
 
-    /** Same day: HH:mm; this year: M月d日 HH:mm; earlier years: with yyyy. */
+    /** Same day: HH:mm; this year: month-day HH:mm; earlier years: with yyyy. */
     public static String formatTimestampSmart(long millis) {
         ZoneId zone = ZoneId.systemDefault();
         LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), zone);
@@ -362,7 +387,7 @@ public class ChatHistoryManager {
         return date + " " + dt.format(TIMESTAMP_FORMATTER);
     }
 
-    /** Group header label: Today / Yesterday / M月d日 / yyyy年M月d日 (no time). */
+    /** Group header label: Today / Yesterday / month-day / year-month-day (no time). */
     public static String formatDateHeader(long millis) {
         ZoneId zone = ZoneId.systemDefault();
         LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), zone);
@@ -473,6 +498,7 @@ public class ChatHistoryManager {
         synchronized (knownChannels) {
             knownChannels.add(id);
         }
+        bumpSubChannels();
         invalidateConversationIds();
         synchronized (channelConfigs) {
             if (!channelConfigs.containsKey(id)) {
@@ -554,7 +580,8 @@ public class ChatHistoryManager {
                                 new ArrayList<>(config.mutedPlayers),
                                 new ArrayList<>(config.invitedPlayers),
                                 config.inviteCode,
-                                config.showInExplore, "", "", "", config.mainChatEnabled, config.defaultSubChannel)));
+                                config.showInExplore, "", "", "", config.mainChatEnabled, config.defaultSubChannel,
+                                config.slowModeSeconds)));
             }
         }
     }
@@ -785,8 +812,13 @@ public class ChatHistoryManager {
             if (commandMessages.size() >= MAX_COMMAND_MESSAGES) {
                 commandMessages.remove(0);
             }
+            // isOwn = "sent by me"; isInput = typed command vs console output (stored separately)
+            net.minecraft.client.Minecraft mcInst = net.minecraft.client.Minecraft.getInstance();
+            boolean own = senderUuid != null && mcInst.player != null
+                    && senderUuid.equals(mcInst.player.getUUID());
             ChatMessageData msg = new ChatMessageData(senderName, senderUuid, content,
-                    System.currentTimeMillis(), COMMAND_CONVERSATION_ID, ChatMessageData.ConversationType.COMMAND, isInput);
+                    System.currentTimeMillis(), COMMAND_CONVERSATION_ID, ChatMessageData.ConversationType.COMMAND,
+                    own, null, isInput);
             commandMessages.add(msg);
         }
         if (!isInput) {
@@ -794,7 +826,6 @@ public class ChatHistoryManager {
             unreadCounts.merge(COMMAND_CONVERSATION_ID, 1, Integer::sum);
             cachedUnreadTotal = -1;
             notifySoundForMessage(content, ChatMessageData.ConversationType.COMMAND);
-            checkMentionAndHint(senderName.getString(), senderName);
         }
         markDirty();
     }
@@ -816,6 +847,7 @@ public class ChatHistoryManager {
         synchronized (knownChannels) {
             knownChannels.clear();
         }
+        bumpSubChannels();
         invalidateConversationIds();
         synchronized (channelConfigs) {
             channelConfigs.clear();
@@ -993,7 +1025,8 @@ public class ChatHistoryManager {
                         msg.duplicateCount(),
                         msg.replyContent(),
                         msg.replySender(),
-                        msg.itemNbt()
+                        msg.itemNbt(),
+                        msg.messageId()
                 ));
             }
         }
@@ -1011,7 +1044,8 @@ public class ChatHistoryManager {
                         msg.duplicateCount(),
                         msg.replyContent(),
                         msg.replySender(),
-                        msg.itemNbt()
+                        msg.itemNbt(),
+                        msg.messageId()
                 ));
             }
         }
@@ -1036,6 +1070,7 @@ public class ChatHistoryManager {
         c.showInExplore = src.showInExplore;
         c.mainChatEnabled = src.mainChatEnabled;
         c.defaultSubChannel = src.defaultSubChannel;
+        c.slowModeSeconds = src.slowModeSeconds;
         for (cn.sarskin.ChatSphere.client.voice.VoiceRoom vr : src.voiceRooms) {
             cn.sarskin.ChatSphere.client.voice.VoiceRoom copy = new cn.sarskin.ChatSphere.client.voice.VoiceRoom();
             copy.name = vr.name;
@@ -1097,6 +1132,48 @@ public class ChatHistoryManager {
     public void setPublicChannels(List<ClientboundPublicChannelListPayload.PublicChannelEntry> list) {
         this.publicChannels = list;
         this.publicChannelsDirty = false;
+        this.publicChannelsVersion++;
+    }
+
+    /** Cached public-channel version; bump on every setPublicChannels. */
+    public long getPublicChannelsVersion() { return publicChannelsVersion; }
+
+    /** Cached sub-channel-tree version; bump whenever knownChannels structure changes. */
+    public long getSubChannelsVersion() { return subChannelsVersion; }
+
+    private void bumpSubChannels() { subChannelsVersion++; }
+
+    public boolean isPlayerOnline(String uuid) {
+        synchronized (onlineUuids) { return uuid != null && onlineUuids.contains(uuid); }
+    }
+
+    public long getOnlineVersion() { return onlineVersion; }
+
+    public void markPlayerOnline(String uuid) {
+        synchronized (onlineUuids) {
+            if (uuid != null && onlineUuids.add(uuid)) onlineVersion++;
+        }
+    }
+
+    public void markPlayerOffline(String uuid) {
+        synchronized (onlineUuids) {
+            if (uuid != null && onlineUuids.remove(uuid)) onlineVersion++;
+        }
+    }
+
+    /** Rebuild from a fresh snapshot; bumps the version only when the set actually changed. */
+    public void syncOnlinePlayers(Iterable<? extends net.minecraft.client.multiplayer.PlayerInfo> infos) {
+        synchronized (onlineUuids) {
+            Set<String> next = new HashSet<>();
+            if (infos != null) {
+                for (var info : infos) next.add(info.getProfile().getId().toString());
+            }
+            if (!next.equals(onlineUuids)) {
+                onlineUuids.clear();
+                onlineUuids.addAll(next);
+                onlineVersion++;
+            }
+        }
     }
 
     public void setBridgeInfo(ClientboundBridgeInfoPayload payload) {
@@ -1104,6 +1181,18 @@ public class ChatHistoryManager {
         this.bridgeVersion = payload.bridgeVersion();
         this.bridgeCapabilities = payload.capabilities();
         this.bridgeOnlinePlayers = payload.onlinePlayers() != null ? payload.onlinePlayers() : Set.of();
+        this.bridgeProtocolMismatch = payload.protocolVersion() != BRIDGE_PROTOCOL_VERSION;
+        if (bridgeProtocolMismatch && !bridgeMismatchNotified) {
+            bridgeMismatchNotified = true;
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player != null) {
+                mc.player.displayClientMessage(Component.translatable(
+                        "chatsphere.bridge.version_warning",
+                        String.valueOf(payload.protocolVersion()),
+                        String.valueOf(BRIDGE_PROTOCOL_VERSION),
+                        payload.bridgeVersion() != null ? payload.bridgeVersion() : "?"), false);
+            }
+        }
     }
 
     public int getBridgeProtocolVersion() { return bridgeProtocolVersion; }
@@ -1111,6 +1200,7 @@ public class ChatHistoryManager {
     public int getBridgeCapabilities() { return bridgeCapabilities; }
     public Set<String> getBridgeOnlinePlayers() { return bridgeOnlinePlayers; }
     public boolean hasBridgeCapability(int cap) { return (bridgeCapabilities & cap) != 0; }
+    public boolean isBridgeProtocolMismatch() { return bridgeProtocolMismatch; }
 
     public boolean isPublicChannelsDirty() {
         return publicChannelsDirty;
@@ -1126,6 +1216,7 @@ public class ChatHistoryManager {
                 knownChannels.add(e.id());
             }
         }
+        bumpSubChannels();
         invalidateConversationIds();
         synchronized (channelConfigs) {
             channelConfigs.clear();
@@ -1143,6 +1234,7 @@ public class ChatHistoryManager {
                 cfg.showInExplore = e.showInExplore();
                 cfg.mainChatEnabled = e.mainChatEnabled();
                 cfg.defaultSubChannel = e.defaultSubChannel() != null ? e.defaultSubChannel() : "";
+                cfg.slowModeSeconds = e.slowModeSeconds();
                 cfg.voiceRooms.clear();
                 for (ModServerChannels.VoiceRoom vr : e.voiceRooms()) {
                     cn.sarskin.ChatSphere.client.voice.VoiceRoom cvr = new cn.sarskin.ChatSphere.client.voice.VoiceRoom();
@@ -1181,6 +1273,7 @@ public class ChatHistoryManager {
                 knownChannels.add(newId);
             }
         }
+        bumpSubChannels();
         synchronized (channelConfigs) {
             ChatDataStore.ChannelConfig cfg = channelConfigs.remove(oldId);
             if (cfg != null) {
@@ -1210,6 +1303,7 @@ public class ChatHistoryManager {
                 knownChannels.add(newPrefix + id.substring(oldPrefix.length()));
             }
         }
+        bumpSubChannels();
         synchronized (channelConfigs) {
             Map<String, ChatDataStore.ChannelConfig> childCfgs = new HashMap<>();
             for (String id : new ArrayList<>(channelConfigs.keySet())) {
@@ -1234,7 +1328,7 @@ public class ChatHistoryManager {
                 }
                 if (mapped != null) {
                     ChatMessageData copy = new ChatMessageData(m.senderName(), m.senderUuid(), m.content(),
-                            m.timestamp(), mapped, m.conversationType(), m.isOwn())
+                            m.timestamp(), mapped, m.conversationType(), m.isOwn(), m.messageId(), m.isInput())
                             .withReply(m.replyContent(), m.replySender())
                             .withItemNbt(m.itemNbt());
                     copy.setDuplicateCount(m.duplicateCount());
@@ -1257,7 +1351,10 @@ public class ChatHistoryManager {
         if (!loaded) load();
         loaded = true;
         Map<String, String[]> replyMap = new HashMap<>();
+        List<ChatMessageData> localMessages;
+        List<ChatMessageData> localCommands;
         synchronized (messages) {
+            localMessages = new ArrayList<>(messages);
             for (ChatMessageData existing : messages) {
                 if (existing.replyContent() != null) {
                     replyMap.put(existing.senderName().getString() + "|" + existing.content().getString() + "|" + existing.conversationId(),
@@ -1267,6 +1364,7 @@ public class ChatHistoryManager {
             messages.clear();
         }
         synchronized (commandMessages) {
+            localCommands = new ArrayList<>(commandMessages);
             commandMessages.clear();
         }
         List<ChatMessageData> cmdList = new ArrayList<>();
@@ -1323,7 +1421,9 @@ public class ChatHistoryManager {
                         sm.timestamp(),
                         convId,
                         ctype,
-                        isOwn
+                        isOwn,
+                        sm.messageId(),
+                        sm.isInput()
                 );
             } else {
                 msgData = new ChatMessageData(
@@ -1333,7 +1433,8 @@ public class ChatHistoryManager {
                         sm.timestamp(),
                         convId,
                         ctype,
-                        isOwn
+                        isOwn,
+                        sm.messageId()
                 );
             }
             if (rc != null && !rc.isEmpty() && rs != null && !rs.isEmpty()) {
@@ -1352,6 +1453,7 @@ public class ChatHistoryManager {
 
         synchronized (commandMessages) {
             commandMessages.addAll(cmdList);
+            mergeLocalOnly(commandMessages, localCommands);
             if (commandMessages.size() > MAX_COMMAND_MESSAGES) {
                 commandMessages.subList(0, commandMessages.size() - MAX_COMMAND_MESSAGES).clear();
             }
@@ -1372,6 +1474,7 @@ public class ChatHistoryManager {
                 }
             }
             messages.addAll(deduped);
+            mergeLocalOnly(messages, localMessages);
             invalidateConversationIds();
             for (int i = 0; i < messages.size(); i++) {
                 ChatMessageData msg = messages.get(i);
@@ -1383,6 +1486,42 @@ public class ChatHistoryManager {
                 }
             }
             messagesVersion++;
+        }
+    }
+
+    /** True when two messages represent the same entry (messageId when available, else content match). */
+    private static boolean sameMessage(ChatMessageData a, ChatMessageData b) {
+        String ca = a.content().getString();
+        String cb = b.content().getString();
+        // Match by embedded voice id, not messageId (each path assigns its own)
+        if (ca.startsWith("VoiceMessage#") || cb.startsWith("VoiceMessage#")) {
+            return ca.equals(cb) && a.conversationId().equals(b.conversationId());
+        }
+        if (a.messageId() != null && b.messageId() != null
+                && !a.messageId().equals(Util.NIL_UUID) && !b.messageId().equals(Util.NIL_UUID)) {
+            return a.messageId().equals(b.messageId());
+        }
+        return a.conversationId().equals(b.conversationId())
+                && a.senderName().getString().equals(b.senderName().getString())
+                && a.content().getString().equals(b.content().getString())
+                && Math.abs(a.timestamp() - b.timestamp()) < 2000;
+    }
+
+    /** Keep local-only messages the server sync lacks, in timestamp order. */
+    private static void mergeLocalOnly(List<ChatMessageData> merged, List<ChatMessageData> local) {
+        if (local == null || local.isEmpty()) return;
+        for (ChatMessageData lm : local) {
+            boolean dup = false;
+            for (ChatMessageData m : merged) {
+                if (sameMessage(m, lm)) {
+                    dup = true;
+                    break;
+                }
+            }
+            if (dup) continue;
+            int pos = 0;
+            while (pos < merged.size() && merged.get(pos).timestamp() <= lm.timestamp()) pos++;
+            merged.add(pos, lm);
         }
     }
 

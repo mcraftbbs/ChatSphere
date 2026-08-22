@@ -4,6 +4,8 @@ import cn.sarskin.ChatSphere.network.ClientboundBridgeInfoPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChatPayload;
+import cn.sarskin.ChatSphere.network.ClientboundConfigSyncPayload;
+import cn.sarskin.ChatSphere.network.ClientboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundPermissionResponsePayload;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
@@ -11,8 +13,10 @@ import cn.sarskin.ChatSphere.network.ClientboundVoicePacket;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
+import cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.network.ServerboundPermissionCheckPayload;
 import cn.sarskin.ChatSphere.network.ServerboundVoicePacket;
+import cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 
 /**
@@ -33,7 +37,9 @@ public final class FabricTypes {
         PayloadTypeRegistry.playC2S().register(ServerboundPermissionCheckPayload.TYPE, ServerboundPermissionCheckPayload.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ServerboundConfigUpdatePayload.TYPE, ServerboundConfigUpdatePayload.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ServerboundVoicePacket.TYPE, ServerboundVoicePacket.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ServerboundVoiceRequestPayload.TYPE, ServerboundVoiceRequestPayload.STREAM_CODEC);
         PayloadTypeRegistry.playC2S().register(ServerboundCommandMessagePayload.TYPE, ServerboundCommandMessagePayload.STREAM_CODEC);
+        PayloadTypeRegistry.playC2S().register(ServerboundCustomEmojiPayload.TYPE, ServerboundCustomEmojiPayload.STREAM_CODEC);
 
         PayloadTypeRegistry.playS2C().register(ClientboundChannelSyncPayload.TYPE, ClientboundChannelSyncPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ClientboundMessageSyncPayload.TYPE, ClientboundMessageSyncPayload.STREAM_CODEC);
@@ -43,5 +49,7 @@ public final class FabricTypes {
         PayloadTypeRegistry.playS2C().register(ClientboundBridgeInfoPayload.TYPE, ClientboundBridgeInfoPayload.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ClientboundVoicePacket.TYPE, ClientboundVoicePacket.STREAM_CODEC);
         PayloadTypeRegistry.playS2C().register(ClientboundChannelRenamedPayload.TYPE, ClientboundChannelRenamedPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ClientboundConfigSyncPayload.TYPE, ClientboundConfigSyncPayload.STREAM_CODEC);
+        PayloadTypeRegistry.playS2C().register(ClientboundCustomEmojiPayload.TYPE, ClientboundCustomEmojiPayload.STREAM_CODEC);
     }
 }

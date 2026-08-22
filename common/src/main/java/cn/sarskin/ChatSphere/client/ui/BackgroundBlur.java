@@ -8,10 +8,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
-/**
- * Panel blur via a GL blit downscale chain (to 1/16) and upscale back —
- * no shaders (Iris-friendly). Physical-pixel based, unaffected by gui scale.
- */
+/** Panel blur via GL blit downscale/upscale (no shaders, Iris-friendly). */
 public final class BackgroundBlur {
     private BackgroundBlur() {}
 

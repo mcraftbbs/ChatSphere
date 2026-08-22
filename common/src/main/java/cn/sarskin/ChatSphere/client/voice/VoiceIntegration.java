@@ -16,7 +16,6 @@ public class VoiceIntegration {
     private static Object svcApi;
     private static final Object SVC_LOCK = new Object();
 
-    // Cached SVC reflection handles
     private static Class<?> svcApiClass;
     private static Method svcGroupBuilder;
     private static Class<?> svcGroupBuilderClass;

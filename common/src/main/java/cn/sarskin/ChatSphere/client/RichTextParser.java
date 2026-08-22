@@ -19,19 +19,8 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * Lightweight whitelist-based markup parser (jsoup Safelist philosophy; self-contained, zero dependencies).
- *
- * <p>Supported markup (HTML-style, rendered through Minecraft's native Component/Style system):
- * <ul>
- *   <li>[b]x[/b] bold, [i] italic, [u] underline, [s] strikethrough, [o] obfuscated</li>
- *   <li>[color=#RRGGBB]x[/color], [color=red]x[/color] (named colors via ChatFormatting)</li>
- *   <li>[gradient=#AABBCC,#DDEEFF,...]x[/gradient] per-character color interpolation</li>
- *   <li>[code]x[/code] gray monospace-ish text</li>
- *   <li>[url=https://x]label[/url] clickable link; [url]https://x[/url] opens the inner text</li>
- *   <li>\[ escape: typing \[b] shows the literal text</li>
- * </ul>
- * Everything else stays literal. Unclosed/mismatched tags are kept as literal text.
- * Safe by design: only whitelisted tags are interpreted, URLs are sanitized, depth and length are capped.
+ * Whitelist-based markup parser ([b], [color], [gradient], [code], [url]).
+ * Only listed tags are interpreted; everything else stays literal, URLs are sanitized.
  */
 public final class RichTextParser {
 
