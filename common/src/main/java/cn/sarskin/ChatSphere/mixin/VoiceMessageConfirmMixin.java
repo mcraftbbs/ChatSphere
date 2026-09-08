@@ -1,5 +1,6 @@
 package cn.sarskin.ChatSphere.mixin;
 
+import cn.sarskin.ChatSphere.client.ModVoiceMessagesIntegration;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -30,7 +31,13 @@ public class VoiceMessageConfirmMixin {
             Class<?> pmCls = Class.forName("ru.dimaskama.voicemessages.client.PlaybackManager");
             Object pm = pmCls.getField("MAIN").get(null);
             Method addFromChat = pmCls.getMethod("addFromChat", List.class);
-            addFromChat.invoke(pm, audio);
+            // Marks this addFromChat as our own send (see the playbacks hook).
+            ModVoiceMessagesIntegration.setLocalSendInProgress(true);
+            try {
+                addFromChat.invoke(pm, audio);
+            } finally {
+                ModVoiceMessagesIntegration.setLocalSendInProgress(false);
+            }
 
             ci.cancel();
         } catch (Exception ignored) {}

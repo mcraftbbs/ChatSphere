@@ -43,6 +43,8 @@ public class ModVoiceMessagesIntegration {
     private static final Set<UUID> SEEN_UUIDS = new HashSet<>();
     private static final Queue<VoiceCtx> CONTEXT_QUEUE = new ConcurrentLinkedQueue<>();
     private static volatile PendingVoice pendingVoice;
+    /** Set while the confirm hook calls PlaybackManager.addFromChat. */
+    private static volatile boolean localSendInProgress;
     private static String localPlayerName;
 
     private record VoiceCtx(UUID senderUuid, String target) {}
@@ -51,6 +53,10 @@ public class ModVoiceMessagesIntegration {
 
     public static void setPendingVoice(String conversationId, String conversationType) {
         pendingVoice = new PendingVoice(conversationId, conversationType);
+    }
+
+    public static void setLocalSendInProgress(boolean inProgress) {
+        localSendInProgress = inProgress;
     }
 
     public static PendingVoice pollPendingVoice() {
@@ -111,7 +117,8 @@ public class ModVoiceMessagesIntegration {
                 @Override
                 public Object put(UUID key, Object value) {
                     SEEN_UUIDS.add(key);
-                    PendingVoice pv = pollPendingVoice();
+                    // Only our own send consumes the pending conversation (a stale one would hijack received voices).
+                    PendingVoice pv = localSendInProgress ? pollPendingVoice() : null;
                     if (pv != null) {
                         Minecraft mc = Minecraft.getInstance();
                         if (mc.player != null && playbackGetAudio != null) {
@@ -342,9 +349,16 @@ public class ModVoiceMessagesIntegration {
         // Only the sender uploads audio; relaying another player's voice would mis-attribute the sender
         if (isOwn) {
             uploadVoiceAudio(playbackUuid, convId, convType);
+            // Native VM sends get no relay back; add our row unless the hook did.
+            if (!ChatHistoryManager.getInstance().hasVoiceMessage(playbackUuid)) {
+                ChatHistoryManager.getInstance().addMessage(
+                        name, mc.player.getUUID(),
+                        Component.literal("VoiceMessage#" + playbackUuid),
+                        convId, convType, true);
+            }
         }
 
-        // Chat row is created only by the server relay (handleIncomingVoice) — never insert a second row
+        // Other players' rows come only from the server relay (handleIncomingVoice).
     }
 
     /** Upload locally available voice audio (received via VM) to the server for history/storage. */
@@ -366,6 +380,8 @@ public class ModVoiceMessagesIntegration {
                     voiceMessageId, convId, convType.name(), mc.player.getUUID(), typed.size(), serialized);
             mc.getConnection().getConnection().send(
                     new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(pkt));
+            // Cache our audio so the row stays playable without a re-fetch.
+            ModVoiceCache.save(convId, convType.name(), mc.player.getUUID(), voiceMessageId, serialized, typed.size());
         } catch (Exception ignored) {
         }
     }

@@ -12,14 +12,15 @@ public final class ServerHooks {
 
     public static void onPlayerJoin(ServerPlayer sp) {
         ModServerChannels msc = ModServerChannels.getInstance(sp.server);
+        // Send caps first so the client trims history with them.
+        sp.connection.send(new ClientboundCustomPayloadPacket(
+                new ClientboundConfigSyncPayload(ModServerConfig.snapshot())));
         msc.onPlayerJoined(sp);
         msc.sendToPlayer(sp);
         msc.sendMessagesToPlayer(sp);
         ModVoiceStorage vs = ModVoiceStorage.getInstance(sp.server);
         vs.deliverToPlayer(sp, msc);
         ModServerEmoji.getInstance(sp.server).syncTo(sp);
-        sp.connection.send(new ClientboundCustomPayloadPacket(
-                new ClientboundConfigSyncPayload(ModServerConfig.snapshot())));
     }
 
     public static void onServerStopping(MinecraftServer server) {

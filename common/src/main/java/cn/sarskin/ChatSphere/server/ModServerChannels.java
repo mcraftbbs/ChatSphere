@@ -51,6 +51,8 @@ public class ModServerChannels {
     private final Map<String, ChannelEntry> channels = new LinkedHashMap<>();
     private final Map<String, String> knownPlayers = new LinkedHashMap<>();
     private final List<StoredMessage> messageHistory = new ArrayList<>();
+    /** Separate cap: console entries must not evict chat history. */
+    private final List<StoredMessage> commandHistory = new ArrayList<>();
     private boolean loaded;
     private long lastBackupTime;
     /** Slow mode: channelId|playerUuid -> last accepted message time (ms). */
@@ -506,18 +508,20 @@ public class ModServerChannels {
 
     public void sendMessagesToPlayer(ServerPlayer player) {
         List<StoredMessage> snapshot;
+        List<StoredMessage> commandSnapshot;
         synchronized (messageHistory) {
-            if (messageHistory.isEmpty()) return;
             snapshot = new ArrayList<>(messageHistory);
+        }
+        synchronized (commandHistory) {
+            commandSnapshot = new ArrayList<>(commandHistory);
         }
         // Filter outside the history lock (avoids lock-order inversion).
         List<StoredMessage> msgs = new ArrayList<>();
         String playerUuid = player.getUUID().toString();
         for (StoredMessage m : snapshot) {
+            // Console entries live in commandHistory.
             if ("COMMAND".equals(m.conversationType())) {
-                // Console history is per-player: only the owner's messages sync; legacy NIL entries never redistribute.
-                UUID suid = m.senderUuid();
-                if (suid == null || suid.equals(Util.NIL_UUID) || !suid.toString().equals(playerUuid)) continue;
+                continue;
             } else if ("PRIVATE".equals(m.conversationType())) {
                 String convId = m.conversationId();
                 boolean isForPlayer = m.senderUuid().toString().equals(playerUuid);
@@ -538,6 +542,13 @@ public class ModServerChannels {
                 }
             }
             msgs.add(m);
+        }
+        // Console history is per-player: only the owner's entries sync; legacy NIL entries never redistribute.
+        for (StoredMessage m : commandSnapshot) {
+            UUID suid = m.senderUuid();
+            if (suid != null && !suid.equals(Util.NIL_UUID) && suid.toString().equals(playerUuid)) {
+                msgs.add(m);
+            }
         }
         if (msgs.isEmpty()) return;
         player.connection.send(new ClientboundCustomPayloadPacket(
@@ -586,15 +597,27 @@ public class ModServerChannels {
         StoredMessage msg = new StoredMessage(senderName, senderUuid, content, System.currentTimeMillis(),
                 conversationId, conversationType, replyContent, replySender, itemNbt,
                 UUID.randomUUID(), isInput);
-        synchronized (messageHistory) {
-            messageHistory.add(msg);
-            int cap = ModServerConfig.CONFIG.maxChatHistory.get();
-            while (messageHistory.size() > cap) {
-                messageHistory.remove(0);
+        // Console entries are capped separately from chat history.
+        if ("COMMAND".equals(conversationType)) {
+            synchronized (commandHistory) {
+                commandHistory.add(msg);
+                trimTo(commandHistory, ModServerConfig.CONFIG.maxCommandMessages.get());
+            }
+        } else {
+            synchronized (messageHistory) {
+                messageHistory.add(msg);
+                trimTo(messageHistory, ModServerConfig.CONFIG.maxChatHistory.get());
             }
         }
         saveMessages();
         return msg;
+    }
+
+    /** Keeps the newest entries; callers hold the list lock. */
+    private static void trimTo(List<StoredMessage> list, int cap) {
+        while (list.size() > cap) {
+            list.remove(0);
+        }
     }
 
     public synchronized void addMemberToChannel(String channelId, String playerUuid) {
@@ -832,6 +855,11 @@ public class ModServerChannels {
                 if (content.equals(m.content())) return true;
             }
         }
+        synchronized (commandHistory) {
+            for (StoredMessage m : commandHistory) {
+                if (content.equals(m.content())) return true;
+            }
+        }
         return false;
     }
 
@@ -969,33 +997,21 @@ public class ModServerChannels {
         if (!Files.exists(path)) return;
         try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             JsonObject obj = GSON.fromJson(reader, JsonObject.class);
-            if (obj == null || !obj.has("messages")) return;
-            JsonArray arr = obj.getAsJsonArray("messages");
+            if (obj == null) return;
             List<StoredMessage> loaded = new ArrayList<>();
-            for (var el : arr) {
-                try {
-                    JsonObject m = el.getAsJsonObject();
-                    StoredMessage sm = new StoredMessage(
-                            m.get("senderName").getAsString(),
-                            UUID.fromString(m.get("senderUuid").getAsString()),
-                            m.get("content").getAsString(),
-                            m.get("timestamp").getAsLong(),
-                            m.has("conversationId") ? m.get("conversationId").getAsString() : DEFAULT_CHANNEL_ID,
-                            m.has("conversationType") ? m.get("conversationType").getAsString() : "CHANNEL",
-                            m.has("replyContent") ? m.get("replyContent").getAsString() : "",
-                            m.has("replySender") ? m.get("replySender").getAsString() : "",
-                            m.has("itemNbt") ? m.get("itemNbt").getAsString() : "",
-                            m.has("messageId") ? UUID.fromString(m.get("messageId").getAsString()) : Util.NIL_UUID,
-                            m.has("isInput") && m.get("isInput").getAsBoolean()
-                    );
-                    loaded.add(sm);
-                } catch (Exception e) {
-                    LOGGER.warn("Skipping corrupt stored message: {}", e.getMessage());
-                }
-            }
+            List<StoredMessage> loadedCommands = new ArrayList<>();
+            // Older files mixed console entries into "messages"; split them on load.
+            readMessageArray(obj, "messages", loaded, loadedCommands);
+            readMessageArray(obj, "commandMessages", loaded, loadedCommands);
             synchronized (messageHistory) {
                 messageHistory.clear();
                 messageHistory.addAll(loaded);
+                trimTo(messageHistory, ModServerConfig.CONFIG.maxChatHistory.get());
+            }
+            synchronized (commandHistory) {
+                commandHistory.clear();
+                commandHistory.addAll(loadedCommands);
+                trimTo(commandHistory, ModServerConfig.CONFIG.maxCommandMessages.get());
             }
         } catch (Exception e) {
             LOGGER.error("Failed to load server messages (backing up corrupt file)", e);
@@ -1008,36 +1024,46 @@ public class ModServerChannels {
         }
     }
 
+    private static void readMessageArray(JsonObject root, String key, List<StoredMessage> chat, List<StoredMessage> commands) {
+        if (!root.has(key)) return;
+        for (var el : root.getAsJsonArray(key)) {
+            try {
+                StoredMessage sm = parseStoredMessage(el.getAsJsonObject());
+                if (sm == null) continue;
+                if ("COMMAND".equals(sm.conversationType())) {
+                    commands.add(sm);
+                } else {
+                    chat.add(sm);
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Skipping corrupt stored message: {}", e.getMessage());
+            }
+        }
+    }
+
+    private static StoredMessage parseStoredMessage(JsonObject m) {
+        return new StoredMessage(
+                m.get("senderName").getAsString(),
+                UUID.fromString(m.get("senderUuid").getAsString()),
+                m.get("content").getAsString(),
+                m.get("timestamp").getAsLong(),
+                m.has("conversationId") ? m.get("conversationId").getAsString() : DEFAULT_CHANNEL_ID,
+                m.has("conversationType") ? m.get("conversationType").getAsString() : "CHANNEL",
+                m.has("replyContent") ? m.get("replyContent").getAsString() : "",
+                m.has("replySender") ? m.get("replySender").getAsString() : "",
+                m.has("itemNbt") ? m.get("itemNbt").getAsString() : "",
+                m.has("messageId") ? UUID.fromString(m.get("messageId").getAsString()) : Util.NIL_UUID,
+                m.has("isInput") && m.get("isInput").getAsBoolean()
+        );
+    }
+
     private void saveMessages() {
         Path path = getMessagesPath();
         try {
             Files.createDirectories(path.getParent());
             JsonObject root = new JsonObject();
-            JsonArray arr = new JsonArray();
-            synchronized (messageHistory) {
-                for (StoredMessage m : messageHistory) {
-                    JsonObject obj = new JsonObject();
-                    obj.addProperty("senderName", m.senderName());
-                    obj.addProperty("senderUuid", m.senderUuid().toString());
-                    obj.addProperty("content", m.content());
-                    obj.addProperty("timestamp", m.timestamp());
-                    obj.addProperty("conversationId", m.conversationId());
-                    obj.addProperty("conversationType", m.conversationType());
-                    obj.addProperty("isInput", m.isInput());
-                    if (m.replyContent() != null && !m.replyContent().isEmpty()) {
-                        obj.addProperty("replyContent", m.replyContent());
-                        obj.addProperty("replySender", m.replySender());
-                    }
-                    if (m.itemNbt() != null && !m.itemNbt().isEmpty()) {
-                        obj.addProperty("itemNbt", m.itemNbt());
-                    }
-                    if (m.messageId() != null) {
-                        obj.addProperty("messageId", m.messageId().toString());
-                    }
-                    arr.add(obj);
-                }
-            }
-            root.add("messages", arr);
+            root.add("messages", toJsonArray(messageHistory));
+            root.add("commandMessages", toJsonArray(commandHistory));
             Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) {
                 GSON.toJson(root, writer);
@@ -1047,6 +1073,34 @@ public class ModServerChannels {
         } catch (Exception e) {
             LOGGER.error("Failed to save server messages", e);
         }
+    }
+
+    private static JsonArray toJsonArray(List<StoredMessage> list) {
+        JsonArray arr = new JsonArray();
+        synchronized (list) {
+            for (StoredMessage m : list) {
+                JsonObject obj = new JsonObject();
+                obj.addProperty("senderName", m.senderName());
+                obj.addProperty("senderUuid", m.senderUuid().toString());
+                obj.addProperty("content", m.content());
+                obj.addProperty("timestamp", m.timestamp());
+                obj.addProperty("conversationId", m.conversationId());
+                obj.addProperty("conversationType", m.conversationType());
+                obj.addProperty("isInput", m.isInput());
+                if (m.replyContent() != null && !m.replyContent().isEmpty()) {
+                    obj.addProperty("replyContent", m.replyContent());
+                    obj.addProperty("replySender", m.replySender());
+                }
+                if (m.itemNbt() != null && !m.itemNbt().isEmpty()) {
+                    obj.addProperty("itemNbt", m.itemNbt());
+                }
+                if (m.messageId() != null) {
+                    obj.addProperty("messageId", m.messageId().toString());
+                }
+                arr.add(obj);
+            }
+        }
+        return arr;
     }
 
     public synchronized void save() {

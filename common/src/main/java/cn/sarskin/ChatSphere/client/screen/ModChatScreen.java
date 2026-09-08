@@ -481,11 +481,9 @@ public class ModChatScreen extends Screen {
                         }
                         ChatHistoryManager history = ChatHistoryManager.getInstance();
                         ChatMessageData.ConversationType convType = history.getConversationType(currentConversation);
-                        if (convType == ChatMessageData.ConversationType.CHANNEL && !ChatHistoryManager.DEFAULT_CHANNEL_ID.equals(currentConversation)) {
-                            ModVoiceMessagesIntegration.setPendingVoice(currentConversation, "CHANNEL");
-                            ModVoiceMessagesIntegration.openRecordingScreen(this, btnX, this.height - btnY + 1, "chatsphere_internal");
-                        } else if (convType == ChatMessageData.ConversationType.PRIVATE) {
-                            ModVoiceMessagesIntegration.setPendingVoice(currentConversation, "PRIVATE");
+                        if (convType == ChatMessageData.ConversationType.CHANNEL || convType == ChatMessageData.ConversationType.PRIVATE) {
+                            // All conversations relay through us, so the sender sees the row at once.
+                            ModVoiceMessagesIntegration.setPendingVoice(currentConversation, convType.name());
                             ModVoiceMessagesIntegration.openRecordingScreen(this, btnX, this.height - btnY + 1, "chatsphere_internal");
                         } else {
                             String target = resolveVoiceTarget();
