@@ -1,3 +1,13 @@
+## 2.3.1-1.20.1
+
+### Fixed
+- Chat history no longer lost when console output fills up: console/command entries have their own cap (`maxCommandMessages`) and can no longer evict channel/private messages
+- Server history is trimmed to `maxChatHistory`/`maxCommandMessages` on load, and legacy files are split on load
+- Client console history cap follows the server config instead of a hardcoded 500
+- Server config is synced before history on login so the client applies the correct caps
+- Voice messages always relay through ChatSphere in every conversation type, so the sender's row and audio upload stay consistent
+- A cancelled voice recording can no longer make the next received voice look like your own
+
 ## 2.3.0-1.20.1
 
 ### Added

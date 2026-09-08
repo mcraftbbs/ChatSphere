@@ -8,7 +8,7 @@ A modern instant-messaging chat mod for Minecraft **Fabric (1.20.1)**. Replaces 
 
 > **License:** GNU LGPLv3
 > **Mod ID:** `chatsphere`
-> **Version:** 2.3.0-1.20.1
+> **Version:** 2.3.1-1.20.1
 
 ---
 

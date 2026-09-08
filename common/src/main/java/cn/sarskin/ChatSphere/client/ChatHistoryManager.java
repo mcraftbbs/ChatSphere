@@ -49,7 +49,6 @@ public class ChatHistoryManager {
     public static final int BRIDGE_PROTOCOL_VERSION = 2;
     private static final ChatHistoryManager INSTANCE = new ChatHistoryManager();
     private static final int MAX_COMMAND_HISTORY = 50;
-    private static final int MAX_COMMAND_MESSAGES = 500;
 
     private final List<ChatMessageData> messages = new ArrayList<>();
     private final List<ChatMessageData> commandMessages = new ArrayList<>();
@@ -805,7 +804,7 @@ public class ChatHistoryManager {
                     return;
                 }
             }
-            if (commandMessages.size() >= MAX_COMMAND_MESSAGES) {
+            if (commandMessages.size() >= commandMessageCap()) {
                 commandMessages.remove(0);
             }
             // isOwn = "sent by me"; isInput = typed command vs console output (stored separately)
@@ -824,6 +823,18 @@ public class ChatHistoryManager {
             notifySoundForMessage(content, ChatMessageData.ConversationType.COMMAND);
         }
         markDirty();
+    }
+
+    /** Console cap follows the server config. */
+    private static int commandMessageCap() {
+        return Math.max(1, ModServerConfig.CONFIG.maxCommandMessages.get());
+    }
+
+    private static void trimCommandMessages(List<ChatMessageData> list) {
+        int cap = commandMessageCap();
+        if (list.size() > cap) {
+            list.subList(0, list.size() - cap).clear();
+        }
     }
 
     public void clear() {
@@ -1450,9 +1461,7 @@ public class ChatHistoryManager {
         synchronized (commandMessages) {
             commandMessages.addAll(cmdList);
             mergeLocalOnly(commandMessages, localCommands);
-            if (commandMessages.size() > MAX_COMMAND_MESSAGES) {
-                commandMessages.subList(0, commandMessages.size() - MAX_COMMAND_MESSAGES).clear();
-            }
+            trimCommandMessages(commandMessages);
         }
 
         synchronized (messages) {
