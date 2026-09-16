@@ -15,6 +15,7 @@ import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.network.ServerboundPermissionCheckPayload;
+import cn.sarskin.ChatSphere.network.ServerboundTypingPayload;
 import cn.sarskin.ChatSphere.network.ServerboundVoicePacket;
 import cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -60,6 +61,11 @@ public final class FabricServerNetwork {
                 (server, player, networkHandler, buf, responseSender) -> {
                     ServerboundCustomEmojiPayload p = ServerboundCustomEmojiPayload.read(buf);
                     server.execute(() -> ServerPayloadHandlers.customEmoji(player, p));
+                });
+        ServerPlayNetworking.registerGlobalReceiver(ServerboundTypingPayload.ID,
+                (server, player, networkHandler, buf, responseSender) -> {
+                    ServerboundTypingPayload p = ServerboundTypingPayload.read(buf);
+                    server.execute(() -> ServerPayloadHandlers.typing(player, p));
                 });
     }
 }

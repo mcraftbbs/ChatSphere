@@ -27,6 +27,7 @@ import cn.sarskin.ChatSphere.style.ThemeSpec.AnimSpec;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import org.lwjgl.glfw.GLFW;
 import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
+import cn.sarskin.ChatSphere.network.ServerboundTypingPayload;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -72,6 +73,22 @@ public class ModChatScreen extends Screen {
         return railIcon() + railGap();
     }
 
+    private int railContentH() {
+        return RAIL_TOP + railItems.size() * railSlot();
+    }
+
+    private int railMaxScroll() {
+        return Math.max(0, railContentH() + RAIL_BOTTOM_PAD - this.height);
+    }
+
+    private int railItemY(int index) {
+        return RAIL_TOP - railScroll + index * railSlot();
+    }
+
+    private int sidebarMaxScroll() {
+        return Math.max(0, sidebarContentH + SIDEBAR_TOP - this.height);
+    }
+
     private int rowAvatarSize() {
         return compactMode() ? 20 : ROW_AVATAR_SIZE;
     }
@@ -92,6 +109,8 @@ public class ModChatScreen extends Screen {
         return railW() + sidebarWidth();
     }
     private static final int HEADER_BAR_HEIGHT = 14;
+    private static final long TYPING_INTERVAL_MS = 2000L;
+    private long lastTypingSent;
     private static final int MUTE_BAR_H = 14;
     private static final int AVATAR_SIZE = 10;
     private static final int SIDEBAR_AVATAR_SIZE = 12;
@@ -190,9 +209,16 @@ public class ModChatScreen extends Screen {
     private static final int RAIL_ICON = 32;
     private static final int RAIL_GAP = 12;
     private static final int RAIL_SLOT = RAIL_ICON + RAIL_GAP;
-    private static final int RAIL_MAX_ITEMS = 64;
+    private static final int RAIL_MAX_ITEMS = 128;
+    private static final int RAIL_TOP = 12;
+    private static final int RAIL_BOTTOM_PAD = 8;
+    private static final int SIDEBAR_TOP = 10;
     private final boolean[] railHoverOn = new boolean[RAIL_MAX_ITEMS];
     private final long[] railHoverStart = new long[RAIL_MAX_ITEMS];
+    /** Wheel offsets for the two left columns, clamped to their content. */
+    private int railScroll;
+    private int sidebarScroll;
+    private int sidebarContentH;
     private static final int RK_HOME = 0;
     private static final int RK_GROUP = 1;
     private static final int RK_CONSOLE = 2;
@@ -359,6 +385,22 @@ public class ModChatScreen extends Screen {
         if (!COMMAND_CONVERSATION_ID.equals(currentConversation)) {
             mentionPopup.update(value, onlinePlayers);
         }
+        if (!value.isEmpty()) sendTypingPing();
+    }
+
+    /** Typing ping throttle; only sent where the server can relay it. */
+    private void sendTypingPing() {
+        if (!ModClientConfig.CONFIG.typingIndicator.get()) return;
+        if (this.minecraft == null || this.minecraft.getConnection() == null) return;
+        ChatMessageData.ConversationType type = ChatHistoryManager.getInstance().getConversationType(currentConversation);
+        if (type == ChatMessageData.ConversationType.COMMAND) return;
+        long now = System.currentTimeMillis();
+        if (now - lastTypingSent < TYPING_INTERVAL_MS) return;
+        lastTypingSent = now;
+        this.minecraft.getConnection().getConnection().send(
+                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(
+                        ServerboundTypingPayload.ID,
+                        new ServerboundTypingPayload(currentConversation, type.name()).toBuf()));
     }
 
     private void onSearchChanged(String query) {
@@ -632,7 +674,8 @@ public class ModChatScreen extends Screen {
             int iconX = (rw - icon) / 2;
             for (int i = 0; i < railItems.size(); i++) {
                 RailItem item = railItems.get(i);
-                int y = 12 + i * railSlot();
+                int y = railItemY(i);
+                if (y + icon < 0 || y > this.height) continue;
                 if (mouseX >= iconX && mouseX <= iconX + icon && mouseY >= y && mouseY <= y + icon) {
                     switch (item.kind) {
                         case RK_HOME -> {
@@ -696,7 +739,7 @@ public class ModChatScreen extends Screen {
         }
 
         if (button == 0 && mouseX >= sidebarLeft() && mouseX < chatLeft()) {
-            int yOffset = 10;
+            int yOffset = SIDEBAR_TOP - sidebarScroll;
             int headerIdx = 0;
             for (int i = 0; i < sidebarEntries.size(); i++) {
                 SidebarEntry entry = sidebarEntries.get(i);
@@ -1127,6 +1170,19 @@ public class ModChatScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {
+        // Wheel up walks back to the first entries, like the message list
+        if (Theme.stream() && mouseX < railW() && railMaxScroll() > 0) {
+            int railStep = Math.max(8, railSlot() / 2);
+            railScroll += scrollY > 0 ? -railStep : railStep;
+            railScroll = Math.max(0, Math.min(railScroll, railMaxScroll()));
+            return true;
+        }
+        if (mouseX >= sidebarLeft() && mouseX < chatLeft() && sidebarMaxScroll() > 0) {
+            sidebarScroll += scrollY > 0 ? -18 : 18;
+            sidebarScroll = Math.max(0, Math.min(sidebarScroll, sidebarMaxScroll()));
+            return true;
+        }
+
         int emojiPanelX = chatLeft() + 4;
         int emojiPanelY = this.height - 14 - TOOLBAR_HEIGHT - emojiPanel.panelH() - 4;
         if (emojiPanel.mouseScrolled(mouseX, mouseY, emojiPanelX, emojiPanelY, scrollY)) return true;
@@ -1324,7 +1380,8 @@ public class ModChatScreen extends Screen {
             int iconX = (rw - icon) / 2;
             for (int i = 0; i < railItems.size(); i++) {
                 RailItem item = railItems.get(i);
-                int y = 12 + i * railSlot();
+                int y = railItemY(i);
+                if (y + icon < 0 || y > this.height) continue;
                 if (mouseX >= iconX && mouseX <= iconX + icon && mouseY >= y && mouseY <= y + icon) {
                     Component tip;
                     switch (item.kind) {
@@ -1394,7 +1451,7 @@ public class ModChatScreen extends Screen {
         }
 
         if (mouseX >= sidebarLeft() && mouseX < chatLeft()) {
-            int y = 10;
+            int y = SIDEBAR_TOP - sidebarScroll;
             int headerIdx = 0;
             for (int i = 0; i < sidebarEntries.size(); i++) {
                 SidebarEntry entry = sidebarEntries.get(i);
@@ -1877,6 +1934,7 @@ public class ModChatScreen extends Screen {
         railItems.add(new RailItem(RK_EXPLORE, null));
         railItems.add(new RailItem(RK_JOIN, null));
         railItems.add(new RailItem(RK_CREATE, null));
+        railScroll = Math.max(0, Math.min(railScroll, railMaxScroll()));
     }
 
     private void drawRail(GuiGraphics g, int mouseX, int mouseY, long now) {
@@ -1890,7 +1948,8 @@ public class ModChatScreen extends Screen {
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         for (int i = 0; i < railItems.size(); i++) {
             RailItem item = railItems.get(i);
-            int y = 12 + i * railSlot();
+            int y = railItemY(i);
+            if (y + icon < 0 || y > this.height) continue;
             boolean over = overRail && mouseX >= iconX && mouseX <= iconX + icon
                     && mouseY >= y && mouseY <= y + icon;
             if (over != railHoverOn[i]) {
@@ -1998,7 +2057,7 @@ public class ModChatScreen extends Screen {
         int xo = sidebarLeft();
         guiGraphics.fill(0, 0, sidebarWidth(), this.height, Theme.sidebarBg());
 
-        int y = 10;
+        int y = SIDEBAR_TOP - sidebarScroll;
         int headerIdx = 0;
         for (int i = 0; i < sidebarEntries.size(); i++) {
             SidebarEntry entry = sidebarEntries.get(i);
@@ -2112,6 +2171,9 @@ public class ModChatScreen extends Screen {
                 y += SIDEBAR_ITEM_HEIGHT;
             }
         }
+        sidebarContentH = Math.max(0, y - SIDEBAR_TOP + sidebarScroll);
+        // A shorter list after switching conversations must keep the offset in range
+        sidebarScroll = Math.max(0, Math.min(sidebarScroll, sidebarMaxScroll()));
         if (shifted) guiGraphics.pose().popPose();
     }
 
@@ -2179,6 +2241,8 @@ public class ModChatScreen extends Screen {
         int headerX = sidebarLeft() + (this.width - chatLeft() - hw) / 2;
         guiGraphics.drawString(font, header, headerX, 3, Theme.floatingText(), false);
 
+        drawTypingNames(guiGraphics, headerX, hw);
+
         if (type == ChatMessageData.ConversationType.PRIVATE) {
             boolean online = currentConversation != null && isTargetOnline(currentConversation);
             int dotX = chatLeft() + 4;
@@ -2195,6 +2259,20 @@ public class ModChatScreen extends Screen {
             Component muteText = Component.translatable("chatsphere.mute.feedback");
             guiGraphics.drawString(font, muteText, chatLeft() + 6, barY + 3, 0xFFFF8888, false);
         }
+    }
+
+    /** Names of players typing, drawn on the right of the header bar. */
+    private void drawTypingNames(GuiGraphics g, int headerX, int headerWidth) {
+        if (!ModClientConfig.CONFIG.typingIndicator.get()) return;
+        List<String> names = ChatHistoryManager.getInstance().typingNames(currentConversation);
+        if (names.isEmpty()) return;
+        Component text = names.size() == 1
+                ? Component.translatable("chatsphere.typing.one", names.get(0))
+                : Component.translatable("chatsphere.typing.many", names.get(0), names.size() - 1);
+        int textW = font.width(text);
+        int right = width - 6;
+        if (headerX + headerWidth + 6 + textW > right) return;
+        g.drawString(font, text, right - textW, 3, Theme.floatingText(), false);
     }
 
     private boolean isTargetOnline(String convId) {
@@ -2984,7 +3062,9 @@ public class ModChatScreen extends Screen {
 
     /** Largest scroll offset that still fills the chat area with the oldest messages. */
     private int maxScrollOffset() {
-        int limit = ModClientConfig.CONFIG.scrollHistoryLimit.get();
+        // Never below the server's history size: those rows are already in memory
+        int limit = Math.max(ModClientConfig.CONFIG.scrollHistoryLimit.get(),
+                ModServerConfig.CONFIG.maxChatHistory.get());
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         List<ChatMessageData> messages = history.getMessagesByConversation(currentConversation);
         int total = messages.size();

@@ -1,19 +1,46 @@
 package cn.sarskin.ChatSphere.network;
 
 import cn.sarskin.ChatSphere.ModInfo;
-import cn.sarskin.ChatSphere.client.emoji.EmojiFileGuard;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
- * Server -> client custom emoji update: ADD carries the validated image bytes,
- * DELETE removes one. ADD data was already validated server-side, but the client
- * re-validates before writing to disk (defense in depth).
+ * Server -> client custom emoji update: ADD carries the validated image bytes, DELETE removes one.
+ * The client re-validates before writing to disk (defense in depth).
+ *
+ * ADD images travel as numbered chunks (see {@link ServerboundCustomEmojiPayload}) because one 1.20.1
+ * payload may not exceed 32767 bytes.
  */
-public record ClientboundCustomEmojiPayload(Action action, String name, String channelId, byte[] data) {
+public record ClientboundCustomEmojiPayload(Action action, String name, String channelId, byte[] data,
+                                            int index, int total) {
     public static final ResourceLocation ID = new ResourceLocation(ModInfo.MODID, "emoji_update");
+
+    public ClientboundCustomEmojiPayload(Action action, String name, String channelId, byte[] data) {
+        this(action, name, channelId, data, 0, 1);
+    }
+
+    /** One payload for small actions, a numbered series for an image that does not fit. */
+    public static List<ClientboundCustomEmojiPayload> chunked(Action action, String name, String channelId, byte[] data) {
+        byte[] bytes = data == null ? new byte[0] : data;
+        int chunk = ServerboundCustomEmojiPayload.CHUNK_BYTES;
+        if (action != Action.ADD || bytes.length <= chunk) {
+            return List.of(new ClientboundCustomEmojiPayload(action, name, channelId, bytes));
+        }
+        int count = (bytes.length + chunk - 1) / chunk;
+        List<ClientboundCustomEmojiPayload> out = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            int from = i * chunk;
+            int to = Math.min(bytes.length, from + chunk);
+            out.add(new ClientboundCustomEmojiPayload(action, name, channelId,
+                    Arrays.copyOfRange(bytes, from, to), i, count));
+        }
+        return out;
+    }
 
     public FriendlyByteBuf toBuf() {
         FriendlyByteBuf buf = new FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
@@ -25,6 +52,8 @@ public record ClientboundCustomEmojiPayload(Action action, String name, String c
         buf.writeInt(p.action.ordinal());
         writeUtf(buf, p.name);
         writeUtf(buf, p.channelId);
+        buf.writeInt(p.index);
+        buf.writeInt(p.total);
         byte[] data = p.data != null ? p.data : new byte[0];
         buf.writeInt(data.length);
         buf.writeBytes(data);
@@ -38,17 +67,22 @@ public record ClientboundCustomEmojiPayload(Action action, String name, String c
         Action action = Action.values()[actionIdx];
         String name = readUtf(buf);
         String channelId = readChannelId(buf);
+        int index = buf.readInt();
+        int total = buf.readInt();
+        if (total < 1 || total > ServerboundCustomEmojiPayload.MAX_CHUNKS || index < 0 || index >= total) {
+            throw new IllegalStateException("Bad emoji chunk: " + index + "/" + total);
+        }
         int len = buf.readInt();
-        if (len < 0 || len > EmojiFileGuard.MAX_BYTES) {
-            throw new IllegalStateException("Emoji payload too large: " + len);
+        if (len < 0 || len > ServerboundCustomEmojiPayload.CHUNK_BYTES) {
+            throw new IllegalStateException("Emoji chunk too large: " + len);
         }
         byte[] data = new byte[len];
         buf.readBytes(data);
-        return new ClientboundCustomEmojiPayload(action, name, channelId, data);
+        return new ClientboundCustomEmojiPayload(action, name, channelId, data, index, total);
     }
 
     private static void writeUtf(FriendlyByteBuf buf, String s) {
-        byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = (s == null ? "" : s).getBytes(StandardCharsets.UTF_8);
         buf.writeInt(bytes.length);
         buf.writeBytes(bytes);
     }

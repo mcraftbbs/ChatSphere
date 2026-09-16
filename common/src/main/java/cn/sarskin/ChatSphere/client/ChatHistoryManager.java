@@ -47,6 +47,11 @@ public class ChatHistoryManager {
     public static final String COMMAND_CONVERSATION_ID = "__commands__";
     public static final String DEFAULT_CHANNEL_ID = cn.sarskin.ChatSphere.ModInfo.DEFAULT_CHANNEL_ID;
     public static final int BRIDGE_PROTOCOL_VERSION = 2;
+    /** Notification levels: everything, mentions only, or silent. */
+    public static final int NOTIFY_ALL = 0;
+    public static final int NOTIFY_MENTIONS = 1;
+    public static final int NOTIFY_NONE = 2;
+    private static final long TYPING_TTL_MS = 4000L;
     private static final ChatHistoryManager INSTANCE = new ChatHistoryManager();
     private static final int MAX_COMMAND_HISTORY = 50;
 
@@ -59,6 +64,9 @@ public class ChatHistoryManager {
     private final Map<String, List<String>> commandHistory = new LinkedHashMap<>();
     private final Map<String, String> knownPlayers = new HashMap<>();
     private final Map<String, Integer> unreadCounts = new HashMap<>();
+    /** Per-conversation notification level; see NOTIFY_*. */
+    private final Map<String, Integer> notificationLevels = new HashMap<>();
+    private final Map<String, Map<UUID, TypingEntry>> typingByConversation = new HashMap<>();
     private List<ClientboundPublicChannelListPayload.PublicChannelEntry> publicChannels;
     private boolean publicChannelsDirty;
     /** Cached online player uuids (event-driven; version bumps only on real changes). */
@@ -158,7 +166,7 @@ public class ChatHistoryManager {
                         && Objects.equals(last.itemNbt(), itemNbt)) {
                     last.setDuplicateCount(last.duplicateCount() + 1);
                     newMessageSinceLastCheck = true;
-                    if (!isOwn) notifySoundForMessage(content, type);
+                    if (!isOwn) notifySoundForMessage(content, type, conversationId);
                     return;
                 }
             }
@@ -211,7 +219,7 @@ public class ChatHistoryManager {
             newMessageSinceLastCheck = true;
             unreadCounts.merge(conversationId, 1, Integer::sum);
             cachedUnreadTotal = -1;
-            notifySoundForMessage(content, type);
+            notifySoundForMessage(content, type, conversationId);
             checkMentionAndHint(contentStr, senderName);
         }
         markDirty();
@@ -243,9 +251,11 @@ public class ChatHistoryManager {
         save();
     }
 
-    private void notifySoundForMessage(Component content, ChatMessageData.ConversationType type) {
+    private void notifySoundForMessage(Component content, ChatMessageData.ConversationType type, String conversationId) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || !ModClientConfig.CONFIG.notificationSound.get()) return;
+        int level = getNotificationLevel(conversationId);
+        if (level == NOTIFY_NONE) return;
         String text = content.getString();
         String playerName = mc.player.getName().getString();
         // Command selectors (@a/@e/@p) are not mentions
@@ -254,6 +264,7 @@ public class ChatHistoryManager {
             mc.player.playSound(SoundEvents.NOTE_BLOCK_CHIME.value(), 0.6F, 1.0F);
             return;
         }
+        if (level == NOTIFY_MENTIONS) return;
         if (type == ChatMessageData.ConversationType.PRIVATE && ModClientConfig.CONFIG.soundWhisper.get()) {
             mc.player.playSound(SoundEvents.NOTE_BLOCK_CHIME.value(), 0.4F, 1.5F);
             return;
@@ -412,9 +423,87 @@ public class ChatHistoryManager {
         return unreadCounts.getOrDefault(conversationId, 0);
     }
 
+    /** Names typing in a conversation; entries expire on their own. */
+    public List<String> typingNames(String conversationId) {
+        if (conversationId == null) return List.of();
+        synchronized (typingByConversation) {
+            Map<UUID, TypingEntry> entries = typingByConversation.get(conversationId);
+            if (entries == null) return List.of();
+            long now = System.currentTimeMillis();
+            entries.entrySet().removeIf(e -> e.getValue().expiresAt() < now);
+            if (entries.isEmpty()) {
+                typingByConversation.remove(conversationId);
+                return List.of();
+            }
+            List<String> names = new ArrayList<>(entries.size());
+            for (TypingEntry entry : entries.values()) names.add(entry.name());
+            return names;
+        }
+    }
+
+    public void noteTyping(String conversationId, UUID playerUuid, String playerName) {
+        if (conversationId == null || playerUuid == null) return;
+        synchronized (typingByConversation) {
+            typingByConversation.computeIfAbsent(conversationId, k -> new LinkedHashMap<>())
+                    .put(playerUuid, new TypingEntry(playerName == null ? "" : playerName,
+                            System.currentTimeMillis() + TYPING_TTL_MS));
+        }
+    }
+
+    public int getNotificationLevel(String conversationId) {
+        if (conversationId == null) return NOTIFY_ALL;
+        synchronized (notificationLevels) {
+            Integer override = notificationLevels.get(conversationId);
+            if (override != null) return override;
+        }
+        return ModClientConfig.CONFIG.defaultNotificationLevel.get();
+    }
+
+    /** Cycles all -> mentions -> none and persists the choice. */
+    public int cycleNotificationLevel(String conversationId) {
+        if (conversationId == null) return NOTIFY_ALL;
+        int next;
+        synchronized (notificationLevels) {
+            next = (getNotificationLevel(conversationId) + 1) % 3;
+            notificationLevels.put(conversationId, next);
+        }
+        markDirty();
+        return next;
+    }
+
+    /** Label for the current level, e.g. "Notify: All". */
+    public static Component notificationLevelLabel(int level) {
+        String key = switch (level) {
+            case NOTIFY_MENTIONS -> "chatsphere.notify.mentions";
+            case NOTIFY_NONE -> "chatsphere.notify.none";
+            default -> "chatsphere.notify.all";
+        };
+        return Component.translatable("chatsphere.notify.chip", Component.translatable(key));
+    }
+
+    private record TypingEntry(String name, long expiresAt) {}
+
+    private static String levelName(int level) {
+        return switch (level) {
+            case NOTIFY_MENTIONS -> "mentions";
+            case NOTIFY_NONE -> "none";
+            default -> "all";
+        };
+    }
+
+    private static int levelValue(String name) {
+        if (name == null) return NOTIFY_ALL;
+        return switch (name) {
+            case "mentions" -> NOTIFY_MENTIONS;
+            case "none" -> NOTIFY_NONE;
+            default -> NOTIFY_ALL;
+        };
+    }
+
     public void markConversationRead(String conversationId) {
         unreadCounts.remove(conversationId);
         cachedUnreadTotal = -1;
+        markDirty();
     }
 
     public int getTotalUnreadCount() {
@@ -800,7 +889,7 @@ public class ChatHistoryManager {
                 if (last != null && last.senderName().getString().equals(senderName.getString())
                         && last.content().getString().equals(contentStr)) {
                     last.setDuplicateCount(last.duplicateCount() + 1);
-                    if (!isInput) notifySoundForMessage(content, ChatMessageData.ConversationType.COMMAND);
+                    if (!isInput) notifySoundForMessage(content, ChatMessageData.ConversationType.COMMAND, COMMAND_CONVERSATION_ID);
                     return;
                 }
             }
@@ -820,7 +909,7 @@ public class ChatHistoryManager {
             newMessageSinceLastCheck = true;
             unreadCounts.merge(COMMAND_CONVERSATION_ID, 1, Integer::sum);
             cachedUnreadTotal = -1;
-            notifySoundForMessage(content, ChatMessageData.ConversationType.COMMAND);
+            notifySoundForMessage(content, ChatMessageData.ConversationType.COMMAND, COMMAND_CONVERSATION_ID);
         }
         markDirty();
     }
@@ -862,6 +951,16 @@ public class ChatHistoryManager {
         synchronized (commandHistory) {
             commandHistory.clear();
         }
+        synchronized (unreadCounts) {
+            unreadCounts.clear();
+        }
+        synchronized (notificationLevels) {
+            notificationLevels.clear();
+        }
+        synchronized (typingByConversation) {
+            typingByConversation.clear();
+        }
+        cachedUnreadTotal = -1;
         synchronized (knownPlayers) {
             knownPlayers.clear();
         }
@@ -987,6 +1086,20 @@ public class ChatHistoryManager {
         }
         savedInput = data.savedInput;
         lastConversation = data.lastConversation;
+        synchronized (unreadCounts) {
+            unreadCounts.clear();
+            unreadCounts.putAll(data.unreadCounts);
+        }
+        cachedUnreadTotal = -1;
+        synchronized (notificationLevels) {
+            notificationLevels.clear();
+            for (Map.Entry<String, String> e : data.notificationLevels.entrySet()) {
+                notificationLevels.put(e.getKey(), levelValue(e.getValue()));
+            }
+        }
+        synchronized (typingByConversation) {
+            typingByConversation.clear();
+        }
         invalidateConversationIds();
     }
 
@@ -1059,6 +1172,14 @@ public class ChatHistoryManager {
 
         data.savedInput = savedInput;
         data.lastConversation = lastConversation;
+        synchronized (unreadCounts) {
+            data.unreadCounts.putAll(unreadCounts);
+        }
+        synchronized (notificationLevels) {
+            for (Map.Entry<String, Integer> e : notificationLevels.entrySet()) {
+                data.notificationLevels.put(e.getKey(), levelName(e.getValue()));
+            }
+        }
         ChatDataStore.saveAsync(data);
     }
 

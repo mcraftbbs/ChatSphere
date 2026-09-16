@@ -31,6 +31,12 @@ public final class ClientPayloadHandlers {
         ChatHistoryManager.getInstance().applyServerChannels(p.channels(), p.knownPlayers());
     }
 
+    public static void typing(ClientboundTypingPayload p) {
+        if (p.playerUuid() == null) return;
+        ChatHistoryManager.getInstance().noteTyping(
+                p.conversationId(), p.playerUuid(), p.playerName());
+    }
+
     public static void messageSync(Player player, ClientboundMessageSyncPayload p) {
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         UUID localPlayer = player != null ? player.getUUID() : null;
@@ -124,9 +130,43 @@ public final class ClientPayloadHandlers {
     /** Received on the client thread. Re-validates before touching disk (defense in depth). */
     public static void customEmoji(ClientboundCustomEmojiPayload p) {
         if (p.action() == ClientboundCustomEmojiPayload.Action.ADD) {
-            cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry.receiveServerAdd(p.name(), p.data(), p.channelId());
+            byte[] data = p.total() > 1 ? assembleEmoji(p) : p.data();
+            if (data == null) return;
+            cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry.receiveServerAdd(p.name(), data, p.channelId());
         } else if (p.action() == ClientboundCustomEmojiPayload.Action.DELETE) {
             cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry.receiveServerDelete(p.name(), p.channelId());
         }
+    }
+
+    /** Chunks of one broadcast image, in arrival order. */
+    private static String emojiChunkKey;
+    private static byte[][] emojiChunks;
+    private static int emojiChunksReceived;
+
+    /** Whole image once every chunk arrived, else null. */
+    private static byte[] assembleEmoji(ClientboundCustomEmojiPayload p) {
+        String key = p.channelId() + "|" + p.name();
+        if (p.index() == 0 || emojiChunks == null || !key.equals(emojiChunkKey)
+                || emojiChunks.length != p.total()) {
+            emojiChunkKey = key;
+            emojiChunks = new byte[p.total()][];
+            emojiChunksReceived = 0;
+        }
+        if (emojiChunks[p.index()] == null) {
+            emojiChunks[p.index()] = p.data();
+            emojiChunksReceived++;
+        }
+        if (emojiChunksReceived < emojiChunks.length) return null;
+        int size = 0;
+        for (byte[] part : emojiChunks) size += part.length;
+        byte[] full = new byte[size];
+        int offset = 0;
+        for (byte[] part : emojiChunks) {
+            System.arraycopy(part, 0, full, offset, part.length);
+            offset += part.length;
+        }
+        emojiChunks = null;
+        emojiChunkKey = null;
+        return full;
     }
 }

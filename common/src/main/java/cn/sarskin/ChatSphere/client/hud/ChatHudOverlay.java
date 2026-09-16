@@ -5,6 +5,8 @@ import cn.sarskin.ChatSphere.client.ChatHintsManager;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ChatMessageData;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
+import cn.sarskin.ChatSphere.client.emoji.CustomEmoji;
+import cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
@@ -50,6 +52,7 @@ public class ChatHudOverlay {
     private ChatHudOverlay() {}
 
     public void render(GuiGraphics guiGraphics, float partialTick) {
+        if (!ModClientConfig.CONFIG.hudEnabled.get()) return;
         Theme.beginFrame();
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.options.hideGui) return;
@@ -58,6 +61,7 @@ public class ChatHudOverlay {
 
         int screenWidth = guiGraphics.guiWidth();
         int screenHeight = guiGraphics.guiHeight();
+        int maxBubbleWidth = Math.min(220, Math.max(90, screenWidth * 2 / 5));
 
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         List<ChatMessageData> recentMessages = history.getRecentMessages(MAX_VISIBLE_MESSAGES);
@@ -78,7 +82,7 @@ public class ChatHudOverlay {
             ItemStack itemStack = hasItem ? msg.parsedItem() : ItemStack.EMPTY;
             boolean itemRendered = hasItem && !itemStack.isEmpty();
 
-            Component bubbleText = buildBubbleText(msg, itemRendered);
+            Component bubbleText = buildBubbleText(mc, msg, itemRendered, maxBubbleWidth);
             int textWidth = mc.font.width(bubbleText);
             int iconExtra = itemRendered ? 18 : 0;
             int bubbleWidth = textWidth + BUBBLE_PADDING * 2 + (ModClientConfig.CONFIG.showAvatar.get() ? AVATAR_SIZE + 4 : 0) + iconExtra;
@@ -112,14 +116,15 @@ public class ChatHudOverlay {
         g.drawString(mc.font, hintText, hintX, hintY, (alpha << 24) | 0xFFFFFF55, false);
     }
 
-    private Component buildBubbleText(ChatMessageData msg, boolean itemRendered) {
+    private Component buildBubbleText(Minecraft mc, ChatMessageData msg, boolean itemRendered, int maxWidth) {
         MutableComponent text = Component.literal("");
         boolean showName = ModClientConfig.CONFIG.showSenderName.get();
         boolean showTime = ModClientConfig.CONFIG.showTimestamp.get();
+        int bodyBudget = bodyBudget(mc, msg, maxWidth, itemRendered);
 
         if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) {
             text.append(Component.literal(msg.isInput() ? "> " : "→ ").withStyle(ChatFormatting.GRAY));
-            text.append(msg.senderName().copy().withStyle(msg.isInput() ? ChatFormatting.GREEN : ChatFormatting.WHITE));
+            text.append(clipComponent(mc, msg.senderName(), msg.isInput() ? ChatFormatting.GREEN : ChatFormatting.WHITE, bodyBudget));
             if (showTime) {
                 text.append("  ").append(Component.literal(ChatHistoryManager.formatTimestampSmart(msg.timestamp())).withStyle(ChatFormatting.GRAY));
             }
@@ -135,7 +140,7 @@ public class ChatHudOverlay {
             if (raw.startsWith("VoiceMessage#")) {
                 text.append(Component.translatable("chatsphere.voice.received").withStyle(ChatFormatting.LIGHT_PURPLE));
             } else {
-                text.append(msg.renderedContent());
+                text.append(clipContent(mc, msg.renderedContent(), bodyBudget));
             }
         }
         if (showTime) {
@@ -145,6 +150,55 @@ public class ChatHudOverlay {
             text.append(Component.literal(" x" + msg.duplicateCount()).withStyle(ChatFormatting.GOLD));
         }
         return text;
+    }
+
+    /** Width left for the body after name, timestamp, avatar and padding. */
+    private int bodyBudget(Minecraft mc, ChatMessageData msg, int maxWidth, boolean itemRendered) {
+        int used = BUBBLE_PADDING * 2 + (itemRendered ? 18 : 0);
+        if (ModClientConfig.CONFIG.showAvatar.get()) used += AVATAR_SIZE + 4;
+        if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) {
+            used += mc.font.width(msg.isInput() ? "> " : "→ ");
+            if (ModClientConfig.CONFIG.showTimestamp.get()) {
+                used += mc.font.width("  " + ChatHistoryManager.formatTimestampSmart(msg.timestamp()));
+            }
+        } else {
+            if (ModClientConfig.CONFIG.showSenderName.get()) used += mc.font.width(msg.senderName()) + mc.font.width(" ");
+            if (ModClientConfig.CONFIG.showTimestamp.get()) {
+                used += mc.font.width("  " + ChatHistoryManager.formatTimestampSmart(msg.timestamp()));
+            }
+            if (msg.duplicateCount() > 1) used += mc.font.width(" x" + msg.duplicateCount());
+        }
+        return Math.max(20, maxWidth - used);
+    }
+
+    private Component clipContent(Minecraft mc, Component content, int budget) {
+        // HUD is text only, so custom emoji become a label instead of the raw shortcode
+        String raw = CustomEmojiRegistry.mapTokens(content.getString(), ChatHudOverlay::emojiLabel);
+        String clipped = clip(mc, raw, budget);
+        return clipped.equals(raw) && raw.equals(content.getString()) ? content : Component.literal(clipped);
+    }
+
+    private static String emojiLabel(CustomEmoji emoji) {
+        return Component.translatable(emoji.animated()
+                ? "chatsphere.hud.emoji.animated" : "chatsphere.hud.emoji.static").getString();
+    }
+
+    private Component clipComponent(Minecraft mc, Component content, ChatFormatting style, int budget) {
+        String raw = content.getString();
+        String clipped = clip(mc, raw, budget);
+        return Component.literal(clipped).withStyle(style);
+    }
+
+    /** Character cap first, then shrink until the text fits the pixel budget. */
+    private String clip(Minecraft mc, String raw, int budget) {
+        int cap = Math.max(8, ModClientConfig.CONFIG.hudMaxChars.get());
+        String out = raw.length() > cap ? raw.substring(0, cap) : raw;
+        boolean clipped = out.length() < raw.length();
+        while (out.length() > 8 && mc.font.width(clipped ? out + "…" : out) > budget) {
+            out = out.substring(0, out.length() - 1);
+            clipped = true;
+        }
+        return clipped ? out + "…" : out;
     }
 
     private void drawBubble(GuiGraphics guiGraphics, Minecraft mc, ChatMessageData msg,
@@ -213,6 +267,8 @@ public class ChatHudOverlay {
         guiGraphics.setColor(1f, 1f, 1f, alpha);
         guiGraphics.blit(CHAT_ICON, iconX, iconY, 0, 0, ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE);
         guiGraphics.setColor(1f, 1f, 1f, 1f);
+        // Batching is per render type, so flush the icon or the badge can land underneath
+        guiGraphics.flush();
 
         if (ModClientConfig.CONFIG.notificationBadge.get()) {
             int totalUnread = history.getTotalUnreadCount();
@@ -231,6 +287,8 @@ public class ChatHudOverlay {
                 }
                 int bgColor = (int)(0xCC * flashAlpha) << 24 | 0xFF4444;
                 guiGraphics.fill(bx, by, bx + badgeWidth, by + badgeHeight, bgColor);
+                // Same reason: the label is a text draw, so flush the plate first
+                guiGraphics.flush();
                 guiGraphics.drawString(mc.font, badge, bx + 1, by, 0xFFFFFFFF, false);
             } else {
                 badgeFlashing = false;

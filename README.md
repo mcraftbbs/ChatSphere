@@ -4,11 +4,11 @@
 
 ![ChatSphere](https://cdn.modrinth.com/data/cached_images/8cc6c14cc43b82f8053acb11d80eed267154bdab_0.webp)
 
-A modern instant-messaging chat mod for Minecraft **Fabric (1.20.1)**. Replaces vanilla chat with channels, private messaging, voice rooms, emoji, and a full GUI.
+A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**, plus a **Fabric (1.20.1)** port. Replaces vanilla chat with channels, private messaging, voice rooms, emoji, and a full GUI.
 
-> **License:** GNU LGPLv3
+> **License:** GNU LGPLv3 — released jars carry the LGPLv3 text and a third-party notice (`LICENSE`, `THIRD-PARTY.md`)
 > **Mod ID:** `chatsphere`
-> **Version:** 2.3.1-1.20.1
+> **Version:** 2.4.0
 
 ---
 
@@ -25,14 +25,15 @@ A modern instant-messaging chat mod for Minecraft **Fabric (1.20.1)**. Replaces 
 - Rich text markup (`[b]`, `[color]`, `[gradient]`, `[url]`, `[code]`), bare URLs auto-linkified
 - Anti-spam duplicate merging
 - 4 corner styles (square / pixel / rounded / stream) and custom `.ctheme` themes
+- Optional Discord bridge: mirror a channel to Discord with a webhook, or both ways with a bot token
 - No Chat Reports compatible
 
 ---
 
 ## Installation
 
-1. Install **Fabric Loader 0.16.x** (+ Fabric API) for Minecraft 1.20.1
-2. Drop the ChatSphere `.jar` into `mods/`
+1. Install **NeoForge 21.1.228** or **Fabric Loader 0.16.x** (+ Fabric API) for 1.21.1, or the **Fabric 1.20.1** build
+2. Drop the matching ChatSphere `.jar` into `mods/`
 3. (Optional) Install **Simple Voice Chat** and/or **PlasmoVoice** for voice rooms
 
 The mod works client-only in local storage mode. Install on both server and client for channels, cross-player messaging and voice.
@@ -68,7 +69,20 @@ The mod works client-only in local storage mode. Install on both server and clie
 - **Advanced** — channels, network, voice cache
 - **Custom Themes** — enable and browse installed `.ctheme` files
 
-**Server** — in-game Server Config screen, or edit `config/chatsphere-server.json`. Notable options: `antiSpam`, `maxChatHistory`, `maxCommandMessages`, `enableChannels`, `channelHistoryEnabled`, `exploreEnabled`/`exploreMinMembers`, `backupIntervalMinutes`/`backupKeepMax`, `bannedWords`, `voiceOfflineStorage`/`voiceStorageMax`, `preventsChatReports`, `emojiSharingEnabled`, `emojiUploadRequiresOp`, `emojiUploadCooldownSeconds`, `emojiMaxTotal`.
+**Server** — in-game Server Config screen, or edit `config/chatsphere-server.json`. Notable options: `antiSpam`, `maxChatHistory`, `maxCommandMessages`, `enableChannels`, `channelHistoryEnabled`, `exploreEnabled`/`exploreMinMembers`, `backupIntervalMinutes`/`backupKeepMax`, `bannedWords`, `voiceOfflineStorage`/`voiceStorageMax`, `preventsChatReports`, `emojiSharingEnabled`, `emojiUploadRequiresOp`, `emojiUploadCooldownSeconds`, `emojiMaxTotal`, and the `discord*` options below.
+
+---
+
+## Discord bridge
+
+Off by default. Point it at one Discord channel and one ChatSphere channel:
+
+- **Webhook only** — paste a channel webhook URL, set the mirrored channel, enable the bridge. One way, Minecraft to Discord.
+- **Bot token** — bot token plus Discord channel id. Required for the Discord to Minecraft direction, since Discord has no read API for webhooks.
+
+Private messages and the command console are never forwarded. Bot and webhook messages are ignored on the way back, which keeps the two sides from echoing each other. Webhook URLs and bot tokens stay in the server config file and are never synced to clients.
+
+Full setup steps (including the Developer Portal intents), configuration keys and troubleshooting: [`DISCORD.md`](DISCORD.md).
 
 ---
 
@@ -77,6 +91,9 @@ The mod works client-only in local storage mode. Install on both server and clie
 - `/chatsphere help`
 - `/chatsphere list`
 - `/chatsphere info <name>`
+- `/chatsphere doctor` — history sizes, data file sizes, backups, Discord bridge status
+- `/chatsphere backup` / `backups` / `restore <timestamp>`
+- `/chatsphere purge <channel>` / `reload`
 - `#channelname` — quick-switch in the input field
 
 ---
@@ -122,7 +139,7 @@ Emoji sprite sheet (requires internet):
 
 ## Network Protocol
 
-Version `"1.0"`, Fabric custom payload API. All payload decoders enforce size/count limits; identity always comes from the verified player connection.
+Version `"1.0"`, NeoForge custom packet API. All payload decoders enforce size/count limits; identity always comes from the verified player connection.
 
 ---
 

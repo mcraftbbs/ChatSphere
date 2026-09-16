@@ -28,8 +28,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,7 +41,16 @@ public class PlayerSkinCache {
     private static final Gson GSON = new GsonBuilder().create();
     private static final Map<UUID, ResourceLocation> CACHE = new ConcurrentHashMap<>();
     private static final Map<UUID, CompletableFuture<Void>> PENDING_FETCHES = new ConcurrentHashMap<>();
+    /** API answered without a usable profile; not retried until a manual refresh. */
+    private static final Set<UUID> UNKNOWN = ConcurrentHashMap.newKeySet();
+    /** Transient failures back off instead of retrying every frame. */
+    private static final Map<UUID, Failure> FAILURES = new ConcurrentHashMap<>();
+    private static final long RETRY_BASE_MS = 30_000L;
+    private static volatile int unknownCount;
+    private static volatile boolean apiLooksWrongLogged;
     private static Path cacheDir;
+
+    private record Failure(long at, int attempts) {}
 
     public static void setCacheDir(Path dir) {
         cacheDir = dir.resolve("skincache");
@@ -53,45 +64,120 @@ public class PlayerSkinCache {
         if (cached != null) return cached;
 
         Minecraft mc = Minecraft.getInstance();
-        if (mc.getConnection() != null) {
-            PlayerInfo info = mc.getConnection().getPlayerInfo(uuid);
-            if (info != null) {
-                CACHE.put(uuid, info.getSkinLocation());
-                return info.getSkinLocation();
+        PlayerInfo info = mc.getConnection() != null ? mc.getConnection().getPlayerInfo(uuid) : null;
+        ResourceLocation online = info != null ? info.getSkinLocation() : null;
+
+        String apiUrl = skinApiUrl();
+        if (apiUrl == null) {
+            // No API configured: the tab list skin is all there is
+            if (online != null) {
+                CACHE.put(uuid, online);
+                return online;
             }
+            return DefaultPlayerSkin.getDefaultSkin(uuid);
+        }
+        // Don't cache the fallback while an API is set: it would win over the fetched texture
+        fetchSkinAsync(uuid, apiUrl);
+        return online != null ? online : DefaultPlayerSkin.getDefaultSkin(uuid);
+    }
+
+    private static String skinApiUrl() {
+        if (!ModClientConfig.CONFIG.avatarCacheEnabled.get()) return null;
+        String url = ModClientConfig.CONFIG.customSkinApiUrl.get();
+        if (url == null || url.isBlank()) return null;
+        return url.trim();
+    }
+
+    /** Endpoints to try: {uuid} as given, a profile endpoint gets the id, else an Yggdrasil base. */
+    private static List<String> profileUrls(String apiUrl, UUID uuid) {
+        String base = apiUrl.endsWith("/") ? apiUrl.substring(0, apiUrl.length() - 1) : apiUrl;
+        String plain = uuid.toString().replace("-", "");
+        List<String> out = new ArrayList<>();
+        if (base.contains("{uuid}")) {
+            out.add(base.replace("{uuid}", plain));
+            out.add(base.replace("{uuid}", uuid.toString()));
+            return out;
+        }
+        if (base.contains("/sessionserver/")) {
+            out.add(base + "/" + plain + "?unsigned=false");
+            return out;
+        }
+        out.add(base + "/sessionserver/session/minecraft/profile/" + plain + "?unsigned=false");
+        out.add(base + "/api/yggdrasil/sessionserver/session/minecraft/profile/" + plain + "?unsigned=false");
+        out.add(base + "/api/sessionserver/session/minecraft/profile/" + plain + "?unsigned=false");
+        return out;
+    }
+
+    private record HttpResult(int status, String body) {
+        boolean ok() {
+            return status == 200 && body != null;
         }
 
-        if (ModClientConfig.CONFIG.avatarCacheEnabled.get()) {
-            String apiUrl = ModClientConfig.CONFIG.customSkinApiUrl.get();
-            if (apiUrl != null && !apiUrl.isEmpty()) {
-                fetchSkinAsync(uuid, apiUrl);
-            }
+        /** 4xx means the skin server has no such profile. */
+        boolean unknownProfile() {
+            return status >= 400 && status < 500;
         }
+    }
 
-        return DefaultPlayerSkin.getDefaultSkin(uuid);
+    private static HttpResult httpGet(String url) {
+        try {
+            HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
+            conn.setRequestProperty("User-Agent", "ChatSphere/1.0");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            int status = conn.getResponseCode();
+            if (status != 200) {
+                LOGGER.debug("Skin API {} -> HTTP {}", url, status);
+                return new HttpResult(status, null);
+            }
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = r.readLine()) != null) sb.append(line);
+                return new HttpResult(200, sb.toString());
+            }
+        } catch (Exception e) {
+            LOGGER.debug("Skin API {} failed: {}", url, e.getMessage());
+            return new HttpResult(0, null);
+        }
     }
 
     private static void fetchSkinAsync(UUID uuid, String apiUrl) {
-        if (PENDING_FETCHES.containsKey(uuid)) return;
+        if (PENDING_FETCHES.containsKey(uuid) || UNKNOWN.contains(uuid)) return;
+        Failure failure = FAILURES.get(uuid);
+        if (failure != null) {
+            long wait = RETRY_BASE_MS << Math.min(failure.attempts() - 1, 4);
+            if (System.currentTimeMillis() - failure.at() < wait) return;
+        }
         String uuidStr = uuid.toString().replace("-", "");
+        List<String> candidates = profileUrls(apiUrl, uuid);
         CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
             try {
-                URL url = URI.create(apiUrl + "/sessionserver/session/minecraft/profile/" + uuidStr + "?unsigned=false").toURL();
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestProperty("User-Agent", "ChatSphere/1.0");
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-                if (conn.getResponseCode() != 200) return;
-
-                String json;
-                try (BufferedReader r = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = r.readLine()) != null) sb.append(line);
-                    json = sb.toString();
+                String json = null;
+                boolean unknownProfile = false;
+                for (String candidate : candidates) {
+                    HttpResult result = httpGet(candidate);
+                    if (result.ok()) {
+                        json = result.body();
+                        break;
+                    }
+                    if (result.unknownProfile()) unknownProfile = true;
+                }
+                if (json == null) {
+                    PENDING_FETCHES.remove(uuid);
+                    if (unknownProfile) {
+                        // Chat can mention players from other servers; stop asking and stay quiet
+                        markUnknown(uuid, uuidStr, apiUrl);
+                    } else {
+                        failFetch(uuid, uuidStr, "no response");
+                    }
+                    return;
                 }
                 JsonObject root = GSON.fromJson(json, JsonObject.class);
-                if (root == null || !root.has("properties")) return;
+                if (root == null || !root.has("properties")) {
+                    markUnknown(uuid, uuidStr, apiUrl);
+                    return;
+                }
                 JsonArray props = root.getAsJsonArray("properties");
                 String texturesValue = null;
                 for (JsonElement el : props) {
@@ -101,12 +187,21 @@ public class PlayerSkinCache {
                         break;
                     }
                 }
-                if (texturesValue == null) return;
+                if (texturesValue == null) {
+                    markUnknown(uuid, uuidStr, apiUrl);
+                    return;
+                }
                 String decoded = new String(Base64.getDecoder().decode(texturesValue), StandardCharsets.UTF_8);
                 JsonObject texturesJson = GSON.fromJson(decoded, JsonObject.class);
-                if (texturesJson == null || !texturesJson.has("textures")) return;
+                if (texturesJson == null || !texturesJson.has("textures")) {
+                    markUnknown(uuid, uuidStr, apiUrl);
+                    return;
+                }
                 JsonObject textures = texturesJson.getAsJsonObject("textures");
-                if (!textures.has("SKIN")) return;
+                if (!textures.has("SKIN")) {
+                    markUnknown(uuid, uuidStr, apiUrl);
+                    return;
+                }
                 JsonObject skinObj = textures.getAsJsonObject("SKIN");
                 String skinUrl = skinObj.get("url").getAsString();
                 String model = "default";
@@ -133,27 +228,65 @@ public class PlayerSkinCache {
                         ResourceLocation loc = new ResourceLocation("chatsphere", "skins/" + uuidStr);
                         Minecraft.getInstance().getTextureManager().register(loc, new DynamicTexture(finalSkin));
                         CACHE.put(uuid, loc);
+                        UNKNOWN.remove(uuid);
+                        FAILURES.remove(uuid);
                     } catch (Exception e) {
                         LOGGER.error("Skin texture registration failed for {}: {}", uuid, e.getMessage());
+                        FAILURES.put(uuid, new Failure(System.currentTimeMillis(), 1));
                     } finally {
                         PENDING_FETCHES.remove(uuid);
                     }
                 });
             } catch (Exception e) {
-                LOGGER.error("Skin fetch failed for {}: {}", uuid, e.getMessage());
-                PENDING_FETCHES.remove(uuid);
+                failFetch(uuid, uuidStr, e.getMessage());
             }
         });
         PENDING_FETCHES.put(uuid, future);
     }
 
+    /** No such profile on the API: remember it and stop asking. */
+    private static void markUnknown(UUID uuid, String uuidStr, String apiUrl) {
+        UNKNOWN.add(uuid);
+        FAILURES.remove(uuid);
+        PENDING_FETCHES.remove(uuid);
+        LOGGER.debug("Skin API has no profile for {}", uuidStr);
+        // A wrong URL 404s every uuid, which would otherwise look like unknown players
+        if (++unknownCount >= 3 && !apiLooksWrongLogged) {
+            apiLooksWrongLogged = true;
+            LOGGER.warn("Skin API {} returned no profile for {} players, check customSkinApiUrl", apiUrl, unknownCount);
+        }
+    }
+
+    /** Transient failure: free the slot and back off. */
+    private static void failFetch(UUID uuid, String uuidStr, String detail) {
+        Failure previous = FAILURES.get(uuid);
+        int attempts = previous == null ? 1 : previous.attempts() + 1;
+        FAILURES.put(uuid, new Failure(System.currentTimeMillis(), attempts));
+        PENDING_FETCHES.remove(uuid);
+        LOGGER.debug("Skin fetch failed for {} (attempt {}): {}", uuidStr, attempts, detail);
+    }
+
     public static void refreshCache() {
-        List<UUID> uuids = new ArrayList<>(CACHE.keySet());
+        // Refetch every known player, not just the cached ones: the point is to replace default avatars
+        Set<UUID> targets = new LinkedHashSet<>(CACHE.keySet());
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() != null) {
+            for (PlayerInfo info : mc.getConnection().getOnlinePlayers()) {
+                if (info.getProfile() != null && info.getProfile().getId() != null) {
+                    targets.add(info.getProfile().getId());
+                }
+            }
+        }
+        if (mc.player != null) targets.add(mc.player.getUUID());
         CACHE.clear();
         PENDING_FETCHES.clear();
-        String apiUrl = ModClientConfig.CONFIG.customSkinApiUrl.get();
-        if (apiUrl == null || apiUrl.isEmpty()) return;
-        for (UUID uuid : uuids) {
+        UNKNOWN.clear();
+        FAILURES.clear();
+        unknownCount = 0;
+        apiLooksWrongLogged = false;
+        String apiUrl = skinApiUrl();
+        if (apiUrl == null) return;
+        for (UUID uuid : targets) {
             fetchSkinAsync(uuid, apiUrl);
         }
     }

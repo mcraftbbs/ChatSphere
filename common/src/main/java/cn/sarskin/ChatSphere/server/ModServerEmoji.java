@@ -129,10 +129,12 @@ public class ModServerEmoji {
     }
 
     public void broadcastAdd(String channelId, String name, byte[] data) {
-        ClientboundCustomEmojiPayload payload =
-                new ClientboundCustomEmojiPayload(ClientboundCustomEmojiPayload.Action.ADD, name, channelId, data);
+        List<ClientboundCustomEmojiPayload> parts = ClientboundCustomEmojiPayload.chunked(
+                ClientboundCustomEmojiPayload.Action.ADD, name, channelId, data);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            player.connection.send(new ClientboundCustomPayloadPacket(ClientboundCustomEmojiPayload.ID, payload.toBuf()));
+            for (ClientboundCustomEmojiPayload part : parts) {
+                player.connection.send(new ClientboundCustomPayloadPacket(ClientboundCustomEmojiPayload.ID, part.toBuf()));
+            }
         }
     }
 
@@ -149,8 +151,7 @@ public class ModServerEmoji {
         for (String name : listNames("")) {
             byte[] data = load("", name);
             if (data == null) continue;
-            player.connection.send(new ClientboundCustomPayloadPacket(ClientboundCustomEmojiPayload.ID,
-                    new ClientboundCustomEmojiPayload(ClientboundCustomEmojiPayload.Action.ADD, name, "", data).toBuf()));
+            sendTo(player, "", name, data);
         }
         Path channelsDir = dir.resolve("channels");
         if (!Files.isDirectory(channelsDir)) return;
@@ -162,12 +163,18 @@ public class ModServerEmoji {
                 for (String name : listNames(channelId)) {
                     byte[] data = load(channelId, name);
                     if (data == null) continue;
-                    player.connection.send(new ClientboundCustomPayloadPacket(ClientboundCustomEmojiPayload.ID,
-                            new ClientboundCustomEmojiPayload(ClientboundCustomEmojiPayload.Action.ADD, name, channelId, data).toBuf()));
+                    sendTo(player, channelId, name, data);
                 }
             }
         } catch (IOException e) {
             LOGGER.error("Failed to list channels emoji dir {}", channelsDir, e);
+        }
+    }
+
+    private static void sendTo(ServerPlayer player, String channelId, String name, byte[] data) {
+        for (ClientboundCustomEmojiPayload part : ClientboundCustomEmojiPayload.chunked(
+                ClientboundCustomEmojiPayload.Action.ADD, name, channelId, data)) {
+            player.connection.send(new ClientboundCustomPayloadPacket(ClientboundCustomEmojiPayload.ID, part.toBuf()));
         }
     }
 

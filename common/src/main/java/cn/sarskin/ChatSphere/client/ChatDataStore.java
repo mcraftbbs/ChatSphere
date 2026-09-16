@@ -263,6 +263,18 @@ public class ChatDataStore {
         for (String uuid : data.blockedPlayers) blockedArr.add(uuid);
         root.add("blockedPlayers", blockedArr);
 
+        JsonObject unreadObj = new JsonObject();
+        for (Map.Entry<String, Integer> e : data.unreadCounts.entrySet()) {
+            unreadObj.addProperty(e.getKey(), e.getValue());
+        }
+        root.add("unreadCounts", unreadObj);
+
+        JsonObject notifyObj = new JsonObject();
+        for (Map.Entry<String, String> e : data.notificationLevels.entrySet()) {
+            notifyObj.addProperty(e.getKey(), e.getValue());
+        }
+        root.add("notificationLevels", notifyObj);
+
         return root;
     }
 
@@ -433,6 +445,28 @@ public class ChatDataStore {
             }
         }
 
+        if (obj.has("unreadCounts")) {
+            JsonObject uObj = obj.getAsJsonObject("unreadCounts");
+            for (Map.Entry<String, JsonElement> e : uObj.entrySet()) {
+                try {
+                    data.unreadCounts.put(e.getKey(), e.getValue().getAsInt());
+                } catch (Exception ex) {
+                    LOGGER.warn("Skipping corrupt unread entry: {}", ex.getMessage());
+                }
+            }
+        }
+
+        if (obj.has("notificationLevels")) {
+            JsonObject nObj = obj.getAsJsonObject("notificationLevels");
+            for (Map.Entry<String, JsonElement> e : nObj.entrySet()) {
+                try {
+                    data.notificationLevels.put(e.getKey(), e.getValue().getAsString());
+                } catch (Exception ex) {
+                    LOGGER.warn("Skipping corrupt notification entry: {}", ex.getMessage());
+                }
+            }
+        }
+
         return data;
     }
 
@@ -446,6 +480,8 @@ public class ChatDataStore {
         public String savedInput;
         public String lastConversation;
         public final List<String> blockedPlayers = new ArrayList<>();
+        public final Map<String, Integer> unreadCounts = new LinkedHashMap<>();
+        public final Map<String, String> notificationLevels = new LinkedHashMap<>();
     }
 
     public record SavedMessage(

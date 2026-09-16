@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,10 +38,18 @@ public final class ServerPayloadHandlers {
             case UPDATE_CONFIG -> msc.updateChannelConfig(p.channelId(), p.isPublic(), p.description(), p.displayName(),
                     p.admins(), p.mutedPlayers(), p.invitedPlayers(), p.inviteCode(), realUuid,
                     p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds());
-            case JOIN_MEMBER -> msc.addMemberToChannel(p.channelId(), realUuid.toString());
+            case JOIN_MEMBER -> {
+                if (p.channelId() != null && !p.channelId().isEmpty()) {
+                    msc.addMemberToChannel(p.channelId(), realUuid.toString());
+                    msc.sendChannelHistoryToOnlinePlayer(p.channelId(), realUuid.toString());
+                }
+            }
             case JOIN_BY_CODE -> {
                 if (p.inviteCode() != null && !p.inviteCode().isEmpty()) {
                     String result = msc.joinByCode(p.inviteCode(), realUuid);
+                    if ("success".equals(result)) {
+                        msc.sendChannelHistoryToOnlinePlayer(msc.channelIdForInviteCode(p.inviteCode()), realUuid.toString());
+                    }
                     if (player instanceof ServerPlayer sp) {
                         Component msg = switch (result) {
                             case "already_member" -> Component.translatable(
@@ -233,6 +242,11 @@ public final class ServerPayloadHandlers {
         return itemNbt != null && itemNbt.length() <= MAX_ITEM_NBT_BASE64 ? itemNbt : "";
     }
 
+    /** True when a voice placeholder with this id is already stored. */
+    private static boolean voicePlaceholderExists(ModServerChannels msc, UUID voiceMessageId) {
+        return voiceMessageId != null && msc.hasMessageContent("VoiceMessage#" + voiceMessageId);
+    }
+
     public static void commandMessage(Player player, ServerboundCommandMessagePayload p) {
         if (player == null) return;
         var server = player.getServer();
@@ -280,6 +294,8 @@ public final class ServerPayloadHandlers {
                 sv.set(p.value());
             }
             ModServerConfig.CONFIG_SPEC.save();
+            // Credentials are write-only: never echo them back to clients
+            if (ModServerConfig.isSecret(p.key())) return;
             ClientboundConfigSyncPayload sync = new ClientboundConfigSyncPayload(Map.of(p.key(), p.value()));
             for (ServerPlayer target : sp.server.getPlayerList().getPlayers()) {
                 target.connection.send(new ClientboundCustomPayloadPacket(ClientboundConfigSyncPayload.ID, sync.toBuf()));
@@ -307,9 +323,16 @@ public final class ServerPayloadHandlers {
             if (!recipients.contains(senderStr)) return;
             if (msc.isMuted(p.conversationId(), senderStr)) return;
 
-            msc.addChatMessage(senderName, realUuid,
-                    "VoiceMessage#" + p.voiceMessageId(),
-                    p.conversationId(), p.conversationType(), "", "", "");
+            // Several recipients may upload the same voice; record and relay it once.
+            boolean first = !voicePlaceholderExists(msc, p.voiceMessageId());
+            if (first) {
+                msc.addChatMessage(senderName, realUuid,
+                        "VoiceMessage#" + p.voiceMessageId(),
+                        p.conversationId(), p.conversationType(), "", "", "");
+            }
+            // Keep a copy for late joiners; a no-op when offline storage is off.
+            storage.store(p.voiceMessageId(), senderStr, p.conversationId(), p.conversationType(), p.frameCount(), p.audioData());
+            if (!first) return;
 
             for (String memberUuid : recipients) {
                 if (memberUuid.equals(senderStr)) continue;
@@ -322,8 +345,6 @@ public final class ServerPayloadHandlers {
                 ServerPlayer target = server.getPlayerList().getPlayer(targetUuid);
                 if (target != null) {
                     target.connection.send(new ClientboundCustomPayloadPacket(ClientboundVoicePacket.ID, relay.toBuf()));
-                } else {
-                    storage.store(p.voiceMessageId(), senderStr, p.conversationId(), p.conversationType(), p.frameCount(), p.audioData());
                 }
             }
         } else if ("PRIVATE".equals(p.conversationType()) && p.conversationId() != null && p.conversationId().contains(":")) {
@@ -337,15 +358,18 @@ public final class ServerPayloadHandlers {
             }
             if (recipientUuid.equals(realUuid)) return;
 
-            msc.addChatMessage(senderName, realUuid,
-                    "VoiceMessage#" + p.voiceMessageId(),
-                    p.conversationId(), p.conversationType(), "", "", "");
+            boolean first = !voicePlaceholderExists(msc, p.voiceMessageId());
+            if (first) {
+                msc.addChatMessage(senderName, realUuid,
+                        "VoiceMessage#" + p.voiceMessageId(),
+                        p.conversationId(), p.conversationType(), "", "", "");
+            }
+            storage.store(p.voiceMessageId(), senderStr, p.conversationId(), p.conversationType(), p.frameCount(), p.audioData());
+            if (!first) return;
 
             ServerPlayer target = server.getPlayerList().getPlayer(recipientUuid);
             if (target != null) {
                 target.connection.send(new ClientboundCustomPayloadPacket(ClientboundVoicePacket.ID, relay.toBuf()));
-            } else {
-                storage.store(p.voiceMessageId(), senderStr, p.conversationId(), p.conversationType(), p.frameCount(), p.audioData());
             }
         }
     }
@@ -384,6 +408,9 @@ public final class ServerPayloadHandlers {
                 ModServerEmoji.getInstance(server).syncTo(sp);
             }
             case ADD -> {
+                // Assemble first: a rejection must be reported once, not once per chunk.
+                byte[] data = p.total() > 1 ? assembleEmoji(player.getUUID(), p) : p.data();
+                if (data == null) return;
                 if (!canUpload(player, p.channelId())) {
                     sp.sendSystemMessage(Component.translatable("chatsphere.emoji.no_permission"), false);
                     return;
@@ -396,13 +423,13 @@ public final class ServerPayloadHandlers {
                             "chatsphere.emoji.cooldown", (cooldown + 999) / 1000), false);
                     return;
                 }
-                Component err = store.add(p.channelId(), p.name(), p.data());
+                Component err = store.add(p.channelId(), p.name(), data);
                 if (err != null) {
                     sp.sendSystemMessage(err, false);
                     return;
                 }
                 store.recordUpload(player.getUUID());
-                store.broadcastAdd(p.channelId(), p.name(), p.data());
+                store.broadcastAdd(p.channelId(), p.name(), data);
                 sp.sendSystemMessage(Component.translatable(
                         "chatsphere.emoji.uploaded", p.name()), false);
                 LOGGER.info("{} uploaded server emoji :{}: to '{}'", player.getName().getString(), p.name(), p.channelId());
@@ -422,6 +449,105 @@ public final class ServerPayloadHandlers {
                 store.broadcastDelete(p.channelId(), p.name());
             }
         }
+    }
+
+    /** Relay a typing ping to the other members; never stored, only throttled. */
+    public static void typing(Player player, ServerboundTypingPayload p) {
+        var server = player.getServer();
+        if (server == null) return;
+        ModServerChannels msc = ModServerChannels.getInstance(server);
+        String senderUuid = player.getUUID().toString();
+        String convId = p.conversationId();
+        String convType = p.conversationType();
+        if (convId == null || convId.isEmpty()) return;
+
+        List<UUID> targets = new ArrayList<>();
+        if ("CHANNEL".equals(convType)) {
+            String target = msc.resolveChatChannel(convId);
+            if (target == null) return;
+            if (!msc.effectiveMembers(target).contains(senderUuid)) return;
+            if (msc.isMuted(target, senderUuid)) return;
+            convId = target;
+            for (String member : msc.effectiveMembers(target)) {
+                UUID uuid = parseUuid(member);
+                if (uuid != null && !uuid.equals(player.getUUID())) targets.add(uuid);
+            }
+        } else if ("PRIVATE".equals(convType) && convId.contains(":")) {
+            String[] parts = convId.split(":");
+            if (parts.length != 2) return;
+            UUID other = parseUuid(parts[0].equals(senderUuid) ? parts[1] : parts[0]);
+            if (other == null || other.equals(player.getUUID())) return;
+            targets.add(other);
+        } else {
+            return;
+        }
+        if (targets.isEmpty() || !msc.acceptTyping(convId, senderUuid)) return;
+
+        ClientboundTypingPayload relay = new ClientboundTypingPayload(
+                player.getUUID(), player.getName().getString(), convId, convType);
+        for (UUID uuid : targets) {
+            ServerPlayer target = server.getPlayerList().getPlayer(uuid);
+            if (target != null) {
+                target.connection.send(new ClientboundCustomPayloadPacket(
+                        ClientboundTypingPayload.ID, relay.toBuf()));
+            }
+        }
+    }
+
+    private static UUID parseUuid(String value) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** Chunks of one upload in flight, keyed by player. */
+    private static final Map<UUID, PendingEmoji> PENDING_EMOJI = new ConcurrentHashMap<>();
+    private static final long PENDING_EMOJI_TIMEOUT_MS = 30_000L;
+
+    private static final class PendingEmoji {
+        private final String name;
+        private final String channelId;
+        private final byte[][] parts;
+        private final long startedAt = System.currentTimeMillis();
+        private int received;
+
+        private PendingEmoji(String name, String channelId, int total) {
+            this.name = name;
+            this.channelId = channelId;
+            this.parts = new byte[total][];
+        }
+    }
+
+    /** Whole image once every chunk arrived, else null. */
+    private static byte[] assembleEmoji(UUID playerUuid, ServerboundCustomEmojiPayload p) {
+        PendingEmoji pending = PENDING_EMOJI.get(playerUuid);
+        if (p.index() == 0 || pending == null || !pending.name.equals(p.name())
+                || !pending.channelId.equals(p.channelId()) || pending.parts.length != p.total()) {
+            pending = new PendingEmoji(p.name(), p.channelId(), p.total());
+            PENDING_EMOJI.put(playerUuid, pending);
+        }
+        if (pending.parts[p.index()] == null) {
+            pending.parts[p.index()] = p.data();
+            pending.received++;
+        }
+        if (pending.received < pending.parts.length) {
+            if (System.currentTimeMillis() - pending.startedAt > PENDING_EMOJI_TIMEOUT_MS) {
+                PENDING_EMOJI.remove(playerUuid, pending);
+            }
+            return null;
+        }
+        PENDING_EMOJI.remove(playerUuid, pending);
+        int size = 0;
+        for (byte[] part : pending.parts) size += part.length;
+        byte[] full = new byte[size];
+        int offset = 0;
+        for (byte[] part : pending.parts) {
+            System.arraycopy(part, 0, full, offset, part.length);
+            offset += part.length;
+        }
+        return full;
     }
 
     /** Public uploads keep the OP/switch gate; any player may upload to a channel they can see. */
