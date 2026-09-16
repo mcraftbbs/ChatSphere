@@ -31,6 +31,12 @@ public final class ClientPayloadHandlers {
         ChatHistoryManager.getInstance().applyServerChannels(p.channels(), p.knownPlayers());
     }
 
+    public static void typing(ClientboundTypingPayload p) {
+        if (p.playerUuid() == null) return;
+        ChatHistoryManager.getInstance().noteTyping(
+                p.conversationId(), p.playerUuid(), p.playerName());
+    }
+
     public static void messageSync(Player player, ClientboundMessageSyncPayload p) {
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         UUID localPlayer = player != null ? player.getUUID() : null;

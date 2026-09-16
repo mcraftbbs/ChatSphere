@@ -170,12 +170,24 @@ public class ChannelInfoScreen extends Screen {
             ).build());
         }
 
-        addRenderableWidget(StyledButton.styledBuilder(
-            Component.translatable("screen.chatsphere.channel_info.leave_channel"),
-            btn -> minecraft.setScreen(new ConfirmDeleteChannelScreen(this, channelId, true))
-        ).bounds(cardX + cardW - PAD - 90, footerY, 90, 20).style(StyledButton.Style.DANGER).tooltip(
-            Component.translatable("screen.chatsphere.channel_info.tip_leave")
-        ).build());
+        boolean isOwner = minecraft != null && minecraft.player != null
+            && ChatHistoryManager.getInstance().isOwner(channelId, minecraft.player.getUUID());
+        if (isOwner) {
+            // Server rejects LEAVE_CHANNEL for the owner, so offer delete instead
+            addRenderableWidget(StyledButton.styledBuilder(
+                Component.translatable("screen.chatsphere.channel_config.delete_channel"),
+                btn -> minecraft.setScreen(new ConfirmDeleteChannelScreen(this, channelId))
+            ).bounds(cardX + cardW - PAD - 90, footerY, 90, 20).style(StyledButton.Style.DANGER).tooltip(
+                Component.translatable("screen.chatsphere.channel_info.tip_delete_channel")
+            ).build());
+        } else {
+            addRenderableWidget(StyledButton.styledBuilder(
+                Component.translatable("screen.chatsphere.channel_info.leave_channel"),
+                btn -> minecraft.setScreen(new ConfirmDeleteChannelScreen(this, channelId, true))
+            ).bounds(cardX + cardW - PAD - 90, footerY, 90, 20).style(StyledButton.Style.DANGER).tooltip(
+                Component.translatable("screen.chatsphere.channel_info.tip_leave")
+            ).build());
+        }
     }
 
     /** Vertical extent of all scrollable content (About + Members sections). */
@@ -209,7 +221,13 @@ public class ChannelInfoScreen extends Screen {
     @Override
     public void tick() {
         copyToast.tick();
-        ChatDataStore.ChannelConfig latest = ChatHistoryManager.getInstance().getChannelConfig(channelId);
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        // The channel can vanish from elsewhere; close instead of showing a stale card
+        if (!history.getChannels().contains(channelId) && !history.hasConversation(channelId)) {
+            if (minecraft != null) minecraft.setScreen(new ModChatScreen(""));
+            return;
+        }
+        ChatDataStore.ChannelConfig latest = history.getChannelConfig(channelId);
         if (latest != config) {
             config = latest;
             clearWidgets();
@@ -340,10 +358,12 @@ public class ChannelInfoScreen extends Screen {
 
         if (inviteShown) {
             y += 8;
-            g.drawString(font, Component.translatable("screen.chatsphere.channel_info.invite_code"),
-                x, y + 2, Theme.textDim(), false);
-            g.drawString(font, config.inviteCode, x + 52, y + 2, Theme.text(), false);
+            Component inviteLabel = Component.translatable("screen.chatsphere.channel_info.invite_code");
+            g.drawString(font, inviteLabel, x, y + 2, Theme.textDim(), false);
             int copyX = cardX + cardW - PAD - 40;
+            // Place the code after the label: a fixed offset overlaps it in longer languages
+            String code = clipToWidth(config.inviteCode, copyX - 6 - (x + font.width(inviteLabel) + 8));
+            g.drawString(font, code, x + font.width(inviteLabel) + 8, y + 2, Theme.text(), false);
             boolean copyHover = mouseX >= copyX && mouseX < copyX + 40 && mouseY >= y && mouseY < y + 18;
             Ui.fillRoundedRect(g, copyX, y, 40, 16, 4, copyHover ? Theme.iconBtnHover() : Theme.iconBtnBg());
             Component copyText = Component.translatable("screen.chatsphere.channel_info.copy_code");
@@ -488,6 +508,16 @@ public class ChannelInfoScreen extends Screen {
             minecraft.keyboardHandler.setClipboard(config.inviteCode);
             copyToast.show();
         }
+    }
+
+    /** Shortens text with an ellipsis when the row has no room left for it. */
+    private String clipToWidth(String text, int maxWidth) {
+        if (text == null || font.width(text) <= maxWidth) return text;
+        String out = text;
+        while (!out.isEmpty() && font.width(out + "…") > maxWidth) {
+            out = out.substring(0, out.length() - 1);
+        }
+        return out + "…";
     }
 
     private void startWhisper(MemberRow r) {

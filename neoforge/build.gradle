@@ -76,6 +76,12 @@ tasks.withType(JavaCompile).configureEach {
     exclude '**/buildtool/**'
 }
 
+// The jar is downloaded on its own, so LICENSE and THIRD-PARTY.md have to sit inside it.
+tasks.withType(Jar).configureEach {
+    from(rootProject.file("LICENSE"))
+    from(rootProject.file("THIRD-PARTY.md"))
+}
+
 loom {
     runs {
         client {

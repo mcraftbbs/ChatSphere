@@ -29,5 +29,6 @@ public final class ServerHooks {
         ModServerChannels.removeServer(server);
         ModVoiceStorage.removeServer(server);
         ModServerEmoji.removeServer(server);
+        DiscordBridge.removeServer(server);
     }
 }

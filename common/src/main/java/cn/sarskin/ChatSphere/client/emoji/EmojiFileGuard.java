@@ -7,16 +7,18 @@ import java.util.regex.Pattern;
  * Byte-only validation of uploaded emoji (no image decoder on untrusted data), identical on server and client; errors are lang keys.
  */
 public final class EmojiFileGuard {
-    public static final int MAX_BYTES = 256 * 1024;
+    public static final int MAX_BYTES = 512 * 1024;
     public static final int MAX_DIM = 512;
     public static final int MAX_NAME_LEN = 32;
     /** Animated GIFs are stricter: smaller canvas, capped frames, capped sprite-sheet width. */
-    public static final int MAX_ANIM_DIM = 256;
-    public static final int MAX_FRAMES = 30;
-    public static final int MAX_SHEET_W = 4096;
+    public static final int MAX_ANIM_DIM = 320;
+    public static final int MAX_FRAMES = 60;
+    public static final int MAX_SHEET_W = 8192;
+    /** frames x width x height; keeps one animated texture near 8 MB. */
+    public static final int MAX_ANIM_PIXELS = 2_000_000;
     public static final Pattern NAME = Pattern.compile("[a-zA-Z0-9_+-]{1," + MAX_NAME_LEN + "}");
 
-    // err_big mentions MAX_DIM, err_anim mentions the animation caps — keep in sync
+    // err_big and err_anim quote these caps; keep the lang files in sync
     public static final String ERR_NAME = "chatsphere.emoji.err_name";
     public static final String ERR_EMPTY = "chatsphere.emoji.err_empty";
     public static final String ERR_SIZE = "chatsphere.emoji.err_size";
@@ -55,7 +57,9 @@ public final class EmojiFileGuard {
                 }
                 if (frames > 1
                         && (dims[0] > MAX_ANIM_DIM || dims[1] > MAX_ANIM_DIM
-                        || frames > MAX_FRAMES || dims[0] * frames > MAX_SHEET_W)) {
+                        || frames > MAX_FRAMES
+                        || (long) dims[0] * frames > MAX_SHEET_W
+                        || (long) dims[0] * dims[1] * frames > MAX_ANIM_PIXELS)) {
                     return ERR_ANIM;
                 }
             }
@@ -142,7 +146,8 @@ public final class EmojiFileGuard {
             } else if (b == 0x2C) {
                 frames++;
                 // stop once a cap is exceeded; the caller maps the count to ERR_ANIM
-                if (frames > MAX_FRAMES || frames * w > MAX_SHEET_W
+                if (frames > MAX_FRAMES || (long) frames * w > MAX_SHEET_W
+                        || (long) frames * w * h > MAX_ANIM_PIXELS
                         || (frames > 1 && (w > MAX_ANIM_DIM || h > MAX_ANIM_DIM))) {
                     return frames;
                 }

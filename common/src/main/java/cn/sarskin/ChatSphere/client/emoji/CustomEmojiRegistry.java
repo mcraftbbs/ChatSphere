@@ -285,6 +285,9 @@ public final class CustomEmojiRegistry {
                 if (canvasW * frames > EmojiFileGuard.MAX_SHEET_W) {
                     throw new IOException("sheet width " + canvasW * frames);
                 }
+                if ((long) canvasW * canvasH * frames > EmojiFileGuard.MAX_ANIM_PIXELS) {
+                    throw new IOException("animation pixels " + (long) canvasW * canvasH * frames);
+                }
                 int[] delays = new int[frames];
                 NativeImage sheet = new NativeImage(canvasW * frames, canvasH, true);
                 BufferedImage canvas = new BufferedImage(canvasW, canvasH, BufferedImage.TYPE_INT_ARGB);
@@ -576,6 +579,24 @@ public final class CustomEmojiRegistry {
             if (resolve(m.group(1)) != null) return true;
         }
         return false;
+    }
+
+    /** Replaces visible tokens with label.apply(emoji); unknown tokens stay as written. */
+    public static String mapTokens(String text, java.util.function.Function<CustomEmoji, String> label) {
+        if (text == null || text.isEmpty()) return text;
+        Matcher m = TOKEN.matcher(text);
+        if (!m.find()) return text;
+        StringBuilder out = new StringBuilder(text.length() + 8);
+        int last = 0;
+        while (true) {
+            CustomEmoji e = resolve(m.group(1));
+            if (e != null) {
+                out.append(text, last, m.start()).append(label.apply(e));
+                last = m.end();
+            }
+            if (!m.find()) break;
+        }
+        return out.append(text, last, text.length()).toString();
     }
 
     /** Tallest custom emoji height in the text; 0 when none. */

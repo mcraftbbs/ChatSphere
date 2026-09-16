@@ -1,8 +1,6 @@
 package cn.sarskin.ChatSphere.neoforge;
 
 import cn.sarskin.ChatSphere.server.CommandHandlers;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import net.minecraft.commands.Commands;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
@@ -16,15 +14,6 @@ public class ModCommands {
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        event.getDispatcher().register(Commands.literal("chatsphere")
-                .then(Commands.literal("help")
-                        .executes(CommandHandlers::executeHelp))
-                .then(Commands.literal("list")
-                        .executes(CommandHandlers::executeList))
-                .then(Commands.literal("info")
-                        .then(Commands.argument("name", StringArgumentType.word())
-                                .executes(CommandHandlers::executeInfo)))
-                .executes(CommandHandlers::executeHelp)
-        );
+        event.getDispatcher().register(CommandHandlers.buildRoot());
     }
 }

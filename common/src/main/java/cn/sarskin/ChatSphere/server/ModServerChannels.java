@@ -4,6 +4,7 @@ import cn.sarskin.ChatSphere.ModInfo;
 import static cn.sarskin.ChatSphere.ModInfo.DEFAULT_CHANNEL_ID;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.network.ClientboundChannelSyncPayload;
+import cn.sarskin.ChatSphere.network.ClientboundChatPayload;
 import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload.StoredMessage;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
@@ -37,7 +38,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class ModServerChannels {
@@ -46,6 +51,12 @@ public class ModServerChannels {
     private static final Map<MinecraftServer, ModServerChannels> INSTANCES = new ConcurrentHashMap<>();
     private static final String BACKUPS_DIR_NAME = "chatsphere_backups";
     private static final DateTimeFormatter BACKUP_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final ScheduledExecutorService SAVE_TIMER = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "ChatSphere-ServerSave");
+        t.setDaemon(true);
+        return t;
+    });
+    private static final long SAVE_DELAY_SECONDS = 2;
 
     private final MinecraftServer server;
     private final Map<String, ChannelEntry> channels = new LinkedHashMap<>();
@@ -55,8 +66,14 @@ public class ModServerChannels {
     private final List<StoredMessage> commandHistory = new ArrayList<>();
     private boolean loaded;
     private long lastBackupTime;
+    /** Debounced save state; only touched on the server thread. */
+    private boolean saveScheduled;
+    private boolean messagesDirty;
+    private boolean channelsDirty;
     /** Slow mode: channelId|playerUuid -> last accepted message time (ms). */
     private final Map<String, Long> slowModeLastSent = new HashMap<>();
+    /** Typing pings are fire-and-forget; only repeat relays are throttled. */
+    private final Map<String, Long> typingLastSent = new HashMap<>();
 
     private ModServerChannels(MinecraftServer server) {
         this.server = server;
@@ -81,7 +98,7 @@ public class ModServerChannels {
     public synchronized void learnPlayerName(String uuid, String name) {
         if (uuid != null && name != null && !name.isEmpty() && !knownPlayers.containsKey(uuid)) {
             knownPlayers.put(uuid, name);
-            save();
+            markChannelsDirty();
         }
     }
 
@@ -270,7 +287,7 @@ public class ModServerChannels {
                     generateInviteCode(), false, new ArrayList<>(), parentId, maxOrder + 1,
                     true, "", 0);
             channels.put(id, child);
-            save();
+            markChannelsDirty();
             broadcastSync();
             return;
         }
@@ -291,7 +308,7 @@ public class ModServerChannels {
                 admins, new ArrayList<>(), new ArrayList<>(), members, generateInviteCode(), showInExplore, new ArrayList<>(), "", maxOrder + 1,
                 mainChatEnabled, defaultSubChannel != null ? defaultSubChannel : "", slowModeSeconds);
         channels.put(id, entry);
-        save();
+        markChannelsDirty();
         broadcastSync();
     }
 
@@ -316,7 +333,7 @@ public class ModServerChannels {
                 membersToStore, newCode, showInExplore, entry.voiceRooms(), entry.parentId(), entry.sortOrder(),
                 mainChatEnabled, newDefault, Math.max(0, Math.min(3600, slowModeSeconds)));
         channels.put(channelId, updated);
-        save();
+        markChannelsDirty();
         broadcastSync();
     }
 
@@ -404,7 +421,7 @@ public class ModServerChannels {
             }
         }
         rekeyMessageHistory(oldToNew);
-        save();
+        markChannelsDirty();
         broadcastSync();
         for (Map.Entry<String, String> en : oldToNew.entrySet()) {
             cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload renamedPayload =
@@ -427,7 +444,7 @@ public class ModServerChannels {
                 }
             }
         }
-        saveMessages();
+        markMessagesDirty();
     }
 
     public synchronized boolean reorderChannels(List<String> orderedIds, UUID requester) {
@@ -459,7 +476,7 @@ public class ModServerChannels {
                     e.showInExplore(), e.voiceRooms(), e.parentId(), base + i, e.mainChatEnabled(), e.defaultSubChannel(), e.slowModeSeconds());
             channels.put(e.id(), updated);
         }
-        save();
+        markChannelsDirty();
         broadcastSync();
         return true;
     }
@@ -481,7 +498,7 @@ public class ModServerChannels {
         }
         for (String id : cascade) channels.remove(id);
         compactSortOrders();
-        save();
+        markChannelsDirty();
         broadcastSync();
         return true;
     }
@@ -555,6 +572,52 @@ public class ModServerChannels {
                 new ClientboundMessageSyncPayload(msgs)));
     }
 
+    /** Sends one channel's history to a player who just joined it. */
+    public void sendChannelHistoryToPlayer(ServerPlayer player, String channelId) {
+        if (!ModServerConfig.CONFIG.inviteHistoryEnabled.get()) return;
+        if (!ModServerConfig.CONFIG.channelHistoryEnabled.get()) return;
+        if (channelId == null || channelId.isEmpty()) return;
+        String playerUuid = player.getUUID().toString();
+        if (!effectiveMembers(channelId).contains(playerUuid)) return;
+        List<StoredMessage> snapshot;
+        synchronized (messageHistory) {
+            snapshot = new ArrayList<>(messageHistory);
+        }
+        List<StoredMessage> msgs = new ArrayList<>();
+        for (StoredMessage m : snapshot) {
+            if ("CHANNEL".equals(m.conversationType()) && channelId.equals(m.conversationId())) {
+                msgs.add(m);
+            }
+        }
+        if (msgs.isEmpty()) return;
+        player.connection.send(new ClientboundCustomPayloadPacket(
+                new ClientboundMessageSyncPayload(msgs)));
+    }
+
+    public void sendChannelHistoryToOnlinePlayer(String channelId, String playerUuid) {
+        if (!ModServerConfig.CONFIG.inviteHistoryEnabled.get()) return;
+        UUID uuid;
+        try {
+            uuid = UUID.fromString(playerUuid);
+        } catch (IllegalArgumentException e) {
+            return;
+        }
+        ServerPlayer target = server.getPlayerList().getPlayer(uuid);
+        if (target != null) sendChannelHistoryToPlayer(target, channelId);
+    }
+
+    /** Effective channel behind an invite code, or null when the code matches nothing. */
+    public synchronized String channelIdForInviteCode(String inviteCode) {
+        if (inviteCode == null || inviteCode.isEmpty()) return null;
+        for (ChannelEntry entry : channels.values()) {
+            if (entry.inviteCode().equalsIgnoreCase(inviteCode)) {
+                ChannelEntry target = resolveTarget(entry.id());
+                return target != null ? target.id() : null;
+            }
+        }
+        return null;
+    }
+
     public synchronized String joinByCode(String inviteCode, UUID playerUuid) {
         for (ChannelEntry entry : channels.values()) {
             if (entry.inviteCode().equalsIgnoreCase(inviteCode)) {
@@ -570,7 +633,7 @@ public class ModServerChannels {
                         new ArrayList<>(target.invitedPlayers()), newMembers, target.inviteCode(), target.showInExplore(), target.voiceRooms(),
                         target.parentId(), target.sortOrder(), target.mainChatEnabled(), target.defaultSubChannel(), target.slowModeSeconds());
                 channels.put(target.id(), updated);
-                save();
+                markChannelsDirty();
                 broadcastSync();
                 return "success";
             }
@@ -591,6 +654,15 @@ public class ModServerChannels {
                                  String conversationId, String conversationType,
                                  String replyContent, String replySender,
                                  String itemNbt, boolean isInput) {
+        return addChatMessage(senderName, senderUuid, content, conversationId, conversationType,
+                replyContent, replySender, itemNbt, isInput, true);
+    }
+
+    /** relayToDiscord=false for messages the bridge injected, so they don't bounce back. */
+    public StoredMessage addChatMessage(String senderName, UUID senderUuid, String content,
+                                 String conversationId, String conversationType,
+                                 String replyContent, String replySender,
+                                 String itemNbt, boolean isInput, boolean relayToDiscord) {
         if (senderUuid != null && !senderUuid.equals(Util.NIL_UUID) && senderName != null && !senderName.isEmpty()) {
             learnPlayerName(senderUuid.toString(), senderName);
         }
@@ -609,7 +681,8 @@ public class ModServerChannels {
                 trimTo(messageHistory, ModServerConfig.CONFIG.maxChatHistory.get());
             }
         }
-        saveMessages();
+        markMessagesDirty();
+        if (relayToDiscord) DiscordBridge.getInstance(server).onChannelMessage(msg);
         return msg;
     }
 
@@ -617,6 +690,19 @@ public class ModServerChannels {
     private static void trimTo(List<StoredMessage> list, int cap) {
         while (list.size() > cap) {
             list.remove(0);
+        }
+    }
+
+    /** Pushes a stored message to every online member of its channel. */
+    public void relayToOnlineMembers(StoredMessage msg) {
+        if (msg == null || msg.conversationId() == null) return;
+        List<String> recipients = effectiveMembers(msg.conversationId());
+        if (recipients.isEmpty()) return;
+        ClientboundChatPayload relay = new ClientboundChatPayload(msg);
+        for (ServerPlayer other : server.getPlayerList().getPlayers()) {
+            if (recipients.contains(other.getUUID().toString())) {
+                other.connection.send(new ClientboundCustomPayloadPacket(relay));
+            }
         }
     }
 
@@ -637,7 +723,7 @@ public class ModServerChannels {
                     new ArrayList<>(entry.invitedPlayers()), newMembers, entry.inviteCode(), entry.showInExplore(),
                     entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
             channels.put(entry.id(), updated);
-            save();
+            markChannelsDirty();
             broadcastSync();
         }
     }
@@ -660,7 +746,7 @@ public class ModServerChannels {
                 new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
                 entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
         channels.put(entry.id(), updated);
-        save();
+        markChannelsDirty();
         broadcastSync();
     }
 
@@ -677,7 +763,7 @@ public class ModServerChannels {
                 new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
                 entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
         channels.put(entry.id(), updated);
-        save();
+        markChannelsDirty();
         broadcastSync();
     }
 
@@ -705,7 +791,7 @@ public class ModServerChannels {
                 new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
                 entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
         channels.put(entry.id(), updated);
-        save();
+        markChannelsDirty();
         broadcastSync();
         cn.sarskin.ChatSphere.client.voice.VoiceIntegration.joinVoiceRoom(channelId, roomName, playerUuid);
     }
@@ -727,7 +813,7 @@ public class ModServerChannels {
                         new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
                         entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
                 channels.put(entry.id(), updated);
-                save();
+                markChannelsDirty();
                 broadcastSync();
                 cn.sarskin.ChatSphere.client.voice.VoiceIntegration.leaveVoiceRoom(channelId, roomName, playerUuid);
                 return;
@@ -756,7 +842,7 @@ public class ModServerChannels {
                 new ArrayList<>(entry.admins()), newMuted,
                 new ArrayList<>(entry.invitedPlayers()),
                 new ArrayList<>(entry.members()), entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
-        save();
+        markChannelsDirty();
         broadcastSync();
     }
 
@@ -774,7 +860,7 @@ public class ModServerChannels {
                 new ArrayList<>(entry.mutedPlayers()),
                 new ArrayList<>(entry.invitedPlayers()),
                 new ArrayList<>(entry.members()), entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
-        save();
+        markChannelsDirty();
         broadcastSync();
     }
 
@@ -789,7 +875,7 @@ public class ModServerChannels {
                 new ArrayList<>(entry.admins()),
                 new ArrayList<>(entry.mutedPlayers()), newInvited,
                 new ArrayList<>(entry.members()), entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
-        save();
+        markChannelsDirty();
         broadcastSync();
     }
 
@@ -811,7 +897,7 @@ public class ModServerChannels {
         channels.put(entry.id(), new ChannelEntry(entry.id(), entry.owner(), entry.isPublic(),
                 entry.description(), entry.displayName(), newAdmins, newMuted,
                 new ArrayList<>(entry.invitedPlayers()), newMembers, entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
-        save();
+        markChannelsDirty();
         broadcastSync();
     }
 
@@ -828,7 +914,7 @@ public class ModServerChannels {
                 entry.description(), entry.displayName(), newAdmins,
                 new ArrayList<>(entry.mutedPlayers()),
                 new ArrayList<>(entry.invitedPlayers()), newMembers, entry.inviteCode(), entry.showInExplore(), entry.voiceRooms(), entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds()));
-        save();
+        markChannelsDirty();
         broadcastSync();
     }
 
@@ -847,7 +933,7 @@ public class ModServerChannels {
         }
     }
 
-    /** True if any stored message has exactly this content (in-lock scan, no copy). */
+    /** True if any stored message has this exact content. */
     public boolean hasMessageContent(String content) {
         if (content == null) return false;
         synchronized (messageHistory) {
@@ -903,6 +989,20 @@ public class ModServerChannels {
             return 0;
         }
         return entry.slowModeSeconds() * 1000L - elapsed;
+    }
+
+    /** Rate limit: only relay a typing ping every so often. */
+    public synchronized boolean acceptTyping(String conversationId, String playerUuid) {
+        if (conversationId == null || playerUuid == null) return false;
+        String key = conversationId + "|" + playerUuid;
+        long now = System.currentTimeMillis();
+        Long last = typingLastSent.get(key);
+        if (last != null && now - last < 1500L) return false;
+        typingLastSent.put(key, now);
+        if (typingLastSent.size() > 4096) {
+            typingLastSent.entrySet().removeIf(e -> now - e.getValue() > 60_000L);
+        }
+        return true;
     }
 
     public synchronized void recordSlowModeMessage(String channelId, String playerUuid) {
@@ -1165,8 +1265,140 @@ public class ModServerChannels {
     }
 
     public synchronized void flush() {
+        saveScheduled = false;
+        messagesDirty = false;
+        channelsDirty = false;
         saveMessages();
         save();
+    }
+
+    private void markMessagesDirty() {
+        messagesDirty = true;
+        scheduleSave();
+    }
+
+    private void markChannelsDirty() {
+        channelsDirty = true;
+        scheduleSave();
+    }
+
+    /** Coalesces bursts into a single disk write. */
+    private void scheduleSave() {
+        if (saveScheduled) return;
+        saveScheduled = true;
+        try {
+            SAVE_TIMER.schedule(() -> server.execute(this::flushDirty), SAVE_DELAY_SECONDS, TimeUnit.SECONDS);
+        } catch (RejectedExecutionException e) {
+            saveScheduled = false;
+            flushDirty();
+        }
+    }
+
+    private void flushDirty() {
+        saveScheduled = false;
+        if (messagesDirty) {
+            messagesDirty = false;
+            saveMessages();
+        }
+        if (channelsDirty) {
+            channelsDirty = false;
+            save();
+        }
+    }
+
+    /** Flushes and then takes a backup regardless of the configured interval. */
+    public synchronized void backupNow() {
+        flush();
+        lastBackupTime = 0;
+        performBackupIfNeeded();
+    }
+
+    /** Backup timestamps on disk (newest first); a set is messages_<ts>.json plus channels_<ts>.json. */
+    public static List<String> listBackupTimestamps() {
+        Path dir = ModStoragePaths.getServerDataDir().resolve(BACKUPS_DIR_NAME);
+        if (!Files.exists(dir)) return List.of();
+        try (var stream = Files.list(dir)) {
+            return stream.map(p -> p.getFileName().toString())
+                    .filter(n -> n.startsWith("messages_") && n.endsWith(".json"))
+                    .map(n -> n.substring("messages_".length(), n.length() - ".json".length()))
+                    .distinct()
+                    .sorted(Comparator.reverseOrder())
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            LOGGER.error("Failed to list server backups", e);
+            return List.of();
+        }
+    }
+
+    public int chatMessageCount() {
+        synchronized (messageHistory) {
+            return messageHistory.size();
+        }
+    }
+
+    public int commandMessageCount() {
+        synchronized (commandHistory) {
+            return commandHistory.size();
+        }
+    }
+
+    public long dataFileBytes(boolean messages) {
+        Path path = messages ? getMessagesPath() : getDataPath();
+        try {
+            return Files.exists(path) ? Files.size(path) : 0L;
+        } catch (IOException e) {
+            return 0L;
+        }
+    }
+
+    /** Drops one channel's stored messages; returns the row count. */
+    public synchronized int purgeChannel(String channelId) {
+        if (channelId == null || channelId.isEmpty()) return 0;
+        int removed = 0;
+        synchronized (messageHistory) {
+            for (int i = messageHistory.size() - 1; i >= 0; i--) {
+                StoredMessage m = messageHistory.get(i);
+                if ("CHANNEL".equals(m.conversationType()) && channelId.equals(m.conversationId())) {
+                    messageHistory.remove(i);
+                    removed++;
+                }
+            }
+        }
+        if (removed > 0) markMessagesDirty();
+        return removed;
+    }
+
+    /** Re-reads chat/console history from disk. */
+    public synchronized void reloadMessages() {
+        synchronized (messageHistory) {
+            messageHistory.clear();
+        }
+        synchronized (commandHistory) {
+            commandHistory.clear();
+        }
+        loadMessages();
+    }
+
+    /** Restores a backup, keeping a safety copy of the current file. */
+    public synchronized String restoreMessagesFromBackup(String timestamp) {
+        Path backupDir = ModStoragePaths.getServerDataDir().resolve(BACKUPS_DIR_NAME);
+        Path source = backupDir.resolve("messages_" + timestamp + ".json");
+        if (!Files.exists(source)) return "not_found";
+        Path target = getMessagesPath();
+        try {
+            String stamp = LocalDateTime.now().format(BACKUP_TIMESTAMP);
+            if (Files.exists(target)) {
+                Files.copy(target, backupDir.resolve("messages_prerestore_" + stamp + ".json"),
+                        StandardCopyOption.REPLACE_EXISTING);
+            }
+            Files.createDirectories(target.getParent());
+            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+            reloadMessages();
+            return "ok";
+        } catch (Exception e) {
+            LOGGER.error("Failed to restore messages backup {}", timestamp, e);
+            return "failed";
+        }
     }
 
     private static void moveAtomically(Path tmp, Path target) {

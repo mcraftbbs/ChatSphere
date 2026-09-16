@@ -41,6 +41,7 @@ public class ChannelConfigScreen extends Screen {
     private static final int FIELD_W = 220;
     private static final int TOGGLE_W = 44;
     private static final int BTN_GAP = 14;
+    private static final int NOTIFY_BTN_W = 120;
 
     private final Screen parent;
     private final String channelId;
@@ -130,6 +131,7 @@ public class ChannelConfigScreen extends Screen {
                         scheduleChannelUpdate();
                     }
                 }), INPUT_H));
+        general.add(new Opt("screen.chatsphere.channel_config.notify_level", (y, k) -> mkNotifyLevel(y)));
         if (!isSub) {
             general.add(new Opt("screen.chatsphere.channel_config.invite_code", (y, k) -> {
                 int x = optLabelX + font.width(Component.translatable(k)) + BTN_GAP;
@@ -397,6 +399,19 @@ public class ChannelConfigScreen extends Screen {
             .tooltip(Component.translatable(tipKey)).build();
     }
 
+    /** Cycles this channel's notification level; stored per conversation. */
+    private StyledButton mkNotifyLevel(int y) {
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        return StyledButton.styledBuilder(
+                ChatHistoryManager.notificationLevelLabel(history.getNotificationLevel(channelId)),
+                btn -> btn.setMessage(ChatHistoryManager.notificationLevelLabel(
+                        history.cycleNotificationLevel(channelId))))
+            .bounds(optLabelX, y + 4, NOTIFY_BTN_W, 20).style(StyledButton.Style.DEFAULT)
+            .tooltip(Component.translatable("chatsphere.notify.tooltip",
+                    ChatHistoryManager.notificationLevelLabel(history.getNotificationLevel(channelId))))
+            .build();
+    }
+
     private UiToggle mkPublicToggle(int y) {
         UiToggle toggle = new UiToggle(toggleX, y, TOGGLE_W, 20, config.isPublic,
             v -> {
@@ -456,6 +471,12 @@ public class ChannelConfigScreen extends Screen {
     @Override
     public void tick() {
         copyToast.tick();
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        // The channel is gone, so there is nothing left to configure
+        if (!history.getChannels().contains(channelId) && !history.hasConversation(channelId)) {
+            if (minecraft != null) minecraft.setScreen(new ModChatScreen(""));
+            return;
+        }
         if (scheduledChannelUpdateAt > 0 && System.currentTimeMillis() >= scheduledChannelUpdateAt) {
             scheduledChannelUpdateAt = -1;
             ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);

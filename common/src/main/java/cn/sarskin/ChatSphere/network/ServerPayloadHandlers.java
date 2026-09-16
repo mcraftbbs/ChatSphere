@@ -37,10 +37,18 @@ public final class ServerPayloadHandlers {
             case UPDATE_CONFIG -> msc.updateChannelConfig(p.channelId(), p.isPublic(), p.description(), p.displayName(),
                     p.admins(), p.mutedPlayers(), p.invitedPlayers(), p.inviteCode(), realUuid,
                     p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds());
-            case JOIN_MEMBER -> msc.addMemberToChannel(p.channelId(), realUuid.toString());
+            case JOIN_MEMBER -> {
+                if (p.channelId() != null && !p.channelId().isEmpty()) {
+                    msc.addMemberToChannel(p.channelId(), realUuid.toString());
+                    msc.sendChannelHistoryToOnlinePlayer(p.channelId(), realUuid.toString());
+                }
+            }
             case JOIN_BY_CODE -> {
                 if (p.inviteCode() != null && !p.inviteCode().isEmpty()) {
                     String result = msc.joinByCode(p.inviteCode(), realUuid);
+                    if ("success".equals(result)) {
+                        msc.sendChannelHistoryToOnlinePlayer(msc.channelIdForInviteCode(p.inviteCode()), realUuid.toString());
+                    }
                     if (player instanceof ServerPlayer sp) {
                         Component msg = switch (result) {
                             case "already_member" -> Component.translatable(
@@ -231,7 +239,7 @@ public final class ServerPayloadHandlers {
         return itemNbt != null && itemNbt.length() <= MAX_ITEM_NBT_BASE64 ? itemNbt : "";
     }
 
-    /** True if a voice placeholder with this id is already in the server history. */
+    /** True when a voice placeholder with this id is already stored. */
     private static boolean voicePlaceholderExists(ModServerChannels msc, UUID voiceMessageId) {
         return voiceMessageId != null && msc.hasMessageContent("VoiceMessage#" + voiceMessageId);
     }
@@ -284,6 +292,8 @@ public final class ServerPayloadHandlers {
                 sv.set(p.value());
             }
             ModServerConfig.CONFIG_SPEC.save();
+            // Credentials are write-only: never echo them back to clients
+            if (ModServerConfig.isSecret(p.key())) return;
             ClientboundConfigSyncPayload sync = new ClientboundConfigSyncPayload(Map.of(p.key(), p.value()));
             for (ServerPlayer target : sp.server.getPlayerList().getPlayers()) {
                 target.connection.send(new ClientboundCustomPayloadPacket(sync));
@@ -311,14 +321,14 @@ public final class ServerPayloadHandlers {
             if (!recipients.contains(senderStr)) return;
             if (msc.isMuted(p.conversationId(), senderStr)) return;
 
-            // Multiple recipients may upload the same voice; only record/relay it once.
+            // Several recipients may upload the same voice; record and relay it once.
             boolean first = !voicePlaceholderExists(msc, p.voiceMessageId());
             if (first) {
                 msc.addChatMessage(senderName, realUuid,
                         "VoiceMessage#" + p.voiceMessageId(),
                         p.conversationId(), p.conversationType(), "", "", "");
             }
-            // Keep a server copy for late joiners (no-op when offline storage is off).
+            // Keep a copy for late joiners; a no-op when offline storage is off.
             storage.store(p.voiceMessageId(), senderStr, p.conversationId(), p.conversationType(), p.frameCount(), p.audioData());
             if (!first) return;
 
@@ -433,6 +443,56 @@ public final class ServerPayloadHandlers {
                 }
                 store.broadcastDelete(p.channelId(), p.name());
             }
+        }
+    }
+
+    /** Relay a typing ping to the other members; never stored, only throttled. */
+    public static void typing(Player player, ServerboundTypingPayload p) {
+        var server = player.getServer();
+        if (server == null) return;
+        ModServerChannels msc = ModServerChannels.getInstance(server);
+        String senderUuid = player.getUUID().toString();
+        String convId = p.conversationId();
+        String convType = p.conversationType();
+        if (convId == null || convId.isEmpty()) return;
+
+        List<UUID> targets = new ArrayList<>();
+        if ("CHANNEL".equals(convType)) {
+            String target = msc.resolveChatChannel(convId);
+            if (target == null) return;
+            if (!msc.effectiveMembers(target).contains(senderUuid)) return;
+            if (msc.isMuted(target, senderUuid)) return;
+            convId = target;
+            for (String member : msc.effectiveMembers(target)) {
+                UUID uuid = parseUuid(member);
+                if (uuid != null && !uuid.equals(player.getUUID())) targets.add(uuid);
+            }
+        } else if ("PRIVATE".equals(convType) && convId.contains(":")) {
+            String[] parts = convId.split(":");
+            if (parts.length != 2) return;
+            UUID other = parseUuid(parts[0].equals(senderUuid) ? parts[1] : parts[0]);
+            if (other == null || other.equals(player.getUUID())) return;
+            targets.add(other);
+        } else {
+            return;
+        }
+        if (targets.isEmpty() || !msc.acceptTyping(convId, senderUuid)) return;
+
+        ClientboundTypingPayload relay = new ClientboundTypingPayload(
+                player.getUUID(), player.getName().getString(), convId, convType);
+        for (UUID uuid : targets) {
+            ServerPlayer target = server.getPlayerList().getPlayer(uuid);
+            if (target != null) {
+                target.connection.send(new ClientboundCustomPayloadPacket(relay));
+            }
+        }
+    }
+
+    private static UUID parseUuid(String value) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 

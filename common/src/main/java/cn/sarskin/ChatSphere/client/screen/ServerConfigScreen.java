@@ -67,6 +67,7 @@ public class ServerConfigScreen extends Screen {
         List<Opt> sync = new ArrayList<>();
         sync.add(new Opt("config.chatsphere.sync_default_channel", y -> mkBool(y, "syncDefaultChannel", ModServerConfig.CONFIG.syncDefaultChannel)));
         sync.add(new Opt("config.chatsphere.channel_history", y -> mkBool(y, "channelHistoryEnabled", ModServerConfig.CONFIG.channelHistoryEnabled)));
+        sync.add(new Opt("config.chatsphere.invite_history", y -> mkBool(y, "inviteHistoryEnabled", ModServerConfig.CONFIG.inviteHistoryEnabled)));
         cats.add(new Cat("config.chatsphere.sync", sync));
 
         List<Opt> explore = new ArrayList<>();
@@ -100,6 +101,23 @@ public class ServerConfigScreen extends Screen {
         emoji.add(new Opt("config.chatsphere.emoji_max_total",
             y -> mkIntBox(y, "emojiMaxTotal", safeGetStr(ModServerConfig.CONFIG.emojiMaxTotal, "100"), 1, 10000, 5)));
         cats.add(new Cat("config.chatsphere.emoji", emoji));
+
+        List<Opt> discord = new ArrayList<>();
+        discord.add(new Opt("config.chatsphere.discord_enabled",
+            y -> mkBool(y, "discordEnabled", ModServerConfig.CONFIG.discordEnabled)));
+        discord.add(new Opt("config.chatsphere.discord_webhook",
+            y -> mkStrBox(y, "discordWebhookUrl", safeGetStr(ModServerConfig.CONFIG.discordWebhookUrl, ""), 300)));
+        discord.add(new Opt("config.chatsphere.discord_token",
+            y -> mkStrBox(y, "discordBotToken", safeGetStr(ModServerConfig.CONFIG.discordBotToken, ""), 300)));
+        discord.add(new Opt("config.chatsphere.discord_channel_id",
+            y -> mkStrBox(y, "discordChannelId", safeGetStr(ModServerConfig.CONFIG.discordChannelId, ""), 32)));
+        discord.add(new Opt("config.chatsphere.discord_mirror",
+            y -> mkStrBox(y, "discordMirrorChannel", safeGetStr(ModServerConfig.CONFIG.discordMirrorChannel, "#general"), 64)));
+        discord.add(new Opt("config.chatsphere.discord_inbound",
+            y -> mkBool(y, "discordRelayInbound", ModServerConfig.CONFIG.discordRelayInbound)));
+        discord.add(new Opt("config.chatsphere.discord_poll_seconds",
+            y -> mkIntBox(y, "discordPollSeconds", safeGetStr(ModServerConfig.CONFIG.discordPollSeconds, "5"), 2, 600, 3)));
+        cats.add(new Cat("config.chatsphere.discord", discord));
     }
 
     @Override
@@ -161,6 +179,24 @@ public class ServerConfigScreen extends Screen {
                 if (v >= min && v <= max) sendConfigUpdate(fieldName, String.valueOf(v));
             } catch (NumberFormatException ignored) {}
         });
+        return box;
+    }
+
+    /** Single-line field; edits go through the debounced sender. */
+    private EditBox mkStrBox(int y, String fieldName, String initial, int maxLen) {
+        int boxW = Math.min(btnW * 3, Math.max(btnW, width - inputX - 10));
+        EditBox box = new EditBox(font, inputX, y, boxW, 20, Component.literal(""));
+        box.setValue(initial);
+        box.setMaxLength(maxLen);
+        boolean secret = ModServerConfig.isSecret(fieldName);
+        box.setResponder(val -> {
+            // Secrets are write-only: an empty box must not wipe a stored credential
+            if (secret && val.isEmpty()) return;
+            scheduleConfigSend(fieldName, val);
+        });
+        if (secret) {
+            box.setTooltip(Tooltip.create(Component.translatable("config.chatsphere.discord.secret_hint")));
+        }
         return box;
     }
 

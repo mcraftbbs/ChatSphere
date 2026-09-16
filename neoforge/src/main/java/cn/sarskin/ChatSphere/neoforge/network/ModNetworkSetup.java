@@ -11,6 +11,7 @@ import cn.sarskin.ChatSphere.network.ClientboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundPermissionResponsePayload;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
+import cn.sarskin.ChatSphere.network.ClientboundTypingPayload;
 import cn.sarskin.ChatSphere.network.ClientboundVoicePacket;
 import cn.sarskin.ChatSphere.network.ServerPayloadHandlers;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
@@ -18,6 +19,7 @@ import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.network.ServerboundPermissionCheckPayload;
+import cn.sarskin.ChatSphere.network.ServerboundTypingPayload;
 import cn.sarskin.ChatSphere.network.ServerboundVoicePacket;
 import cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -122,6 +124,16 @@ public class ModNetworkSetup {
                 ClientboundCustomEmojiPayload.TYPE,
                 ClientboundCustomEmojiPayload.STREAM_CODEC,
                 (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("customEmoji", () -> ClientPayloadHandlers.customEmoji(p)))
+        );
+        registrar.playToServer(
+                ServerboundTypingPayload.TYPE,
+                ServerboundTypingPayload.STREAM_CODEC,
+                (p, ctx) -> ctx.enqueueWork(() -> ServerPayloadHandlers.typing(ctx.player(), p))
+        );
+        registrar.playToClient(
+                ClientboundTypingPayload.TYPE,
+                ClientboundTypingPayload.STREAM_CODEC,
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("typing", () -> ClientPayloadHandlers.typing(p)))
         );
     }
 }

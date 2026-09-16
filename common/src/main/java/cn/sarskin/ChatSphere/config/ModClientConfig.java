@@ -16,6 +16,12 @@ public class ModClientConfig {
     public final CfgValue.Bool notificationFlash;
     public final CfgValue.Bool notificationPopup;
     public final CfgValue.Bool notificationBadge;
+    public final CfgValue.Bool typingIndicator;
+    /** Master switch for the HUD drawn outside the chat screen. */
+    public final CfgValue.Bool hudEnabled;
+    public final CfgValue.Int hudMaxChars;
+    /** Default notification level for conversations without their own setting: 0 all, 1 mentions, 2 none. */
+    public final CfgValue.Int defaultNotificationLevel;
 
     public final CfgValue.Bool preserveInput;
     public final CfgValue.Bool themeDark;
@@ -75,6 +81,10 @@ public class ModClientConfig {
         notificationFlash = new CfgValue.Bool(store, "notificationFlash", true);
         notificationPopup = new CfgValue.Bool(store, "notificationPopup", true);
         notificationBadge = new CfgValue.Bool(store, "notificationBadge", true);
+        typingIndicator = new CfgValue.Bool(store, "typingIndicator", true);
+        hudEnabled = new CfgValue.Bool(store, "hudEnabled", true);
+        hudMaxChars = new CfgValue.Int(store, "hudMaxChars", 40);
+        defaultNotificationLevel = new CfgValue.Int(store, "defaultNotificationLevel", 0);
         soundMention = new CfgValue.Bool(store, "soundMention", true);
         soundWhisper = new CfgValue.Bool(store, "soundWhisper", true);
         soundSystem = new CfgValue.Bool(store, "soundSystem", false);

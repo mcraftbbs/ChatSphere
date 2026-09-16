@@ -1,3 +1,31 @@
+## 2.4.0
+
+### Added
+- `/chatsphere doctor` - data status: rows against the caps, file sizes, backups, Discord state
+- `/chatsphere backup`, `backups`, `restore <timestamp>`, `purge <channel>`, `reload`
+- Typing indicator, plus a notification level per conversation (all / mentions / muted), both configurable
+- Channel history for players who join mid-session, and unread counts that survive a restart
+- `inviteHistoryEnabled` server option: joining a channel delivers its stored history
+- Create channel screen: three step wizard (template, basics, sub-channels) with templates that prefill the name and suggest sub-channels
+- Client settings for the outside-chat HUD and the character cap per bubble
+- HUD bubbles show custom emoji as `[emoji]` / `[animated emoji]` instead of the raw shortcode
+- Optional Discord bridge: mirror one channel to Discord with a webhook, or both ways with a bot token (off by default)
+
+### Changed
+- Chat, console and channel writes are batched instead of one disk write per message
+- Chat scrollback is never capped below the server's `maxChatHistory`
+- Emoji uploads allow 512 KB, animated GIFs 320x320 / 60 frames, sprite sheets up to 8192 px
+- Client settings page: notifications and HUD options have their own groups
+
+### Fixed
+- `/chatsphere info` showed the raw translation key instead of the label
+- HUD unread badge could render underneath the chat icon while the count refreshed
+- Channel info: the invite code no longer overlaps its label in longer languages
+- The left rail and the sidebar scroll, so a long channel list no longer pushes the create button off screen
+- Channel info: the owner gets a delete button instead of a leave button that did nothing
+- Deleting a channel from its config screen no longer leaves the info panel open
+- Custom skin API: avatars are fetched properly, and the refresh button updates every known player
+
 ## 2.3.1
 
 ### Fixed

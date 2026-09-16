@@ -1,5 +1,6 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
 import cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry;
 import cn.sarskin.ChatSphere.compat.ncr.NCRCompat;
@@ -87,9 +88,20 @@ public class ConfigScreen extends Screen {
         if (cats != null) return;
         cats = new ArrayList<>();
 
+        List<Opt> notify = new ArrayList<>();
+        notify.add(new Opt("config.chatsphere.notification_badge", y -> mkBool(y, ModClientConfig.CONFIG.notificationBadge)));
+        notify.add(new Opt("config.chatsphere.typing_indicator", y -> mkBool(y, ModClientConfig.CONFIG.typingIndicator)));
+        notify.add(new Opt("config.chatsphere.notify_default", this::mkNotificationLevel));
+
+        // HUD options are not sound related, so they get their own group
+        List<Opt> hud = new ArrayList<>();
+        hud.add(new Opt("config.chatsphere.hud_enabled", y -> mkBool(y, ModClientConfig.CONFIG.hudEnabled)));
+        hud.add(new Opt("config.chatsphere.hud_max_chars",
+            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.hudMaxChars.get()), 10, 120, 3,
+                v -> { ModClientConfig.CONFIG.hudMaxChars.set(v); CONFIG_SPEC.save(); })));
+
         List<Opt> sound = new ArrayList<>();
         sound.add(new Opt("config.chatsphere.notification_sound", y -> mkBool(y, ModClientConfig.CONFIG.notificationSound)));
-        sound.add(new Opt("config.chatsphere.notification_badge", y -> mkBool(y, ModClientConfig.CONFIG.notificationBadge)));
         sound.add(new Opt("config.chatsphere.sound_mention", y -> mkBool(y, ModClientConfig.CONFIG.soundMention)));
         sound.add(new Opt("config.chatsphere.sound_whisper", y -> mkBool(y, ModClientConfig.CONFIG.soundWhisper)));
         sound.add(new Opt("config.chatsphere.sound_system", y -> mkBool(y, ModClientConfig.CONFIG.soundSystem)));
@@ -119,10 +131,13 @@ public class ConfigScreen extends Screen {
         ui.add(new Opt("config.chatsphere.background_blur", y -> mkBool(y, ModClientConfig.CONFIG.backgroundBlur)));
         ui.add(new Opt("config.chatsphere.popup_border", y -> mkBool(y, ModClientConfig.CONFIG.popupBorder)));
         ui.add(new Opt("config.chatsphere.strong_hint", y -> mkServerBool(y, "showStrongHint", ModServerConfig.CONFIG.showStrongHint)));
+        ui.add(new Opt("config.chatsphere.invite_history", y -> mkServerBool(y, "inviteHistoryEnabled", ModServerConfig.CONFIG.inviteHistoryEnabled)));
 
-        // UI tab first; sound and bubble groups under it.
+        // UI tab first, then the smaller groups.
         List<Group> uiGroups = new ArrayList<>();
         uiGroups.add(new Group(null, ui));
+        uiGroups.add(new Group("config.chatsphere.notifications", notify));
+        uiGroups.add(new Group("config.chatsphere.hud_group", hud));
         uiGroups.add(new Group("config.chatsphere.sound_settings", sound));
         uiGroups.add(new Group("config.chatsphere.bubble", bubble));
         cats.add(new Cat("config.chatsphere.ui", uiGroups));
@@ -166,7 +181,6 @@ public class ConfigScreen extends Screen {
         skin.add(new Opt("config.chatsphere.avatar_cache_enabled", y -> mkBool(y, ModClientConfig.CONFIG.avatarCacheEnabled)));
         skin.add(new Opt("config.chatsphere.refresh_skin_cache", y ->
             Button.builder(Component.translatable("config.chatsphere.refresh_skin_cache"), btn -> {
-                    btn.active = false;
                     PlayerSkinCache.refreshCache();
                 })
                 .bounds(inputX, y, btnW, 20)
@@ -238,6 +252,17 @@ public class ConfigScreen extends Screen {
         } else {
             cn.sarskin.ChatSphere.style.CustomTheme.INSTANCE.unload();
         }
+    }
+
+    /** Notification level for conversations without their own setting. */
+    private AbstractWidget mkNotificationLevel(int y) {
+        var cfg = ModClientConfig.CONFIG.defaultNotificationLevel;
+        return Button.builder(ChatHistoryManager.notificationLevelLabel(cfg.get()), btn -> {
+            int next = (cfg.get() + 1) % 3;
+            cfg.set(next);
+            CONFIG_SPEC.save();
+            btn.setMessage(ChatHistoryManager.notificationLevelLabel(next));
+        }).bounds(inputX, y, btnW, 20).build();
     }
 
     private boolean isCornerStyleCat(int idx) {

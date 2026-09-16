@@ -19,6 +19,7 @@ public class ModServerConfig {
     public final CfgValue.Bool showStrongHint;
     public final CfgValue.Bool syncDefaultChannel;
     public final CfgValue.Bool channelHistoryEnabled;
+    public final CfgValue.Bool inviteHistoryEnabled;
     public final CfgValue.Bool exploreEnabled;
     public final CfgValue.Int exploreMinMembers;
     public final CfgValue.Int backupIntervalMinutes;
@@ -33,6 +34,15 @@ public class ModServerConfig {
     public final CfgValue.Bool emojiUploadRequiresOp;
     public final CfgValue.Int emojiUploadCooldownSeconds;
     public final CfgValue.Int emojiMaxTotal;
+
+    /** Discord interop: off by default, secrets stay on the server. */
+    public final CfgValue.Bool discordEnabled;
+    public final CfgValue.Str discordWebhookUrl;
+    public final CfgValue.Str discordBotToken;
+    public final CfgValue.Str discordChannelId;
+    public final CfgValue.Str discordMirrorChannel;
+    public final CfgValue.Bool discordRelayInbound;
+    public final CfgValue.Int discordPollSeconds;
 
     private final Map<String, CfgValue.Bool> boolFields = new HashMap<>();
     private static final Map<String, Boolean> PENDING_BOOLEANS = new ConcurrentHashMap<>();
@@ -50,6 +60,7 @@ public class ModServerConfig {
 
         syncDefaultChannel = new CfgValue.Bool(store, "syncDefaultChannel", true);
         channelHistoryEnabled = new CfgValue.Bool(store, "channelHistoryEnabled", true);
+        inviteHistoryEnabled = new CfgValue.Bool(store, "inviteHistoryEnabled", true);
 
         exploreEnabled = new CfgValue.Bool(store, "exploreEnabled", true);
         exploreMinMembers = new CfgValue.Int(store, "exploreMinMembers", 0);
@@ -69,16 +80,27 @@ public class ModServerConfig {
         // cap applies per folder
         emojiMaxTotal = new CfgValue.Int(store, "emojiMaxTotal", 100);
 
+        discordEnabled = new CfgValue.Bool(store, "discordEnabled", false);
+        discordWebhookUrl = new CfgValue.Str(store, "discordWebhookUrl", "");
+        discordBotToken = new CfgValue.Str(store, "discordBotToken", "");
+        discordChannelId = new CfgValue.Str(store, "discordChannelId", "");
+        discordMirrorChannel = new CfgValue.Str(store, "discordMirrorChannel", "#general");
+        discordRelayInbound = new CfgValue.Bool(store, "discordRelayInbound", false);
+        discordPollSeconds = new CfgValue.Int(store, "discordPollSeconds", 5);
+
         boolFields.put("antiSpam", antiSpam);
         boolFields.put("enableChannels", enableChannels);
         boolFields.put("showStrongHint", showStrongHint);
         boolFields.put("syncDefaultChannel", syncDefaultChannel);
         boolFields.put("channelHistoryEnabled", channelHistoryEnabled);
+        boolFields.put("inviteHistoryEnabled", inviteHistoryEnabled);
         boolFields.put("exploreEnabled", exploreEnabled);
         boolFields.put("preventsChatReports", preventsChatReports);
         boolFields.put("voiceOfflineStorage", voiceOfflineStorage);
         boolFields.put("emojiSharingEnabled", emojiSharingEnabled);
         boolFields.put("emojiUploadRequiresOp", emojiUploadRequiresOp);
+        boolFields.put("discordEnabled", discordEnabled);
+        boolFields.put("discordRelayInbound", discordRelayInbound);
 
         store.save();
     }
@@ -117,11 +139,17 @@ public class ModServerConfig {
         return toSend;
     }
 
+    /** Credentials that must never reach a client, operators included. */
+    public static boolean isSecret(String key) {
+        return "discordWebhookUrl".equals(key) || "discordBotToken".equals(key);
+    }
+
     /** All config values as key → string, for the server → client config sync. */
     public static Map<String, String> snapshot() {
         Map<String, String> out = new LinkedHashMap<>();
         for (Field f : ModServerConfig.class.getDeclaredFields()) {
             if (!CfgValue.class.isAssignableFrom(f.getType())) continue;
+            if (isSecret(f.getName())) continue;
             try {
                 f.setAccessible(true);
                 Object val = f.get(CONFIG);
