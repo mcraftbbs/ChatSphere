@@ -4,6 +4,7 @@ import cn.sarskin.ChatSphere.ModInfo;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ChatMessageData;
 import cn.sarskin.ChatSphere.client.ChatDataStore;
+import cn.sarskin.ChatSphere.client.ConsoleTabs;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.client.widget.EmojiPanel;
@@ -114,6 +115,7 @@ public class ModChatScreen extends Screen {
     private static final long TYPING_INTERVAL_MS = 2000L;
     private long lastTypingSent;
     private static final int MUTE_BAR_H = 14;
+    private static final int TAB_STRIP_H = 20;
     private static final int AVATAR_SIZE = 10;
     private static final int SIDEBAR_AVATAR_SIZE = 12;
     private static final int BUBBLE_HPAD = 8;
@@ -199,6 +201,10 @@ public class ModChatScreen extends Screen {
     private java.util.UUID contextMenuUuid;
     private int replyHighlightTarget = -1;
     private int replyHighlightTicks;
+    private int consoleTabIndex;
+    private List<Integer> consoleView;
+    private int consoleViewSig = Integer.MIN_VALUE;    private List<ConsoleTabs.Tab> cachedTabs;
+    private String cachedTabsRaw;
     private final List<CommandHit> cmdHitBoxes = new ArrayList<>();
     private final List<VoiceHit> voiceHitBoxes = new ArrayList<>();
     private final List<BubbleHit> bubbleHitBoxes = new ArrayList<>();
@@ -442,6 +448,7 @@ public class ModChatScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
+            if (consoleTabClicked(mouseX, mouseY)) return true;
             if (showSearch && searchInput != null && searchInput.isVisible()) {
                 int barY = HEADER_BAR_HEIGHT + 6;
                 int barH = 20;
@@ -885,8 +892,17 @@ public class ModChatScreen extends Screen {
             }
             return true;
         }
-        if (COMMAND_CONVERSATION_ID.equals(currentConversation)
-                && this.commandSuggestions != null
+        boolean console = COMMAND_CONVERSATION_ID.equals(currentConversation);
+        boolean ctrl = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+        // History keeps the arrows; ctrl hands them to the suggestion list
+        if (console && (keyCode == 265 || keyCode == 264) && !ctrl
+                && input != null && input.isFocused()
+                && (searchInput == null || !searchInput.isFocused())) {
+            moveInHistory(keyCode == 265 ? -1 : 1);
+            if (this.commandSuggestions != null) this.commandSuggestions.updateCommandInfo();
+            return true;
+        }
+        if (console && this.commandSuggestions != null
                 && this.commandSuggestions.keyPressed(keyCode, scanCode, modifiers)) {
             return true;
         }
@@ -939,11 +955,11 @@ public class ModChatScreen extends Screen {
             return true;
         }
         if (keyCode == 265) {
-            moveInHistory(-1);
+            if (!(console && ctrl)) moveInHistory(-1);
             return true;
         }
         if (keyCode == 264) {
-            moveInHistory(1);
+            if (!(console && ctrl)) moveInHistory(1);
             return true;
         }
         return false;
@@ -1236,6 +1252,7 @@ public class ModChatScreen extends Screen {
         int screenHeight = this.height;
 
         drawHeaderBar(guiGraphics);
+        renderConsoleTabs(guiGraphics, mouseX, mouseY);
         renderMessages(guiGraphics, mouseX, mouseY, screenWidth, screenHeight);
         renderNotificationBar(guiGraphics, screenHeight);
 
@@ -1601,14 +1618,17 @@ public class ModChatScreen extends Screen {
                     minecraft.keyboardHandler.setClipboard(msg.content().getString());
                     copyToast.show();
                 }));
-        rows.add(new MenuRow(Component.translatable("screen.chatsphere.context.reply"),
-                0xCCCCCC, Theme.menuHover(), msg != null,
-                () -> {
-                    if (msg == null) return;
-                    replyBar.targetIndex = contextMsgIndex;
-                    replyBar.replyText = quoteTextFor(msg);
-                    replyBar.replySender = msg.senderName().getString();
-                }));
+        // Console lines are not chat messages, so they have nothing to reply to
+        if (msg == null || msg.conversationType() != ChatMessageData.ConversationType.COMMAND) {
+            rows.add(new MenuRow(Component.translatable("screen.chatsphere.context.reply"),
+                    0xCCCCCC, Theme.menuHover(), msg != null,
+                    () -> {
+                        if (msg == null) return;
+                        replyBar.targetIndex = contextMsgIndex;
+                        replyBar.replyText = quoteTextFor(msg);
+                        replyBar.replySender = msg.senderName().getString();
+                    }));
+        }
         boolean blockOk = msg != null && msg.senderUuid() != null && !msg.isOwn();
         rows.add(new MenuRow(Component.translatable("screen.chatsphere.context.block"),
                 0xFFAA6666, 0x44884444, blockOk,
@@ -1796,8 +1816,13 @@ public class ModChatScreen extends Screen {
         List<ChatMessageData> msgs = history.getMessagesByConversation(currentConversation);
         for (int i = 0; i < msgs.size(); i++) {
             if (history.getMessageIndex(msgs.get(i)) == targetIdx) {
+                int row = i;
+                if (COMMAND_CONVERSATION_ID.equals(currentConversation)) {
+                    row = consoleView(msgs).indexOf(i);
+                    if (row < 0) return;
+                }
                 int visible = Math.max(1, (height - chatAreaTop() - 14 - TOOLBAR_HEIGHT - MESSAGE_BOTTOM_PAD) / 30);
-                scrollOffset = Math.max(0, msgs.size() - 1 - i - visible / 2);
+                scrollOffset = Math.max(0, rowCount(msgs) - 1 - row - visible / 2);
                 scrollOffset = Math.min(scrollOffset, maxScrollOffset());
                 break;
             }
@@ -2349,7 +2374,57 @@ public class ModChatScreen extends Screen {
     }
 
     private int chatAreaTop() {
-        return HEADER_BAR_HEIGHT + 6 + (isCurrentChannelMuted() ? MUTE_BAR_H : 0);
+        return HEADER_BAR_HEIGHT + 6 + (isCurrentChannelMuted() ? MUTE_BAR_H : 0) + (consoleTabsVisible() ? TAB_STRIP_H : 0);
+    }
+
+    public static void invalidateConsoleTabs() {
+        if (Minecraft.getInstance().screen instanceof ModChatScreen chat) {
+            chat.consoleView = null;
+            chat.consoleViewSig = Integer.MIN_VALUE;
+            chat.cachedTabs = null;
+            chat.consoleTabIndex = 0;
+            chat.scrollOffset = 0;
+        }
+    }
+
+    private void renderConsoleTabs(GuiGraphics g, int mouseX, int mouseY) {
+        if (!consoleTabsVisible()) return;
+        List<ConsoleTabs.Tab> tabs = tabs();
+        int x = chatLeft() + 6;
+        int y = HEADER_BAR_HEIGHT + 6 + (isCurrentChannelMuted() ? MUTE_BAR_H : 0);
+        for (int i = 0; i <= tabs.size(); i++) {
+            String name = i == 0
+                    ? Component.translatable("screen.chatsphere.console_tabs.all").getString()
+                    : tabs.get(i - 1).name();
+            int w = font.width(name) + 12;
+            boolean selected = i == consoleTabIndex;
+            boolean hover = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + TAB_STRIP_H - 2;
+            int bg = selected ? Theme.activeRow() : (hover ? Theme.hoverRow() : Theme.iconBtnBg());
+            Ui.fillRoundedRect(g, x, y, w, TAB_STRIP_H - 2, Theme.buttonRadius(), bg);
+            g.drawString(font, name, x + 6, y + 5, selected ? Theme.accent() : Theme.textDim(), false);
+            x += w + 4;
+        }
+    }
+
+    private boolean consoleTabClicked(double mouseX, double mouseY) {
+        if (!consoleTabsVisible()) return false;
+        List<ConsoleTabs.Tab> tabs = tabs();
+        int x = chatLeft() + 6;
+        int y = HEADER_BAR_HEIGHT + 6 + (isCurrentChannelMuted() ? MUTE_BAR_H : 0);
+        if (mouseY < y || mouseY >= y + TAB_STRIP_H - 2) return false;
+        for (int i = 0; i <= tabs.size(); i++) {
+            int w = font.width(i == 0
+                    ? Component.translatable("screen.chatsphere.console_tabs.all").getString()
+                    : tabs.get(i - 1).name()) + 12;
+            if (mouseX >= x && mouseX < x + w) {
+                consoleTabIndex = i;
+                consoleViewSig = Integer.MIN_VALUE;
+                scrollOffset = 0;
+                return true;
+            }
+            x += w + 4;
+        }
+        return false;
     }
 
     private void renderMessages(GuiGraphics guiGraphics, int mouseX, int mouseY, int screenWidth, int screenHeight) {
@@ -2360,7 +2435,9 @@ public class ModChatScreen extends Screen {
 
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         List<ChatMessageData> messages = history.getMessagesByConversation(currentConversation);
-        int totalMessages = messages.size();
+        boolean commandConv = COMMAND_CONVERSATION_ID.equals(currentConversation);
+        List<Integer> view = commandConv ? consoleView(messages) : null;
+        int totalMessages = view != null ? view.size() : messages.size();
         if (totalMessages == 0) return;
         scrollOffset = Math.max(0, Math.min(scrollOffset, maxScrollOffset()));
         synchronized (cmdHitBoxes) { cmdHitBoxes.clear(); }
@@ -2380,7 +2457,6 @@ public class ModChatScreen extends Screen {
         boolean streamRows = Theme.stream();
         int unreadCount = streamRows ? history.getUnreadCount(currentConversation) : 0;
         Set<Integer> searchSet = showSearch && !searchResults.isEmpty() ? new HashSet<>(searchResults) : Set.of();
-        boolean commandConv = COMMAND_CONVERSATION_ID.equals(currentConversation);
         Map<ChatMessageData, Integer> globalIndexMap = null;
         if (!commandConv) {
             List<ChatMessageData> all = history.snapshotAllMessages();
@@ -2389,11 +2465,12 @@ public class ModChatScreen extends Screen {
                 globalIndexMap.putIfAbsent(all.get(j), j);
             }
         }
-        for (int i = idx; i >= 0; i--) {
+        for (int row = idx; row >= 0; row--) {
+            int i = view != null ? view.get(row) : row;
             ChatMessageData msg = messages.get(i);
             int globalIdx = commandConv ? i : globalIndexMap.getOrDefault(msg, -1);
 
-            if (unreadCount > 0 && i == totalMessages - unreadCount) {
+            if (unreadCount > 0 && row == totalMessages - unreadCount) {
                 yOffset -= 18;
                 if (yOffset < chatAreaTop) break;
                 String label = Component.translatable("screen.chatsphere.unread_divider").getString();
@@ -2423,16 +2500,18 @@ public class ModChatScreen extends Screen {
                     guiGraphics.fill(chatAreaLeft + 8, yOffset + 10, chatAreaRight - 8, yOffset + 11, Theme.sectionLine());
                 }
                 lastTimeKey = key;
-            } else if (streamRows && i + 1 < totalMessages
-                    && !ChatHistoryManager.isSameDay(messages.get(i + 1).timestamp(), msg.timestamp())) {
-                yOffset -= 26;
-                if (yOffset < chatAreaTop) break;
-                String sepText = ChatHistoryManager.formatDateHeader(messages.get(i + 1).timestamp());
-                int sepW = font.width(sepText);
-                int sepX = chatAreaLeft + (chatAreaRight - chatAreaLeft - sepW) / 2;
-                guiGraphics.drawString(font, sepText, sepX, yOffset + 1, Theme.floatingTextDim(), false);
-                guiGraphics.fill(chatAreaLeft + 8, yOffset + 10, sepX - 8, yOffset + 11, Theme.sectionLine());
-                guiGraphics.fill(sepX + sepW + 8, yOffset + 10, chatAreaRight - 8, yOffset + 11, Theme.sectionLine());
+            } else if (streamRows && row + 1 < totalMessages) {
+                ChatMessageData next = messages.get(view != null ? view.get(row + 1) : row + 1);
+                if (!ChatHistoryManager.isSameDay(next.timestamp(), msg.timestamp())) {
+                    yOffset -= 26;
+                    if (yOffset < chatAreaTop) break;
+                    String sepText = ChatHistoryManager.formatDateHeader(next.timestamp());
+                    int sepW = font.width(sepText);
+                    int sepX = chatAreaLeft + (chatAreaRight - chatAreaLeft - sepW) / 2;
+                    guiGraphics.drawString(font, sepText, sepX, yOffset + 1, Theme.floatingTextDim(), false);
+                    guiGraphics.fill(chatAreaLeft + 8, yOffset + 10, sepX - 8, yOffset + 11, Theme.sectionLine());
+                    guiGraphics.fill(sepX + sepW + 8, yOffset + 10, chatAreaRight - 8, yOffset + 11, Theme.sectionLine());
+                }
             }
 
             int bubbleHeight;
@@ -2967,7 +3046,40 @@ public class ModChatScreen extends Screen {
     }
 
     private int getMessageCount() {
-        return ChatHistoryManager.getInstance().getMessagesByConversation(currentConversation).size();
+        return rowCount(ChatHistoryManager.getInstance().getMessagesByConversation(currentConversation));
+    }
+
+    /** Console rows with the selected tab applied. */
+    private List<Integer> consoleView(List<ChatMessageData> messages) {
+        List<ConsoleTabs.Tab> tabs = tabs();
+        int size = messages.size();
+        String tail = size == 0 ? "" : messages.get(size - 1).content().getString();
+        int sig = java.util.Objects.hash(size, tail, tabs.size(), consoleTabIndex);
+        if (consoleView != null && consoleViewSig == sig) return consoleView;
+        if (consoleTabIndex > tabs.size()) consoleTabIndex = 0;
+        consoleView = ConsoleTabs.build(messages, tabs, consoleTabIndex);
+        consoleViewSig = sig;
+        return consoleView;
+    }
+
+    private List<ConsoleTabs.Tab> tabs() {
+        if (!ModClientConfig.CONFIG.consoleTabsEnabled.get()) return List.of();
+        String raw = ModClientConfig.CONFIG.consoleTabs.get();
+        if (cachedTabs == null || !raw.equals(cachedTabsRaw)) {
+            cachedTabs = ConsoleTabs.parse(raw);
+            cachedTabsRaw = raw;
+        }
+        return cachedTabs;
+    }
+
+    private int rowCount(List<ChatMessageData> messages) {
+        return COMMAND_CONVERSATION_ID.equals(currentConversation)
+                ? consoleView(messages).size()
+                : messages.size();
+    }
+
+    private boolean consoleTabsVisible() {
+        return COMMAND_CONVERSATION_ID.equals(currentConversation) && !tabs().isEmpty();
     }
 
     private int getVisibleMessageCount() {
@@ -3066,7 +3178,8 @@ public class ModChatScreen extends Screen {
                 ModServerConfig.CONFIG.maxChatHistory.get());
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         List<ChatMessageData> messages = history.getMessagesByConversation(currentConversation);
-        int total = messages.size();
+        List<Integer> view = COMMAND_CONVERSATION_ID.equals(currentConversation) ? consoleView(messages) : null;
+        int total = rowCount(messages);
         int capped = Math.min(total, limit);
         if (capped <= 1) return 0;
         boolean stream = Theme.stream();
@@ -3082,26 +3195,33 @@ public class ModChatScreen extends Screen {
         int accumulated = 0;
         int idx = 0;
         while (idx < capped) {
-            ChatMessageData msg = messages.get(idx);
+            int i = view != null ? view.get(idx) : idx;
+            ChatMessageData msg = messages.get(i);
+            int nextI = view != null
+                    ? (idx + 1 < total ? view.get(idx + 1) : -1)
+                    : (idx + 1 < total ? idx + 1 : -1);
             if (stream && unreadCount > 0 && idx == total - unreadCount) {
                 accumulated += 18;
                 if (accumulated >= space) break;
             }
             if (sepInterval > 0 && !stream) {
                 String key = ChatHistoryManager.timeSeparatorKey(msg.timestamp(), sepInterval);
-                if (idx + 1 < total) {
-                    String nextKey = ChatHistoryManager.timeSeparatorKey(messages.get(idx + 1).timestamp(), sepInterval);
+                if (nextI >= 0) {
+                    String nextKey = ChatHistoryManager.timeSeparatorKey(messages.get(nextI).timestamp(), sepInterval);
                     if (!key.equals(nextKey)) {
                         accumulated += 16;
                         if (accumulated >= space) break;
                     }
                 }
-            } else if (stream && idx + 1 < total
-                    && !ChatHistoryManager.isSameDay(messages.get(idx + 1).timestamp(), msg.timestamp())) {
+            } else if (stream && nextI >= 0
+                    && !ChatHistoryManager.isSameDay(messages.get(nextI).timestamp(), msg.timestamp())) {
                 accumulated += 26;
                 if (accumulated >= space) break;
             }
-            int h = measureRowHeight(msg, idx > 0 ? messages.get(idx - 1) : null, areaLeft, areaRight, stream);
+            int prevI = view != null
+                    ? (idx > 0 ? view.get(idx - 1) : -1)
+                    : (idx > 0 ? idx - 1 : -1);
+            int h = measureRowHeight(msg, prevI >= 0 ? messages.get(prevI) : null, areaLeft, areaRight, stream);
             accumulated += h + 2;
             idx++;
             if (accumulated >= space) break;

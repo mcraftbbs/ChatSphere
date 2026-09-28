@@ -8,7 +8,7 @@ A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**
 
 > **License:** GNU LGPLv3 — released jars carry the LGPLv3 text and a third-party notice (`LICENSE`, `THIRD-PARTY.md`)
 > **Mod ID:** `chatsphere`
-> **Version:** 2.4.0
+> **Version:** 2.4.1
 
 ---
 
@@ -20,6 +20,7 @@ A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**
 - 349 built-in emoji with search and `:shortcode:` autocomplete
 - Voice rooms via Simple Voice Chat or PlasmoVoice
 - Command console with history inside the chat window
+- Console tabs (off by default): split the console by regex, repeats collapsed with a count
 - Message search, quote reply, right-click menu
 - Member management: admins, mute, kick, invites, ownership
 - Rich text markup (`[b]`, `[color]`, `[gradient]`, `[url]`, `[code]`), bare URLs auto-linkified
@@ -52,7 +53,7 @@ The mod works client-only in local storage mode. Install on both server and clie
 
 - **Channels** — create with `+` or `#name`, join with `→` and an invite code, browse public ones from the explore screen (search icon). Gear icon opens per-channel settings (general, sub-channels, members, voice, delete)
 - **Private messaging** — click a player name (or right-click an avatar → Private Message), or use `/msg` / `/tell`
-- **Command console** — "Commands → Console" in the sidebar; up/down arrows recall history
+- **Command console** — "Commands → Console" in the sidebar; up/down arrows recall history, ctrl+up/down walks the command suggestions
 - **Emoji** — click the emoji button in the input bar, or type `:smile:` for autocomplete. Custom png/gif can be uploaded locally or shared to the server (public or per-channel)
 - **Voice** — join a voice room from a channel's settings; both SVC and PlasmoVoice are detected automatically
 

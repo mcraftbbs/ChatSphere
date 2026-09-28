@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.widget;
 
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.Ui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -44,8 +45,11 @@ public class MentionPopup {
         int popupW = maxW + 12;
         if (popupY < 20) popupY = input.getY() + input.getHeight() + 2;
 
-        g.fill(popupX, popupY, popupX + popupW, popupY + popupH, Theme.popupBg());
-        g.renderOutline(popupX, popupY, popupW, popupH, Theme.popupOutline());
+        int radius = Theme.buttonRadius();
+        Ui.fillRoundedRect(g, popupX, popupY, popupW, popupH, radius, Theme.popupBg());
+        if (Theme.popupBorderVisible()) {
+            Ui.renderRoundedOutline(g, popupX, popupY, popupW, popupH, radius, Theme.popupOutline());
+        }
 
         int startIdx = Math.max(0, selectedIdx - 7);
         int endIdx = Math.min(candidates.size(), startIdx + 8);

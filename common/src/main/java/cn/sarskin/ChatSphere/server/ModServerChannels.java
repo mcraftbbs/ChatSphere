@@ -8,6 +8,7 @@ import cn.sarskin.ChatSphere.network.ClientboundChatPayload;
 import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload.StoredMessage;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
+import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import cn.sarskin.ChatSphere.storage.ModStoragePaths;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -366,25 +367,28 @@ public class ModServerChannels {
     /** Tree-view drag nesting: moves a channel and its whole subtree. */
     public synchronized boolean moveChannel(String channelId, String newParentId, UUID requester) {
         ChannelEntry entry = channels.get(channelId);
-        if (entry == null || newParentId == null || newParentId.isEmpty()) return false;
-        ChannelEntry newParent = channels.get(newParentId);
-        if (newParent == null) return false;
+        if (entry == null || newParentId == null) return false;
+        boolean toRoot = ServerboundChannelActionPayload.ROOT_PARENT.equals(newParentId);
+        ChannelEntry newParent = toRoot ? null : channels.get(newParentId);
+        if (!toRoot && newParent == null) return false;
         if (channelId.equals(newParentId)) return false;
-        if (channelDepth(newParentId) > 1) return false; // parents limited to top-level or level-1
-        if (channelId.startsWith(newParentId + "/")) return false; // cannot move into own subtree
+        if (!toRoot && channelDepth(newParentId) > 1) return false; // parents limited to top-level or level-1
         String reqStr = requester != null ? requester.toString() : "";
-        if (!isOwnerOrAdmin(channelId, reqStr) || !isOwnerOrAdmin(newParentId, reqStr)) return false;
-        if (newParentId.startsWith(channelId + "/")) return false; // cannot move into own subtree
+        if (!isOwnerOrAdmin(channelId, reqStr)) return false;
+        if (!toRoot && !isOwnerOrAdmin(newParentId, reqStr)) return false;
+        // Only a descendant would loop the tree; moving a channel up to an ancestor is fine
+        if (!toRoot && newParentId.startsWith(channelId + "/")) return false;
         String newSegment = subNameOf(channelId);
         if (newSegment.startsWith("#")) newSegment = newSegment.substring(1);
         if (!isValidChannelSegment(newSegment)) return false;
-        String newId = newParentId + "/" + newSegment;
+        String newId = toRoot ? "#" + newSegment : newParentId + "/" + newSegment;
         if (channels.containsKey(newId)) return false;
+        String orderParent = toRoot ? "" : newParentId;
         int newOrder = channels.values().stream()
-                .filter(e -> newParentId.equals(e.parentId()))
+                .filter(e -> orderParent.equals(e.parentId() == null ? "" : e.parentId()))
                 .mapToInt(ChannelEntry::sortOrder)
                 .max().orElse(-1) + 1;
-        rekeyChannelTree(channelId, newId, requester, newParentId, newOrder);
+        rekeyChannelTree(channelId, newId, requester, toRoot ? "" : newParentId, newOrder);
         return true;
     }
 

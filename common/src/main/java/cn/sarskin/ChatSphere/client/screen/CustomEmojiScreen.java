@@ -222,7 +222,8 @@ public class CustomEmojiScreen extends Screen {
 
         int listX = popupX + 12;
         int listW = POPUP_WIDTH - 24;
-        g.fill(listX - 4, popupY + LIST_Y - 2, listX + listW + 4, popupY + LIST_Y + LIST_H + 2, Theme.panelBg2());
+        Ui.fillRoundedRect(g, listX - 4, popupY + LIST_Y - 2, listW + 8, LIST_H + 4,
+                Theme.buttonRadius(), Theme.panelBg2());
         g.enableScissor(listX - 4, popupY + LIST_Y - 2, listX + listW + 4, popupY + LIST_Y + LIST_H + 2);
 
         List<CustomEmoji> list = CustomEmojiRegistry.list();
@@ -266,6 +267,16 @@ public class CustomEmojiScreen extends Screen {
                 delHover ? 0xFFFF6666 : Theme.textFaint(), false);
         }
         g.disableScissor();
+
+        int maxScroll = Math.max(0, list.size() - rows);
+        if (maxScroll > 0) {
+            int trackX = listX + listW + 2;
+            int trackH = LIST_H;
+            int thumbH = Math.max(12, trackH * rows / list.size());
+            int thumbY = popupY + LIST_Y + (trackH - thumbH) * scrollOffset / maxScroll;
+            Ui.fillRoundedRect(g, trackX, popupY + LIST_Y, 3, trackH, 1, Theme.scrollTrack());
+            Ui.fillRoundedRect(g, trackX, thumbY, 3, thumbH, 1, Theme.scrollThumb());
+        }
 
         for (var renderable : ((cn.sarskin.ChatSphere.mixin.ScreenAccessor) this).chatsphere$getRenderables()) {
             renderable.render(g, mouseX, mouseY, partialTick);
@@ -323,13 +334,19 @@ public class CustomEmojiScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double horizontalAmount, double verticalAmount) {
-        if (mx >= (width - POPUP_WIDTH) / 2 && mx <= (width + POPUP_WIDTH) / 2
-                && my >= (height - POPUP_HEIGHT) / 2 + LIST_Y && my < (height - POPUP_HEIGHT) / 2 + LIST_Y + LIST_H) {
-            int max = Math.max(0, CustomEmojiRegistry.list().size() - visibleRows());
-            scrollOffset = Mth.clamp(scrollOffset - (int) verticalAmount, 0, max);
+        int popupX = (width - POPUP_WIDTH) / 2;
+        int popupY = (height - POPUP_HEIGHT) / 2;
+        if (mx >= popupX && mx <= popupX + POPUP_WIDTH && my >= popupY && my <= popupY + POPUP_HEIGHT) {
+            scrollList(verticalAmount);
             return true;
         }
         return super.mouseScrolled(mx, my, horizontalAmount, verticalAmount);
+    }
+
+    private void scrollList(double amount) {
+        if (amount == 0) return;
+        int max = Math.max(0, CustomEmojiRegistry.list().size() - visibleRows());
+        scrollOffset = Mth.clamp(scrollOffset + (amount > 0 ? -1 : 1), 0, max);
     }
 
     @Override

@@ -27,8 +27,7 @@ public record ServerboundChannelActionPayload(
         String replySender,
         String itemNbt,
         boolean mainChatEnabled,
-        String defaultSubChannel,
-        int slowModeSeconds
+        String defaultSubChannel,        int slowModeSeconds
 ) implements CustomPacketPayload {
     /** Convenience ctor for send paths that don't configure slow mode (0 = off). */
     public ServerboundChannelActionPayload(Action action, String channelId, UUID ownerUuid,
@@ -122,6 +121,9 @@ public record ServerboundChannelActionPayload(
     public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
         return TYPE;
     }
+
+    /** description() value for MOVE_CHANNEL meaning "top level"; real channel ids always start with #. */
+    public static final String ROOT_PARENT = "#";
 
     public enum Action { CREATE, UPDATE_CONFIG, JOIN_MEMBER, JOIN_BY_CODE, SEND_CHAT, REMOVE_CHANNEL,
         TOGGLE_MUTE, TOGGLE_ADMIN, TOGGLE_INVITE, LEAVE_CHANNEL, LIST_PUBLIC,

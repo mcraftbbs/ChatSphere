@@ -53,6 +53,9 @@ public class ModClientConfig {
     public final CfgValue.Bool customThemeActive;
     public final CfgValue.Str customThemeFile;
     public final CfgValue.StrList urlLinkFilter;
+    /** Tabs shown above the console log; the tabs themselves live in {@link #consoleTabs}. */
+    public final CfgValue.Bool consoleTabsEnabled;
+    public final CfgValue.Str consoleTabs;
 
     private ModClientConfig() {
         this.store = new ConfigStore("chatsphere-client.json");
@@ -106,6 +109,9 @@ public class ModClientConfig {
         customThemeActive = new CfgValue.Bool(store, "customThemeActive", false);
         customThemeFile = new CfgValue.Str(store, "customThemeFile", "");
         urlLinkFilter = new CfgValue.StrList(store, "urlLinkFilter", new ArrayList<>());
+
+        consoleTabsEnabled = new CfgValue.Bool(store, "consoleTabsEnabled", false);
+        consoleTabs = new CfgValue.Str(store, "consoleTabs", "[]");
 
         store.save();
     }

@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.widget;
 
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import static cn.sarskin.ChatSphere.config.ModClientConfig.CONFIG_SPEC;
 import net.minecraft.client.Minecraft;
@@ -53,8 +54,11 @@ public class QuickPhrasesPanel {
         List<String> phrases = getPhrases();
         int ph = panelH();
 
-        g.fill(panelX, panelY, panelX + PANEL_W, panelY + ph, Theme.panelBg());
-        g.renderOutline(panelX, panelY, PANEL_W, ph, Theme.popupOutline());
+        int radius = Theme.cardRadius();
+        Ui.fillRoundedRect(g, panelX, panelY, PANEL_W, ph, radius, Theme.popupBg());
+        if (Theme.popupBorderVisible()) {
+            Ui.renderRoundedOutline(g, panelX, panelY, PANEL_W, ph, radius, Theme.popupOutline());
+        }
 
         int listRows = Math.min(phrases.size(), VISIBLE_ROWS);
         int listH = listRows * ROW_H;

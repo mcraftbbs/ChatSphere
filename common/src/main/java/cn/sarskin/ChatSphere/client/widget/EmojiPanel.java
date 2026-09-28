@@ -473,6 +473,8 @@ public class EmojiPanel {
 
     public boolean mouseScrolled(double mouseX, double mouseY, int panelX, int panelY, double scrollY) {
         if (!visible) return false;
+        if (mouseX < panelX || mouseX >= panelX + PANEL_W
+                || mouseY < panelY || mouseY >= panelY + panelH()) return false;
 
         if (selectedGroup == GROUP_BUILTIN) {
             int tabY = panelY + GROUP_H + 2;
@@ -487,7 +489,8 @@ public class EmojiPanel {
 
         int lineCount = buildLines().size();
         int maxScroll = Math.max(0, lineCount - visibleLines());
-        scrollOffset = Mth.clamp(scrollOffset - (int) scrollY, 0, maxScroll);
+        int step = scrollY > 0 ? -1 : 1;
+        scrollOffset = Mth.clamp(scrollOffset + step, 0, maxScroll);
         return true;
     }
 

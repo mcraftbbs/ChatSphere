@@ -105,6 +105,12 @@ public class ChatMessageData {
     public String itemNbt() { return itemNbt; }
     public void setItemNbt(String nbt) { this.itemNbt = nbt; }
 
+    /** Text of this row; console entries keep it in senderName with an empty content. */
+    public String plainText() {
+        String text = content.getString();
+        return text.isEmpty() ? senderName.getString() : text;
+    }
+
     public enum ConversationType {
         CHANNEL, PRIVATE, COMMAND
     }

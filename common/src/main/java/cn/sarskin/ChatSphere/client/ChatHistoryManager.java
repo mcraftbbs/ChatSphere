@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 
 public class ChatHistoryManager {
     public static final String COMMAND_CONVERSATION_ID = "__commands__";
+    public static final String ROOT_PARENT = ServerboundChannelActionPayload.ROOT_PARENT;
     public static final String DEFAULT_CHANNEL_ID = cn.sarskin.ChatSphere.ModInfo.DEFAULT_CHANNEL_ID;
     public static final int BRIDGE_PROTOCOL_VERSION = 2;
     /** Notification levels: everything, mentions only, or silent. */
@@ -281,6 +282,15 @@ public class ChatHistoryManager {
     public List<Integer> searchMessages(String conversationId, String query) {
         if (query == null || query.isEmpty()) return List.of();
         String lower = query.toLowerCase();
+        if (COMMAND_CONVERSATION_ID.equals(conversationId)) {
+            synchronized (commandMessages) {
+                List<Integer> results = new ArrayList<>();
+                for (int i = 0; i < commandMessages.size(); i++) {
+                    if (commandMessages.get(i).plainText().toLowerCase().contains(lower)) results.add(i);
+                }
+                return results;
+            }
+        }
         synchronized (messages) {
             List<Integer> results = new ArrayList<>();
             for (int i = 0; i < messages.size(); i++) {
@@ -687,14 +697,15 @@ public class ChatHistoryManager {
     }
 
     public void sendMoveSubChannel(String channelId, String newParentId) {
-        if (channelId == null || channelId.isEmpty() || newParentId == null || newParentId.isEmpty()) return;
+        if (channelId == null || channelId.isEmpty()) return;
+        String parent = newParentId == null || newParentId.isEmpty() ? ROOT_PARENT : newParentId;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.getConnection() == null) return;
         var conn = mc.getConnection().getConnection();
         conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
                 new ServerboundChannelActionPayload(
                         ServerboundChannelActionPayload.Action.MOVE_CHANNEL,
-                        channelId, mc.player.getUUID(), false, newParentId, "",
+                        channelId, mc.player.getUUID(), false, parent, "",
                         List.of(), List.of(), List.of(), "", false, "", "", "", false, "")));
     }
 
@@ -927,6 +938,17 @@ public class ChatHistoryManager {
         int cap = commandMessageCap();
         if (list.size() > cap) {
             list.subList(0, list.size() - cap).clear();
+        }
+    }
+
+    /** Folds console lines that ended up identical and adjacent into one entry with a count. */
+    private static void collapseCommandDuplicates(List<ChatMessageData> list) {
+        for (int i = list.size() - 1; i > 0; i--) {
+            ChatMessageData older = list.get(i - 1);
+            ChatMessageData newer = list.get(i);
+            if (older.isInput() != newer.isInput() || !older.plainText().equals(newer.plainText())) continue;
+            older.setDuplicateCount(older.duplicateCount() + newer.duplicateCount());
+            list.remove(i);
         }
     }
 
@@ -1586,6 +1608,7 @@ public class ChatHistoryManager {
         synchronized (commandMessages) {
             commandMessages.addAll(cmdList);
             mergeLocalOnly(commandMessages, localCommands);
+            collapseCommandDuplicates(commandMessages);
             trimCommandMessages(commandMessages);
         }
 
@@ -1631,10 +1654,14 @@ public class ChatHistoryManager {
                 && !a.messageId().equals(Util.NIL_UUID) && !b.messageId().equals(Util.NIL_UUID)) {
             return a.messageId().equals(b.messageId());
         }
-        return a.conversationId().equals(b.conversationId())
-                && a.senderName().getString().equals(b.senderName().getString())
-                && a.content().getString().equals(b.content().getString())
-                && Math.abs(a.timestamp() - b.timestamp()) < 2000;
+        if (!a.conversationId().equals(b.conversationId())) return false;
+        boolean console = ChatMessageData.ConversationType.COMMAND == a.conversationType()
+                && ChatMessageData.ConversationType.COMMAND == b.conversationType();
+        // Console lines are replayed with fresh timestamps, so identity comes from the text
+        if (!console && Math.abs(a.timestamp() - b.timestamp()) >= 2000) return false;
+        if (console) return a.plainText().equals(b.plainText()) && a.isInput() == b.isInput();
+        return a.senderName().getString().equals(b.senderName().getString())
+                && a.content().getString().equals(b.content().getString());
     }
 
     /** Keep local-only messages the server sync lacks, in timestamp order. */

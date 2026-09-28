@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.widget;
 
+import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.Ui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -42,8 +44,9 @@ public class StyledButton extends Button {
             bgColor = hoverColor;
         }
 
-        guiGraphics.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, bgColor);
-        guiGraphics.renderOutline(this.getX(), this.getY(), this.width, this.height, borderColor);
+        int radius = Theme.buttonRadius();
+        Ui.fillRoundedRect(guiGraphics, this.getX(), this.getY(), this.width, this.height, radius, bgColor);
+        Ui.renderRoundedOutline(guiGraphics, this.getX(), this.getY(), this.width, this.height, radius, borderColor);
 
         var mcFont = Minecraft.getInstance().font;
         Component msg = this.getMessage();
