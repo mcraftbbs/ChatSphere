@@ -692,16 +692,42 @@ public class ChannelConfigScreen extends Screen {
 
     private List<String> parentCandidates(String childId) {
         List<String> candidates = new ArrayList<>();
-        candidates.add(""); // top level (main channel)
         String currentParent = ChatHistoryManager.subParentOf(childId);
-        ChatHistoryManager history = ChatHistoryManager.getInstance();
-        for (String id : subOrder) {
-            if (ChatHistoryManager.channelDepth(id) == 1 && !id.equals(childId)
-                    && !id.equals(currentParent)) {
-                candidates.add(id);
-            }
+        String childRoot = rootOf(childId);
+        String main = mainParent();
+        if (!main.equals(currentParent) && !main.equals(childId) && !nameTaken(main, childId)) candidates.add("");
+        for (String id : ChatHistoryManager.getInstance().getChannels()) {
+            // Server takes top level or level-1 parents only
+            if (ChatHistoryManager.channelDepth(id) > 1) continue;
+            if (id.equals(childId) || id.equals(currentParent) || id.equals(main)) continue;
+            if (id.startsWith(childId + "/")) continue;
+            if (!rootOf(id).equals(childRoot)) continue;
+            if (nameTaken(id, childId)) continue;
+            candidates.add(id);
         }
         return candidates;
+    }
+
+    /** The move would hit an existing id, which the server refuses. */
+    private static boolean nameTaken(String parentId, String childId) {
+        return ChatHistoryManager.getInstance().getChannels()
+                .contains(parentId + "/" + ChatHistoryManager.subNameOf(childId));
+    }
+
+    /** Parent for the "top level" entry: this screen's channel, or its root when too deep. */
+    private String mainParent() {
+        return ChatHistoryManager.channelDepth(channelId) <= 1 ? channelId : rootOf(channelId);
+    }
+
+    /** Top-level channel a sub-channel hangs off; channels never move between those trees. */
+    private static String rootOf(String channelId) {
+        String root = channelId;
+        // Top level ids report themselves as their own parent, so the walk has to compare
+        while (true) {
+            String parent = ChatHistoryManager.subParentOf(root);
+            if (parent.isEmpty() || parent.equals(root)) return root;
+            root = parent;
+        }
     }
 
     private void renderInsertLine(GuiGraphics g, int y) {
@@ -876,11 +902,9 @@ public class ChannelConfigScreen extends Screen {
             for (String cid : candidates) {
                 if (mouseY >= ry && mouseY < ry + ROW_H) {
                     if (minecraft != null && minecraft.player != null && minecraft.getConnection() != null) {
-                        if (cid.isEmpty()) {
-                            ChatHistoryManager.getInstance().sendMoveSubChannel(setParentId, channelId);
-                        } else {
-                            ChatHistoryManager.getInstance().sendMoveSubChannel(setParentId, cid);
-                        }
+                        // Empty entry = the channel this screen configures, not a brand new root channel
+                        String target = cid.isEmpty() ? mainParent() : cid;
+                        ChatHistoryManager.getInstance().sendMoveSubChannel(setParentId, target);
                         setParentId = null;
                     }
                     return true;

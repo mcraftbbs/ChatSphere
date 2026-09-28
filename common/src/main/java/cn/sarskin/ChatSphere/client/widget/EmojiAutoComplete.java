@@ -3,6 +3,7 @@ package cn.sarskin.ChatSphere.client.widget;
 import cn.sarskin.ChatSphere.client.emoji.EmojiEntry;
 import cn.sarskin.ChatSphere.client.emoji.EmojiRegistry;
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.Ui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -48,8 +49,11 @@ public class EmojiAutoComplete {
         int popupW = font.lineHeight + maxCodeW + 20;
         if (popupY < 20) popupY = input.getY() + input.getHeight() + 2;
 
-        g.fill(popupX, popupY, popupX + popupW, popupY + popupH, Theme.popupBg());
-        g.renderOutline(popupX, popupY, popupW, popupH, Theme.popupOutline());
+        int radius = Theme.buttonRadius();
+        Ui.fillRoundedRect(g, popupX, popupY, popupW, popupH, radius, Theme.popupBg());
+        if (Theme.popupBorderVisible()) {
+            Ui.renderRoundedOutline(g, popupX, popupY, popupW, popupH, radius, Theme.popupOutline());
+        }
 
         int startIdx = Math.max(0, Math.min(selectedIdx, candidates.size() - 8));
         int endIdx = Math.min(candidates.size(), startIdx + 8);

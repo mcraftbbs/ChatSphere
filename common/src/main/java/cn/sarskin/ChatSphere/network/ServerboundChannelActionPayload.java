@@ -120,6 +120,9 @@ public record ServerboundChannelActionPayload(
 
 
     
+    /** description() value for MOVE_CHANNEL meaning "top level"; real channel ids always start with #. */
+    public static final String ROOT_PARENT = "#";
+
     public enum Action { CREATE, UPDATE_CONFIG, JOIN_MEMBER, JOIN_BY_CODE, SEND_CHAT, REMOVE_CHANNEL,
         TOGGLE_MUTE, TOGGLE_ADMIN, TOGGLE_INVITE, LEAVE_CHANNEL, LIST_PUBLIC,
         CREATE_VOICE_ROOM, DELETE_VOICE_ROOM, JOIN_VOICE_ROOM, LEAVE_VOICE_ROOM,

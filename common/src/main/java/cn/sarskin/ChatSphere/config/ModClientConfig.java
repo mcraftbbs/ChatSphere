@@ -36,6 +36,8 @@ public class ModClientConfig {
     public final CfgValue.Bool soundPublic;
     public final CfgValue.StrList quickPhrases;
     public final CfgValue.StrList urlLinkFilter;
+    public final CfgValue.Bool consoleTabsEnabled;
+    public final CfgValue.Str consoleTabs;
     public final CfgValue.Int scrollHistoryLimit;
     public final CfgValue.Int commandHistoryLimit;
     public final CfgValue.Bool renderEmojiShortcodes;
@@ -71,6 +73,9 @@ public class ModClientConfig {
         timeSeparatorMinutes = new CfgValue.Int(store, "timeSeparatorMinutes", 5);
         quickPhrases = new CfgValue.StrList(store, "quickPhrases", new ArrayList<>());
         urlLinkFilter = new CfgValue.StrList(store, "urlLinkFilter", new ArrayList<>());
+
+        consoleTabsEnabled = new CfgValue.Bool(store, "consoleTabsEnabled", false);
+        consoleTabs = new CfgValue.Str(store, "consoleTabs", "[]");
         scrollHistoryLimit = new CfgValue.Int(store, "scrollHistoryLimit", 200);
         renderEmojiShortcodes = new CfgValue.Bool(store, "renderEmojiShortcodes", true);
         renderRichText = new CfgValue.Bool(store, "renderRichText", true);

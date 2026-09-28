@@ -1,3 +1,19 @@
+## 2.4.1-1.20.1
+
+### Added
+- Console tabs, off by default: split the console into tabs by regex
+- Console tabs can be edited in the settings screen: name, regex, order, hide from All, live match count
+
+### Fixed
+- Arrow keys in the console cycle the command history again; ctrl+up/down moves through the suggestions
+- The sub-channel parent picker listed channels from other trees, and its top entry tried to leave the tree; it now offers this channel plus same-tree parents
+- Moving a sub-channel back up to its parent channel was refused, so nesting only ever worked downwards
+- Console lines can no longer be quote replied from the right-click menu
+- The local emoji list scrolls with the wheel and has a scrollbar
+- Console search finds command output
+- The item share picker, emoji and mention autocomplete and the quick phrase panel follow the corner style and popup border settings
+- Buttons follow the corner style too
+
 ## 2.4.0-1.20.1
 
 ### Added

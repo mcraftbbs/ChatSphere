@@ -31,12 +31,17 @@ public final class UiRoundedAtlas {
     private static final int MAX_BORDER_WIDTH = 4;
     private static final int TILE_LOGICAL_SIZE = 32;
     private static final int COLUMN_COUNT = 10;
+    private static final int ROW_COUNT = 8;
     private static final int MAX_PIXEL_SCALE = 8;
+    /** Blank space around every tile; without it linear filtering samples the tile next door. */
+    private static final int TILE_PAD_LOGICAL = 2;
 
     private static ResourceLocation textureId;
     private static DynamicTexture texture;
     private static int pixelScale = -1;
     private static int tilePx;
+    private static int tileStride;
+    private static int tilePad;
     private static int atlasWidth;
     private static int atlasHeight;
 
@@ -50,8 +55,8 @@ public final class UiRoundedAtlas {
         if (!ensure()) return false;
 
         int entry = r - 1;
-        int u = entry % COLUMN_COUNT * tilePx;
-        int v = entry / COLUMN_COUNT * tilePx;
+        int u = tileU(entry);
+        int v = tileV(entry);
         int src = r * pixelScale;
         int x1 = x + w, y1 = y + h;
 
@@ -75,8 +80,8 @@ public final class UiRoundedAtlas {
         if (!ensure()) return false;
 
         int entry = MAX_RADIUS + (bw - 1) * MAX_RADIUS + (r - 1);
-        int u = entry % COLUMN_COUNT * tilePx;
-        int v = entry / COLUMN_COUNT * tilePx;
+        int u = tileU(entry);
+        int v = tileV(entry);
         int src = r * pixelScale;
         int x1 = x + w, y1 = y + h;
 
@@ -92,6 +97,14 @@ public final class UiRoundedAtlas {
         return true;
     }
 
+    private static int tileU(int entry) {
+        return entry % COLUMN_COUNT * tileStride + tilePad;
+    }
+
+    private static int tileV(int entry) {
+        return entry / COLUMN_COUNT * tileStride + tilePad;
+    }
+
     /** One corner quad with the tint baked into the vertices; samples a r*pixelScale
      *  region of the atlas at 1/pixelScale pose scale (smoothed by linear filtering). */
     private static void blitCorner(GuiGraphics g, int px, int py, int u, int v, int src, int color) {
@@ -99,10 +112,11 @@ public final class UiRoundedAtlas {
         g.pose().translate(px, py, 0);
         g.pose().scale(1f / pixelScale, 1f / pixelScale, 1f);
         Matrix4f pose = g.pose().last().pose();
-        float u0 = u / (float) atlasWidth;
-        float v0 = v / (float) atlasHeight;
-        float u1 = (u + src) / (float) atlasWidth;
-        float v1 = (v + src) / (float) atlasHeight;
+        // Half texel inwards so the filtered sample never reaches the neighbouring tile
+        float u0 = (u + 0.5f) / atlasWidth;
+        float v0 = (v + 0.5f) / atlasHeight;
+        float u1 = (u + src - 0.5f) / atlasWidth;
+        float v1 = (v + src - 0.5f) / atlasHeight;
         float cr = ((color >> 16) & 0xFF) / 255f;
         float cg = ((color >> 8) & 0xFF) / 255f;
         float cb = (color & 0xFF) / 255f;
@@ -129,8 +143,10 @@ public final class UiRoundedAtlas {
         release();
         pixelScale = scale;
         tilePx = TILE_LOGICAL_SIZE * scale;
-        atlasWidth = COLUMN_COUNT * tilePx;
-        atlasHeight = 8 * tilePx;
+        tilePad = TILE_PAD_LOGICAL * scale;
+        tileStride = tilePx + tilePad * 2;
+        atlasWidth = COLUMN_COUNT * tileStride;
+        atlasHeight = ROW_COUNT * tileStride;
         try {
             BufferedImage image = buildAtlas();
             NativeImage nativeImage = toNativeImage(image);
@@ -169,16 +185,16 @@ public final class UiRoundedAtlas {
             g2d.setColor(Color.WHITE);
             for (int radius = 1; radius <= MAX_RADIUS; radius++) {
                 int entry = radius - 1;
-                int x = entry % COLUMN_COUNT * tilePx;
-                int y = entry / COLUMN_COUNT * tilePx;
+                int x = tileU(entry);
+                int y = tileV(entry);
                 int diameter = radius * 2 * pixelScale;
                 g2d.fill(new Ellipse2D.Float(x, y, diameter, diameter));
             }
             for (int bw = 1; bw <= MAX_BORDER_WIDTH; bw++) {
                 for (int radius = 1; radius <= MAX_RADIUS; radius++) {
                     int entry = MAX_RADIUS + (bw - 1) * MAX_RADIUS + (radius - 1);
-                    int x = entry % COLUMN_COUNT * tilePx;
-                    int y = entry / COLUMN_COUNT * tilePx;
+                    int x = tileU(entry);
+                    int y = tileV(entry);
                     float diameter = radius * 2.0F * pixelScale;
                     Area ring = new Area(new Ellipse2D.Float(x, y, diameter, diameter));
                     int innerRadius = Math.max(0, radius - bw);

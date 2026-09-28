@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client.widget;
 
 import cn.sarskin.ChatSphere.client.ui.Theme;
+import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.util.ItemSerialization;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -46,8 +47,11 @@ public class ItemPickerPanel {
         if (!visible) return;
         refresh();
 
-        g.fill(panelX, panelY, panelX + PANEL_W, panelY + PANEL_H, Theme.panelBg());
-        g.renderOutline(panelX, panelY, PANEL_W, PANEL_H, Theme.itemPickerOutline());
+        int radius = Theme.cardRadius();
+        Ui.fillRoundedRect(g, panelX, panelY, PANEL_W, PANEL_H, radius, Theme.popupBg());
+        if (Theme.popupBorderVisible()) {
+            Ui.renderRoundedOutline(g, panelX, panelY, PANEL_W, PANEL_H, radius, Theme.popupOutline());
+        }
 
         int slotIndex = 0;
         hoveredSlot = -1;
@@ -66,7 +70,8 @@ public class ItemPickerPanel {
 
                 boolean hovered = mouseX >= x && mouseX <= x + SLOT_SIZE && mouseY >= y && mouseY <= y + SLOT_SIZE;
                 if (hovered) hoveredSlot = slotIndex - 1;
-                g.fill(x, y, x + SLOT_SIZE, y + SLOT_SIZE, hovered ? Theme.slotHover() : Theme.slotBg());
+                Ui.fillRoundedRect(g, x, y, SLOT_SIZE, SLOT_SIZE, Theme.buttonRadius(),
+                        hovered ? Theme.slotHover() : Theme.slotBg());
                 if (!stack.isEmpty()) {
                     g.renderItem(stack, x + 2, y + 2);
                     g.renderItemDecorations(Minecraft.getInstance().font, stack, x + 2, y + 2);

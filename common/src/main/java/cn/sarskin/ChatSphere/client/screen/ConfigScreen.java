@@ -11,6 +11,7 @@ import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.client.ui.UiToggle;
+import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import cn.sarskin.ChatSphere.network.ServerboundPermissionCheckPayload;
 import cn.sarskin.ChatSphere.style.CustomTheme;
@@ -172,7 +173,15 @@ public class ConfigScreen extends Screen {
             ModClientConfig.CONFIG.urlLinkFilter.set(out);
             scheduleConfigSave();
         }), null));
-        cats.add(Cat.plain("config.chatsphere.behavior", behavior));
+        behavior.add(new Opt("config.chatsphere.console_tabs",
+            y -> mkBool(y, ModClientConfig.CONFIG.consoleTabsEnabled, v -> ModChatScreen.invalidateConsoleTabs()),
+            null));
+        behavior.add(new Opt("",
+            y -> StyledButton.styledBuilder(Component.translatable("config.chatsphere.console_tabs_edit"),
+                    btn -> {
+                        if (minecraft != null) minecraft.setScreen(new ConsoleTabsScreen(this));
+                    })
+                    .bounds(inputX, y, btnW, 20).build(), null));        cats.add(Cat.plain("config.chatsphere.behavior", behavior));
 
         List<Opt> skin = new ArrayList<>();
         skin.add(new Opt("config.chatsphere.custom_skin_api_url",
