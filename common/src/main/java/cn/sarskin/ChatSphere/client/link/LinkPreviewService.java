@@ -143,11 +143,16 @@ public final class LinkPreviewService {
     private static void fetch(String url) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(8))
-                .header("User-Agent", "ChatSphere link preview")
-                .header("Accept", "text/html,application/xhtml+xml")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
                 .GET()
                 .build();
         HttpResponse<InputStream> response = HTTP.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            fallback(url);
+            return;
+        }
         String html;
         try (InputStream in = response.body()) {
             html = new String(readLimited(in, MAX_HTML), StandardCharsets.UTF_8);
@@ -158,10 +163,25 @@ public final class LinkPreviewService {
             thumb = fetchImage(preview.imageUrl());
         }
         if (preview.empty() && thumb == null) {
-            LinkPreviewCache.markFailed(url);
+            fallback(url);
             return;
         }
         LinkPreviewCache.put(url, preview, thumb);
+    }
+
+    /** Card built from the URL alone, so a blocked or tag-less page still shows something. */
+    private static void fallback(String url) {
+        String host = hostOf(url);
+        String path = "";
+        try {
+            URI uri = new URI(url);
+            path = uri.getPath() == null ? "" : uri.getPath();
+            while (path.endsWith("/")) path = path.substring(0, path.length() - 1);
+        } catch (Exception ignored) {
+        }
+        String title = path.isEmpty() ? host : host + path;
+        if (title.length() > 120) title = title.substring(0, 120);
+        LinkPreviewCache.put(url, new LinkPreview(url, title, "", "", host), null);
     }
 
     /** Minimal OpenGraph reader; falls back to the document title. */
