@@ -2,6 +2,7 @@ package cn.sarskin.ChatSphere.fabric.network;
 
 import cn.sarskin.ChatSphere.network.ServerPayloadHandlers;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
+import cn.sarskin.ChatSphere.network.ServerboundChatImagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload;
@@ -32,6 +33,8 @@ public final class FabricServerNetwork {
                 ctx.server().execute(() -> ServerPayloadHandlers.commandMessage(ctx.player(), p)));
         ServerPlayNetworking.registerGlobalReceiver(ServerboundCustomEmojiPayload.TYPE, (p, ctx) ->
                 ctx.server().execute(() -> ServerPayloadHandlers.customEmoji(ctx.player(), p)));
+        ServerPlayNetworking.registerGlobalReceiver(ServerboundChatImagePayload.TYPE, (p, ctx) ->
+                ctx.server().execute(() -> ServerPayloadHandlers.chatImage(ctx.player(), p)));
         ServerPlayNetworking.registerGlobalReceiver(ServerboundTypingPayload.TYPE, (p, ctx) ->
                 ctx.server().execute(() -> ServerPayloadHandlers.typing(ctx.player(), p)));
     }

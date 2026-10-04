@@ -139,6 +139,12 @@ public class ConfigScreen extends Screen {
             y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.linkPreviewMaxPerMessage.get()), 1, 10, 1,
                 v -> { ModClientConfig.CONFIG.linkPreviewMaxPerMessage.set(v); scheduleConfigSave(); })));
 
+        List<Opt> images = new ArrayList<>();
+        images.add(new Opt("config.chatsphere.chat_images_enabled", y -> mkBool(y, ModClientConfig.CONFIG.chatImagesEnabled)));
+        images.add(new Opt("config.chatsphere.chat_image_cache_mb",
+            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.chatImageCacheMb.get()), 8, 1024, 4,
+                v -> { ModClientConfig.CONFIG.chatImageCacheMb.set(v); scheduleConfigSave(); })));
+
         List<Opt> ui = new ArrayList<>();
         ui.add(new Opt("config.chatsphere.show_timestamp", y -> mkBool(y, ModClientConfig.CONFIG.showTimestamp)));
         ui.add(new Opt("config.chatsphere.show_sender_name", y -> mkBool(y, ModClientConfig.CONFIG.showSenderName)));
@@ -157,6 +163,7 @@ public class ConfigScreen extends Screen {
         uiGroups.add(new Group("config.chatsphere.sound_settings", sound));
         uiGroups.add(new Group("config.chatsphere.bubble", bubble));
         uiGroups.add(new Group("config.chatsphere.link_group", links));
+        uiGroups.add(new Group("config.chatsphere.image_group", images));
         cats.add(new Cat("config.chatsphere.ui", uiGroups));
 
         cats.add(new Cat("config.chatsphere.corner_style_cat", List.of()));

@@ -4,6 +4,7 @@ import cn.sarskin.ChatSphere.network.ClientPayloadHandlers;
 import cn.sarskin.ChatSphere.network.ClientboundBridgeInfoPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelSyncPayload;
+import cn.sarskin.ChatSphere.network.ClientboundChatImagePayload;
 import cn.sarskin.ChatSphere.network.ClientboundChatPayload;
 import cn.sarskin.ChatSphere.network.ClientboundConfigSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundCustomEmojiPayload;
@@ -40,6 +41,8 @@ public final class FabricClientNetwork {
                 ctx.client().execute(() -> ClientPayloadHandlers.safe("configSync", () -> ClientPayloadHandlers.configSync(p))));
         ClientPlayNetworking.registerGlobalReceiver(ClientboundCustomEmojiPayload.TYPE, (p, ctx) ->
                 ctx.client().execute(() -> ClientPayloadHandlers.safe("customEmoji", () -> ClientPayloadHandlers.customEmoji(p))));
+        ClientPlayNetworking.registerGlobalReceiver(ClientboundChatImagePayload.TYPE, (p, ctx) ->
+                ctx.client().execute(() -> ClientPayloadHandlers.safe("chatImage", () -> ClientPayloadHandlers.chatImage(p))));
         ClientPlayNetworking.registerGlobalReceiver(ClientboundTypingPayload.TYPE, (p, ctx) ->
                 ctx.client().execute(() -> ClientPayloadHandlers.safe("typing", () -> ClientPayloadHandlers.typing(p))));
     }

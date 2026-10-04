@@ -286,7 +286,7 @@ public class ChatHistoryManager {
             synchronized (commandMessages) {
                 List<Integer> results = new ArrayList<>();
                 for (int i = 0; i < commandMessages.size(); i++) {
-                    if (commandMessages.get(i).plainText().toLowerCase().contains(lower)) results.add(i);
+                    if (searchText(commandMessages.get(i)).contains(lower)) results.add(i);
                 }
                 return results;
             }
@@ -296,12 +296,22 @@ public class ChatHistoryManager {
             for (int i = 0; i < messages.size(); i++) {
                 ChatMessageData msg = messages.get(i);
                 if (msg.conversationId().equals(conversationId)
-                        && msg.content().getString().toLowerCase().contains(lower)) {
+                        && searchText(msg).contains(lower)) {
                     results.add(i);
                 }
             }
             return results;
         }
+    }
+
+    /** Search reads image tokens as their label, the same text the HUD shows. */
+    private static String searchText(ChatMessageData msg) {
+        String plain = msg.plainText();
+        if (cn.sarskin.ChatSphere.client.image.ChatImage.hasToken(plain)) {
+            plain = cn.sarskin.ChatSphere.client.image.ChatImage.mapTokens(plain,
+                    Component.translatable("chatsphere.image.label").getString());
+        }
+        return plain.toLowerCase();
     }
 
     public ChatMessageData getMessageByIndex(int index) {

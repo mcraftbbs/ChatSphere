@@ -5,6 +5,7 @@ import cn.sarskin.ChatSphere.network.ClientPayloadHandlers;
 import cn.sarskin.ChatSphere.network.ClientboundBridgeInfoPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload;
 import cn.sarskin.ChatSphere.network.ClientboundChannelSyncPayload;
+import cn.sarskin.ChatSphere.network.ClientboundChatImagePayload;
 import cn.sarskin.ChatSphere.network.ClientboundChatPayload;
 import cn.sarskin.ChatSphere.network.ClientboundConfigSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundCustomEmojiPayload;
@@ -15,6 +16,7 @@ import cn.sarskin.ChatSphere.network.ClientboundTypingPayload;
 import cn.sarskin.ChatSphere.network.ClientboundVoicePacket;
 import cn.sarskin.ChatSphere.network.ServerPayloadHandlers;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
+import cn.sarskin.ChatSphere.network.ServerboundChatImagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload;
@@ -119,6 +121,16 @@ public class ModNetworkSetup {
                 ServerboundCustomEmojiPayload.TYPE,
                 ServerboundCustomEmojiPayload.STREAM_CODEC,
                 (p, ctx) -> ctx.enqueueWork(() -> ServerPayloadHandlers.customEmoji(ctx.player(), p))
+        );
+        registrar.playToServer(
+                ServerboundChatImagePayload.TYPE,
+                ServerboundChatImagePayload.STREAM_CODEC,
+                (p, ctx) -> ctx.enqueueWork(() -> ServerPayloadHandlers.chatImage(ctx.player(), p))
+        );
+        registrar.playToClient(
+                ClientboundChatImagePayload.TYPE,
+                ClientboundChatImagePayload.STREAM_CODEC,
+                (p, ctx) -> ctx.enqueueWork(() -> ClientPayloadHandlers.safe("chatImage", () -> ClientPayloadHandlers.chatImage(p)))
         );
         registrar.playToClient(
                 ClientboundCustomEmojiPayload.TYPE,

@@ -14,6 +14,7 @@ public final class ChatSphereServerEvents {
             ServerPlayer sp = handler.getPlayer();
             if (sp != null) ServerHooks.onPlayerJoin(sp);
         });
+        ServerLifecycleEvents.SERVER_STARTED.register(ServerHooks::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(ServerHooks::onServerStopping);
     }
 }

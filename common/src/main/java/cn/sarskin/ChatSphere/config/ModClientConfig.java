@@ -61,6 +61,9 @@ public class ModClientConfig {
     public final CfgValue.Int linkPreviewCacheMb;
     public final CfgValue.Int linkPreviewTtlHours;
     public final CfgValue.Int linkPreviewMaxPerMessage;
+    /** Chat images: dropped files or a pasted image URL. */
+    public final CfgValue.Bool chatImagesEnabled;
+    public final CfgValue.Int chatImageCacheMb;
 
     private ModClientConfig() {
         this.store = new ConfigStore("chatsphere-client.json");
@@ -122,6 +125,9 @@ public class ModClientConfig {
         linkPreviewCacheMb = new CfgValue.Int(store, "linkPreviewCacheMb", 32);
         linkPreviewTtlHours = new CfgValue.Int(store, "linkPreviewTtlHours", 168);
         linkPreviewMaxPerMessage = new CfgValue.Int(store, "linkPreviewMaxPerMessage", 2);
+
+        chatImagesEnabled = new CfgValue.Bool(store, "chatImagesEnabled", true);
+        chatImageCacheMb = new CfgValue.Int(store, "chatImageCacheMb", 64);
 
         store.save();
     }

@@ -135,4 +135,14 @@ public final class ClientPayloadHandlers {
             cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry.receiveServerDelete(p.name(), p.channelId());
         }
     }
+
+    /** Chat images: upload verdict, one data chunk, or the reason a request failed. */
+    public static void chatImage(ClientboundChatImagePayload p) {
+        switch (p.action()) {
+            case ACCEPTED -> cn.sarskin.ChatSphere.client.image.ChatImageClient.handleAccepted(p.id(), p.width(), p.height());
+            case DATA -> cn.sarskin.ChatSphere.client.image.ChatImageClient.handleData(
+                    p.id(), p.partIndex(), p.partCount(), p.data());
+            case FAILED -> cn.sarskin.ChatSphere.client.image.ChatImageClient.handleFailed(p.id(), p.reason());
+        }
+    }
 }

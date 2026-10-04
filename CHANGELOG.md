@@ -1,3 +1,16 @@
+## 2.5.0
+
+### Added
+- Link cards under messages: title, description and thumbnail, with three modes (off, text plus card, card only)
+- Preview fetches only happen for messages on screen, and the server can turn previews off or restrict the hosts
+- Chat images: drag and drop a png/jpg into the chat, or paste an image URL
+- Images are validated, stored on the server and fetched lazily with a placeholder box; gif still goes through custom emoji
+- `[图片]` / `[Image]` label wherever an image cannot be drawn, such as the HUD bubble and search results
+- Client image settings and a server Images category for size, dimension, lifetime, cooldown and per-player caps
+
+### Changed
+- 1.20.1 port: Forge support alongside Fabric
+
 ## 2.4.1
 
 ### Added

@@ -16,6 +16,10 @@ import cn.sarskin.ChatSphere.client.widget.EmojiAutoComplete;
 import cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry;
 import cn.sarskin.ChatSphere.client.emoji.EmojiEntry;
 import cn.sarskin.ChatSphere.client.emoji.EmojiRegistry;
+import cn.sarskin.ChatSphere.client.image.ChatImage;
+import cn.sarskin.ChatSphere.client.image.ChatImageCache;
+import cn.sarskin.ChatSphere.client.image.ChatImageClient;
+import cn.sarskin.ChatSphere.client.image.ChatImageGuard;
 import cn.sarskin.ChatSphere.client.widget.MentionPopup;
 import cn.sarskin.ChatSphere.client.widget.QuickPhrasesPanel;
 import cn.sarskin.ChatSphere.client.widget.ReplyBarWidget;
@@ -54,6 +58,8 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.regex.Pattern;
 
 public class ModChatScreen extends Screen {
@@ -216,8 +222,15 @@ public class ModChatScreen extends Screen {
     private final List<LinkCardHit> linkCardHits = new ArrayList<>();
     private static final int LINK_CARD_H = 56;
     private static final int LINK_CARD_GAP = 4;
+    private final List<ImageHit> imageHits = new ArrayList<>();
+    private static final int IMAGE_MAX_W = 200;
+    private static final int IMAGE_MAX_H = 200;
+    private static final int IMAGE_MIN_H = 36;
+    private static final int IMAGE_GAP = 4;
+    private static final Pattern IMAGE_URL = Pattern.compile("^https?://\\S+$");
 
     private record LinkCardHit(int x, int y, int w, int h, String url) {}
+    private record ImageHit(int x, int y, int w, int h, String id) {}
     private final List<BubbleItemHit> itemHitBoxes = new ArrayList<>();
     private final List<RichTextHit> richTextHitBoxes = new ArrayList<>();
     private static final int ROW_AVATAR_COL = 44;
@@ -370,6 +383,8 @@ public class ModChatScreen extends Screen {
 
         refreshOnlinePlayers();
         ChatHistoryManager.getInstance().refreshPrivateConversationDisplayNames();
+        ChatImageClient.setTokenSink(this::insertImageToken);
+        ChatImageClient.setMessageSink(this::showImageMessage);
     }
 
     /** Messages already loaded are pre-existing and never animate. */
@@ -462,6 +477,14 @@ public class ModChatScreen extends Screen {
                 for (LinkCardHit hit : linkCardHits) {
                     if (mouseX >= hit.x && mouseX <= hit.x + hit.w && mouseY >= hit.y && mouseY <= hit.y + hit.h) {
                         openLinkCard(hit.url);
+                        return true;
+                    }
+                }
+            }
+            synchronized (imageHits) {
+                for (ImageHit hit : imageHits) {
+                    if (mouseX >= hit.x && mouseX <= hit.x + hit.w && mouseY >= hit.y && mouseY <= hit.y + hit.h) {
+                        openImageViewer(hit.id);
                         return true;
                     }
                 }
@@ -1007,6 +1030,11 @@ public class ModChatScreen extends Screen {
         text = cn.sarskin.ChatSphere.client.emoji.EmojiRegistry.shortcodesToUnicode(text);
         text = text.trim();
         if (text.isEmpty()) return;
+        // A lone image URL becomes an upload; the token is inserted once the server accepts it
+        if (IMAGE_URL.matcher(text).matches() && ChatImageClient.uploadFromUrl(text)) {
+            this.input.setValue("");
+            return;
+        }
         if (text.startsWith("#") && text.length() > 1 && ModServerConfig.CONFIG.enableChannels.get()) {
             String newChannel = text.substring(1).trim();
             if (!newChannel.isEmpty()) {
@@ -1853,6 +1881,94 @@ public class ModChatScreen extends Screen {
         }
     }
 
+    /** One image box: width capped by the chat width, height from the token ratio, clamped for compact rows. */
+    private static int[] imageBox(int chatWidth, ChatImage.Token token) {
+        int w = Math.max(40, Math.min(IMAGE_MAX_W, chatWidth - 40));
+        int h = Math.round((float) w * token.height() / Math.max(1, token.width()));
+        return new int[]{w, Math.max(IMAGE_MIN_H, Math.min(IMAGE_MAX_H, h))};
+    }
+
+    /** Box space this row has to reserve for its image tokens; zero when there are none. */
+    private int imageBlockHeight(ChatMessageData msg, int chatWidth) {
+        if (msg == null || msg.conversationType() == ChatMessageData.ConversationType.COMMAND) return 0;
+        List<ChatImage.Token> tokens = ChatImage.tokens(msg.plainText());
+        int total = 0;
+        for (int i = 0; i < tokens.size(); i++) {
+            total += imageBox(chatWidth, tokens.get(i))[1] + (i > 0 ? IMAGE_GAP : 0);
+        }
+        return total;
+    }
+
+    /** Boxes under the text of a visible row; a missing texture is fetched here, so only visible rows load. */
+    private void renderImageBlocks(GuiGraphics g, ChatMessageData msg, int x, int y, int chatWidth) {
+        List<ChatImage.Token> tokens = ChatImage.tokens(msg.plainText());
+        if (tokens.isEmpty()) return;
+        String label = Component.translatable("chatsphere.image.label").getString();
+        for (ChatImage.Token token : tokens) {
+            int[] box = imageBox(chatWidth, token);
+            int w = box[0];
+            int h = box[1];
+            ResourceLocation texture = ChatImageCache.texture(token.id());
+            int[] size = texture != null ? ChatImageCache.textureSize(token.id()) : null;
+            if (texture == null || size == null) {
+                Ui.fillRoundedRect(g, x, y, w, h, 6, Theme.popupBg());
+                if (Theme.popupBorderVisible()) {
+                    Ui.renderRoundedOutline(g, x, y, w, h, 6, Theme.popupOutline());
+                }
+                g.drawString(font, label, x + (w - font.width(label)) / 2, y + h / 2 - 4, Theme.textDim(), false);
+                ChatImageClient.request(token.id());
+            } else {
+                g.blit(texture, x, y, w, h, 0f, 0f, size[0], size[1], size[0], size[1]);
+            }
+            synchronized (imageHits) {
+                imageHits.add(new ImageHit(x, y, w, h, token.id()));
+            }
+            y += h + IMAGE_GAP;
+        }
+    }
+
+    private void openImageViewer(String id) {
+        if (minecraft != null) minecraft.setScreen(new ChatImageViewerScreen(this, id));
+    }
+
+    /** Uploader feedback for rejected files and failed requests. */
+    private void showImageMessage(String langKey) {
+        copyToast.show(Component.translatable(langKey));
+    }
+
+    private void insertImageToken(String token) {
+        if (input == null) return;
+        String value = input.getValue();
+        int pos = Math.max(0, Math.min(input.getCursorPosition(), value.length()));
+        input.setValue(value.substring(0, pos) + token + value.substring(pos));
+        input.setCursorPosition(pos + token.length());
+        setFocused(input);
+    }
+
+    @Override
+    public void onFilesDrop(List<Path> paths) {
+        if (paths == null || paths.isEmpty()) return;
+        long maxBytes = (long) Math.max(1, ModServerConfig.CONFIG.chatImageMaxKb.get()) * 1024L;
+        for (Path path : paths) {
+            if (path == null || path.getFileName() == null) continue;
+            String name = path.getFileName().toString().toLowerCase();
+            if (!name.endsWith(".png") && !name.endsWith(".jpg") && !name.endsWith(".jpeg")) continue;
+            try {
+                if (Files.size(path) > maxBytes) {
+                    showImageMessage(ChatImageGuard.ERR_SIZE);
+                    continue;
+                }
+                byte[] data = Files.readAllBytes(path);
+                int[] dims = new int[2];
+                String error = ChatImageGuard.validate(data, dims);
+                if (error == null) error = ChatImageClient.upload(data, null, dims);
+                if (error != null) showImageMessage(error);
+            } catch (Exception e) {
+                showImageMessage(ChatImageGuard.ERR_FORMAT);
+            }
+        }
+    }
+
     private void openLinkCard(String url) {
         Component link = Component.literal(url).withStyle(style -> style.withClickEvent(
                 new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.OPEN_URL, url)));
@@ -2524,6 +2640,7 @@ public class ModChatScreen extends Screen {
         synchronized (bubbleHitBoxes) { bubbleHitBoxes.clear(); }
         synchronized (replyQuoteHitBoxes) { replyQuoteHitBoxes.clear(); }
         synchronized (linkCardHits) { linkCardHits.clear(); }
+        synchronized (imageHits) { imageHits.clear(); }
         synchronized (itemHitBoxes) { itemHitBoxes.clear(); }
         synchronized (richTextHitBoxes) { richTextHitBoxes.clear(); }
         synchronized (avatarHitBoxes) { avatarHitBoxes.clear(); }
@@ -2597,7 +2714,8 @@ public class ModChatScreen extends Screen {
             int bubbleHeight;
             RowPaint paint;
             int cardH = linkCardHeight(msg);
-            int rowY = yOffset - cardH;
+            int imgH = imageBlockHeight(msg, chatAreaRight - chatAreaLeft);
+            int rowY = yOffset - cardH - imgH;
             if (streamRows && msg.conversationType() != ChatMessageData.ConversationType.COMMAND) {
                 // Merge into the older row
                 ChatMessageData older = i > 0 ? messages.get(i - 1) : null;
@@ -2605,9 +2723,10 @@ public class ModChatScreen extends Screen {
             } else {
                 paint = new RowPaint(renderMessageBubble(guiGraphics, msg, chatAreaLeft, chatAreaRight, rowY), false, 0, 0, 0, 0, false);
             }
-            bubbleHeight = paint.height() + cardH;
+            bubbleHeight = paint.height() + cardH + imgH;
             int rowTop = yOffset - bubbleHeight;
             if (cardH > 0) renderLinkCards(guiGraphics, msg, chatAreaLeft + 10, chatAreaRight - 10, rowY, mouseX, mouseY);
+            if (imgH > 0) renderImageBlocks(guiGraphics, msg, chatAreaLeft + 10, rowY + cardH, chatAreaRight - chatAreaLeft);
             synchronized (bubbleHitBoxes) {
                 bubbleHitBoxes.add(new BubbleHit(chatAreaLeft, rowTop, chatAreaRight - chatAreaLeft, bubbleHeight, globalIdx));
             }
@@ -2909,7 +3028,7 @@ public class ModChatScreen extends Screen {
 
         int contentH = linesContentH(displayLines, lineH) + (lines - displayLines.size()) * lineH;
         if (hasItem) contentH += 18 - lineH; // item line is taller than normal line
-        contentH += linkCardHeight(msg);
+        contentH += linkCardHeight(msg) + imageBlockHeight(msg, areaRight - areaLeft);
 
         int bubbleH = contentH + BUBBLE_VPAD * 2 + 1;
 
@@ -3251,7 +3370,7 @@ public class ModChatScreen extends Screen {
         boolean hasItem = msg.itemNbt() != null && !msg.itemNbt().isEmpty();
         int contentH = linesContentH(displayLines, lineHb) + (lines - displayLines.size()) * lineHb;
         if (hasItem) contentH += 18 - lineHb;
-        contentH += linkCardHeight(msg);
+        contentH += linkCardHeight(msg) + imageBlockHeight(msg, areaRight - areaLeft);
         int bubbleH = contentH + BUBBLE_VPAD * 2 + 1;
         return bubbleH + 2;
     }

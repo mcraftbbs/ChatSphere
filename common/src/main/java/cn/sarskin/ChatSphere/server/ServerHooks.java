@@ -21,6 +21,11 @@ public final class ServerHooks {
         ModVoiceStorage vs = ModVoiceStorage.getInstance(sp.server);
         vs.deliverToPlayer(sp, msc);
         ModServerEmoji.getInstance(sp.server).syncTo(sp);
+        ModServerImages.getInstance(sp.server).sweep();
+    }
+
+    public static void onServerStarted(MinecraftServer server) {
+        ModServerImages.getInstance(server).sweep();
     }
 
     public static void onServerStopping(MinecraftServer server) {
@@ -29,6 +34,7 @@ public final class ServerHooks {
         ModServerChannels.removeServer(server);
         ModVoiceStorage.removeServer(server);
         ModServerEmoji.removeServer(server);
+        ModServerImages.removeServer(server);
         DiscordBridge.removeServer(server);
     }
 }

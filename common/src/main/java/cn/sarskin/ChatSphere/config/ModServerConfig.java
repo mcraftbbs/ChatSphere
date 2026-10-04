@@ -39,6 +39,17 @@ public class ModServerConfig {
     /** Newline or comma separated regexes; empty allows every host. Also gates pasted image URLs. */
     public final CfgValue.Str linkPreviewAllowedDomains;
 
+    /** Chat images. The client TTL is shipped to clients so both sides expire the cache the same way. */
+    public final CfgValue.Bool chatImageEnabled;
+    public final CfgValue.Bool chatImageUploadRequiresOp;
+    public final CfgValue.Int chatImageMaxKb;
+    public final CfgValue.Int chatImageMaxDim;
+    public final CfgValue.Int chatImageMaxPixels;
+    public final CfgValue.Int chatImageServerTtlMinutes;
+    public final CfgValue.Int chatImageClientTtlMinutes;
+    public final CfgValue.Int chatImageUploadCooldownSeconds;
+    public final CfgValue.Int chatImageMaxPerPlayer;
+
     /** Discord interop: off by default, secrets stay on the server. */
     public final CfgValue.Bool discordEnabled;
     public final CfgValue.Str discordWebhookUrl;
@@ -87,6 +98,16 @@ public class ModServerConfig {
         linkPreviewEnabled = new CfgValue.Bool(store, "linkPreviewEnabled", true);
         linkPreviewAllowedDomains = new CfgValue.Str(store, "linkPreviewAllowedDomains", "");
 
+        chatImageEnabled = new CfgValue.Bool(store, "chatImageEnabled", true);
+        chatImageUploadRequiresOp = new CfgValue.Bool(store, "chatImageUploadRequiresOp", false);
+        chatImageMaxKb = new CfgValue.Int(store, "chatImageMaxKb", 512);
+        chatImageMaxDim = new CfgValue.Int(store, "chatImageMaxDim", 1280);
+        chatImageMaxPixels = new CfgValue.Int(store, "chatImageMaxPixels", 1500000);
+        chatImageServerTtlMinutes = new CfgValue.Int(store, "chatImageServerTtlMinutes", 1440);
+        chatImageClientTtlMinutes = new CfgValue.Int(store, "chatImageClientTtlMinutes", 2880);
+        chatImageUploadCooldownSeconds = new CfgValue.Int(store, "chatImageUploadCooldownSeconds", 10);
+        chatImageMaxPerPlayer = new CfgValue.Int(store, "chatImageMaxPerPlayer", 50);
+
         discordEnabled = new CfgValue.Bool(store, "discordEnabled", false);
         discordWebhookUrl = new CfgValue.Str(store, "discordWebhookUrl", "");
         discordBotToken = new CfgValue.Str(store, "discordBotToken", "");
@@ -108,6 +129,8 @@ public class ModServerConfig {
         boolFields.put("emojiUploadRequiresOp", emojiUploadRequiresOp);
         boolFields.put("discordEnabled", discordEnabled);
         boolFields.put("discordRelayInbound", discordRelayInbound);
+        boolFields.put("chatImageEnabled", chatImageEnabled);
+        boolFields.put("chatImageUploadRequiresOp", chatImageUploadRequiresOp);
 
         store.save();
     }
@@ -187,7 +210,8 @@ public class ModServerConfig {
                 bv.set(Boolean.parseBoolean(value));
             } else if (val instanceof CfgValue.Int iv) {
                 int v = Integer.parseInt(value);
-                if (v < 0 || v > 1_000_000) return;
+                // Pixel caps and lifetimes are the largest ints shipped, the bound only stops nonsense values
+                if (v < 0 || v > 100_000_000) return;
                 iv.set(v);
             } else if (val instanceof CfgValue.Str sv) {
                 sv.set(value);

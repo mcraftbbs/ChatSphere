@@ -15,6 +15,11 @@ public class ModServerEvents {
     }
 
     @SubscribeEvent
+    public static void onServerStarted(net.neoforged.neoforge.event.server.ServerStartedEvent event) {
+        ServerHooks.onServerStarted(event.getServer());
+    }
+
+    @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         ServerHooks.onServerStopping(event.getServer());
     }
