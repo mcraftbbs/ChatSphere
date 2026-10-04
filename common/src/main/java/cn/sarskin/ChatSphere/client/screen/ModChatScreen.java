@@ -223,6 +223,7 @@ public class ModChatScreen extends Screen {
     private static final int LINK_CARD_H = 56;
     private static final int LINK_CARD_GAP = 4;
     private final List<ImageHit> imageHits = new ArrayList<>();
+    private final java.util.Map<Integer, Integer> frameRowHeights = new java.util.HashMap<>();
     private int lastContentX = -1;
     private int lastContentW = 0;
     private static final int IMAGE_MAX_W = 200;
@@ -2670,6 +2671,7 @@ public class ModChatScreen extends Screen {
         synchronized (voiceHitBoxes) { voiceHitBoxes.clear(); }
         synchronized (bubbleHitBoxes) { bubbleHitBoxes.clear(); }
         synchronized (replyQuoteHitBoxes) { replyQuoteHitBoxes.clear(); }
+        frameRowHeights.clear();
         synchronized (linkCardHits) { linkCardHits.clear(); }
         synchronized (imageHits) { imageHits.clear(); }
         synchronized (itemHitBoxes) { itemHitBoxes.clear(); }
@@ -2755,6 +2757,7 @@ public class ModChatScreen extends Screen {
                 paint = new RowPaint(renderMessageBubble(guiGraphics, msg, chatAreaLeft, chatAreaRight, rowY), false, 0, 0, 0, 0, false);
             }
             bubbleHeight = paint.height() + cardH + imgH;
+            frameRowHeights.put(globalIdx, bubbleHeight + 2);
             int rowTop = yOffset - bubbleHeight;
             int contentX = lastContentX > 0 ? lastContentX : chatAreaLeft + 10;
             int contentW = lastContentW > 0 ? lastContentW : Math.max(40, chatAreaRight - contentX - 10);
@@ -3464,8 +3467,10 @@ public class ModChatScreen extends Screen {
             int prevI = view != null
                     ? (idx > 0 ? view.get(idx - 1) : -1)
                     : (idx > 0 ? idx - 1 : -1);
-            int h = measureRowHeight(msg, prevI >= 0 ? messages.get(prevI) : null, areaLeft, areaRight, stream);
-            accumulated += h + 2;
+            Integer rendered = frameRowHeights.get(i);
+            int h = rendered != null ? rendered
+                    : measureRowHeight(msg, prevI >= 0 ? messages.get(prevI) : null, areaLeft, areaRight, stream) + 2;
+            accumulated += h;
             idx++;
             if (accumulated >= space) break;
         }
