@@ -20,21 +20,21 @@ config="chatsphere.forge.mixins.json"
 
 [[dependencies.${mod_id}]]
     modId="forge"
-    type="required"
+    mandatory=true
     versionRange="${forge_version_range}"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
     modId="minecraft"
-    type="required"
+    mandatory=true
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
     modId="plasmovoice"
-    type="optional"
+    mandatory=false
     versionRange="[2.0,)"
     ordering="AFTER"
     side="BOTH"
