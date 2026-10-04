@@ -224,6 +224,8 @@ public class ModChatScreen extends Screen {
     private static final int LINK_CARD_H = 56;
     private static final int LINK_CARD_GAP = 4;
     private final List<ImageHit> imageHits = new ArrayList<>();
+    private int lastContentX = -1;
+    private int lastContentW = 0;
     private static final int IMAGE_MAX_W = 200;
     private static final int IMAGE_MAX_H = 200;
     private static final int IMAGE_MIN_H = 36;
@@ -1857,13 +1859,14 @@ public class ModChatScreen extends Screen {
             if (Theme.popupBorderVisible()) {
                 Ui.renderRoundedOutline(g, x, y, w, LINK_CARD_H, 6, Theme.popupOutline());
             }
-            int textX = x + 6;
+            int textX = x + 54;
             if (preview != null) {
                 ResourceLocation texture = LinkPreviewCache.texture(url);
                 int[] size = LinkPreviewCache.thumbSize(url);
                 if (texture != null && size != null) {
                     g.blit(texture, x + 5, y + 6, 44, 44, 0f, 0f, size[0], size[1], size[0], size[1]);
-                    textX = x + 54;
+                } else {
+                    drawCardLetter(g, x + 5, y + 6, preview);
                 }
                 int textW = Math.max(20, x + w - 6 - textX);
                 String title = preview.title().isEmpty() ? url : preview.title();
@@ -1967,6 +1970,17 @@ public class ModChatScreen extends Screen {
                 showImageMessage(ChatImageGuard.ERR_FORMAT);
             }
         }
+    }
+
+    private static final int[] CARD_COLORS = {0xFF5865F2, 0xFF3BA55D, 0xFFED4245, 0xFFFAA61A, 0xFF9B59B6, 0xFF1ABC9C};
+
+    /** Square with the site's first letter, shown while a page offers no jpeg or png. */
+    private void drawCardLetter(GuiGraphics g, int x, int y, LinkPreview preview) {
+        String site = preview.site().isEmpty() ? preview.url() : preview.site();
+        String letter = site.isEmpty() ? "?" : site.substring(0, 1).toUpperCase();
+        int color = CARD_COLORS[Math.floorMod(site.hashCode(), CARD_COLORS.length)];
+        Ui.fillRoundedRect(g, x, y, 44, 44, 6, color);
+        g.drawString(font, letter, x + (44 - font.width(letter)) / 2, y + 18, 0xFFFFFFFF, false);
     }
 
     private void openLinkCard(String url) {
@@ -2725,8 +2739,10 @@ public class ModChatScreen extends Screen {
             }
             bubbleHeight = paint.height() + cardH + imgH;
             int rowTop = yOffset - bubbleHeight;
-            if (cardH > 0) renderLinkCards(guiGraphics, msg, chatAreaLeft + 10, chatAreaRight - 10, rowY, mouseX, mouseY);
-            if (imgH > 0) renderImageBlocks(guiGraphics, msg, chatAreaLeft + 10, rowY + cardH, chatAreaRight - chatAreaLeft);
+            int contentX = lastContentX > 0 ? lastContentX : chatAreaLeft + 10;
+            int contentW = lastContentW > 0 ? lastContentW : Math.max(40, chatAreaRight - contentX - 10);
+            if (cardH > 0) renderLinkCards(guiGraphics, msg, contentX, contentX + contentW, rowY, mouseX, mouseY);
+            if (imgH > 0) renderImageBlocks(guiGraphics, msg, contentX, rowY + cardH, contentW);
             synchronized (bubbleHitBoxes) {
                 bubbleHitBoxes.add(new BubbleHit(chatAreaLeft, rowTop, chatAreaRight - chatAreaLeft, bubbleHeight, globalIdx));
             }
@@ -2838,6 +2854,8 @@ public class ModChatScreen extends Screen {
             }
         }
 
+        lastContentX = textX;
+        lastContentW = Math.max(40, areaRight - textX - 24);
         int textY = rowTop + headerH;
         if (pureEmoji) {
             emojiBlockX = textX - 2;
@@ -3100,6 +3118,8 @@ public class ModChatScreen extends Screen {
         }
 
         int textX = bubbleX + BUBBLE_HPAD;
+        lastContentX = textX;
+        lastContentW = Math.max(40, bubbleW - BUBBLE_HPAD * 2);
         int textY = bubbleY + BUBBLE_VPAD;
 
         if (msg.replyContent() != null) {
