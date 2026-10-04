@@ -1304,7 +1304,10 @@ public class ModChatScreen extends Screen {
 
         drawHeaderBar(guiGraphics);
         renderConsoleTabs(guiGraphics, mouseX, mouseY);
+        // rows scroll under the header, so keep them inside the message viewport
+        guiGraphics.enableScissor(chatLeft(), chatAreaTop(), screenWidth, screenHeight - 14 - TOOLBAR_HEIGHT);
         renderMessages(guiGraphics, mouseX, mouseY, screenWidth, screenHeight);
+        guiGraphics.disableScissor();
         renderNotificationBar(guiGraphics, screenHeight);
 
         guiGraphics.fill(chatLeft(), screenHeight - 14 - TOOLBAR_HEIGHT, screenWidth, screenHeight, Theme.toolbarBg());
