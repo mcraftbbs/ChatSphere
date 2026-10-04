@@ -29,6 +29,7 @@ public final class LinkPreviewCache {
     private static final Map<String, byte[]> THUMBS = new ConcurrentHashMap<>();
     private static final Map<String, ResourceLocation> TEXTURES = new ConcurrentHashMap<>();
     private static final Map<String, Long> FAILED = new ConcurrentHashMap<>();
+    private static final Map<String, int[]> THUMB_SIZE = new ConcurrentHashMap<>();
 
     private LinkPreviewCache() {}
 
@@ -92,6 +93,7 @@ public final class LinkPreviewCache {
         if (!isImage(data)) return null;
         try {
             NativeImage image = NativeImage.read(new ByteArrayInputStream(data));
+            THUMB_SIZE.put(url, new int[]{image.getWidth(), image.getHeight()});
             DynamicTexture texture = new DynamicTexture(image);
             ResourceLocation id = new ResourceLocation("chatsphere", "links/" + key(url));
             Minecraft.getInstance().getTextureManager().register(id, texture);
@@ -100,6 +102,11 @@ public final class LinkPreviewCache {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** Pixel size of a cached thumbnail, or null when it was never read. */
+    public static int[] thumbSize(String url) {
+        return THUMB_SIZE.get(url);
     }
 
     public static void clear() {
@@ -112,6 +119,7 @@ public final class LinkPreviewCache {
         }
         TEXTURES.clear();
         THUMBS.clear();
+        THUMB_SIZE.clear();
         MEMORY.clear();
         FAILED.clear();
     }

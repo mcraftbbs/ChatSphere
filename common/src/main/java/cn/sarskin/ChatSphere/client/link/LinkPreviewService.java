@@ -54,6 +54,17 @@ public final class LinkPreviewService {
         return LinkPreviewCache.get(url);
     }
 
+    /** URLs of one message that deserve a card: mode on, allowed, capped by the client setting. */
+    public static List<String> cardUrls(String text) {
+        if (mode() == 0 || text == null || text.isEmpty()) return List.of();
+        int max = Math.max(1, ModClientConfig.CONFIG.linkPreviewMaxPerMessage.get());
+        List<String> out = new ArrayList<>();
+        for (String url : cn.sarskin.ChatSphere.client.RichTextParser.findUrls(text, max)) {
+            if (allowed(url)) out.add(url);
+        }
+        return out;
+    }
+
     /** Called for URLs of on-screen messages only, so nothing is fetched for history that is off screen. */
     public static void request(String url) {
         if (mode() == 0 || url == null || url.isEmpty()) return;

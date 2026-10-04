@@ -5,6 +5,10 @@ import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ChatMessageData;
 import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ConsoleTabs;
+import cn.sarskin.ChatSphere.client.RichTextParser;
+import cn.sarskin.ChatSphere.client.link.LinkPreview;
+import cn.sarskin.ChatSphere.client.link.LinkPreviewCache;
+import cn.sarskin.ChatSphere.client.link.LinkPreviewService;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.client.widget.EmojiPanel;
@@ -208,6 +212,11 @@ public class ModChatScreen extends Screen {
     private final List<VoiceHit> voiceHitBoxes = new ArrayList<>();
     private final List<BubbleHit> bubbleHitBoxes = new ArrayList<>();
     private final List<ReplyQuoteHit> replyQuoteHitBoxes = new ArrayList<>();
+    private final List<LinkCardHit> linkCardHits = new ArrayList<>();
+    private static final int LINK_CARD_H = 56;
+    private static final int LINK_CARD_GAP = 4;
+
+    private record LinkCardHit(int x, int y, int w, int h, String url) {}
     private final List<BubbleItemHit> itemHitBoxes = new ArrayList<>();
     private final List<RichTextHit> richTextHitBoxes = new ArrayList<>();
     private static final int ROW_AVATAR_COL = 44;
@@ -448,6 +457,14 @@ public class ModChatScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
             if (consoleTabClicked(mouseX, mouseY)) return true;
+            synchronized (linkCardHits) {
+                for (LinkCardHit hit : linkCardHits) {
+                    if (mouseX >= hit.x && mouseX <= hit.x + hit.w && mouseY >= hit.y && mouseY <= hit.y + hit.h) {
+                        openLinkCard(hit.url);
+                        return true;
+                    }
+                }
+            }
             if (showSearch && searchInput != null && searchInput.isVisible()) {
                 int barY = HEADER_BAR_HEIGHT + 6;
                 int barH = 20;
@@ -1782,6 +1799,68 @@ public class ModChatScreen extends Screen {
         return replyContent;
     }
 
+    /** Card space this row has to reserve; zero when cards are off or nothing qualifies. */
+    private int linkCardHeight(ChatMessageData msg) {
+        if (msg == null || msg.conversationType() == ChatMessageData.ConversationType.COMMAND) return 0;
+        int cards = LinkPreviewService.cardUrls(msg.plainText()).size();
+        return cards == 0 ? 0 : cards * LINK_CARD_H + (cards - 1) * LINK_CARD_GAP;
+    }
+
+    /** Text as drawn; card-only mode leaves the URL out because the card below shows it. */
+    private static Component displayText(ChatMessageData msg) {
+        if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) return msg.senderName().copy();
+        Component rendered = displayText(msg);
+        if (LinkPreviewService.mode() == 2) {
+            String plain = rendered.getString();
+            String stripped = RichTextParser.stripUrls(plain);
+            if (!stripped.equals(plain)) return RichTextParser.parse(stripped);
+        }
+        return rendered;
+    }
+
+    /** Cards under the text of a visible row; asking for the preview here keeps fetches on screen only. */
+    private void renderLinkCards(GuiGraphics g, ChatMessageData msg, int x, int right, int top, int mouseX, int mouseY) {
+        List<String> urls = LinkPreviewService.cardUrls(msg.plainText());
+        if (urls.isEmpty()) return;
+        int w = Math.min(240, Math.max(120, right - x));
+        int y = top;
+        for (String url : urls) {
+            LinkPreview preview = LinkPreviewService.preview(url);
+            if (preview == null) LinkPreviewService.request(url);
+            Ui.fillRoundedRect(g, x, y, w, LINK_CARD_H, 6, Theme.popupBg());
+            if (Theme.popupBorderVisible()) {
+                Ui.renderRoundedOutline(g, x, y, w, LINK_CARD_H, 6, Theme.popupOutline());
+            }
+            int textX = x + 6;
+            if (preview != null) {
+                ResourceLocation texture = LinkPreviewCache.texture(url);
+                int[] size = LinkPreviewCache.thumbSize(url);
+                if (texture != null && size != null) {
+                    g.blit(texture, x + 5, y + 6, 44, 44, 0f, 0f, size[0], size[1], size[0], size[1]);
+                    textX = x + 54;
+                }
+                int textW = Math.max(20, x + w - 6 - textX);
+                String title = preview.title().isEmpty() ? url : preview.title();
+                g.drawString(font, font.plainSubstrByWidth(title, textW), textX, y + 6, Theme.text(), false);
+                String desc = preview.description().isEmpty() ? preview.site() : preview.description();
+                g.drawString(font, font.plainSubstrByWidth(desc, textW), textX, y + 20, Theme.textDim(), false);
+                if (!preview.site().isEmpty() && !preview.description().isEmpty()) {
+                    g.drawString(font, font.plainSubstrByWidth(preview.site(), textW), textX, y + 36, Theme.textFaint(), false);
+                }
+            }
+            synchronized (linkCardHits) {
+                linkCardHits.add(new LinkCardHit(x, y, w, LINK_CARD_H, url));
+            }
+            y += LINK_CARD_H + LINK_CARD_GAP;
+        }
+    }
+
+    private void openLinkCard(String url) {
+        Component link = Component.literal(url).withStyle(style -> style.withClickEvent(
+                new net.minecraft.network.chat.ClickEvent(net.minecraft.network.chat.ClickEvent.Action.OPEN_URL, url)));
+        handleComponentClick(link, 0);
+    }
+
     private boolean handleComponentClick(Component component, int relX) {
         if (component == null || minecraft == null || minecraft.player == null) return false;
         Style style = minecraft.font.getSplitter().componentStyleAtWidth(component, relX);
@@ -2446,6 +2525,7 @@ public class ModChatScreen extends Screen {
         synchronized (voiceHitBoxes) { voiceHitBoxes.clear(); }
         synchronized (bubbleHitBoxes) { bubbleHitBoxes.clear(); }
         synchronized (replyQuoteHitBoxes) { replyQuoteHitBoxes.clear(); }
+        synchronized (linkCardHits) { linkCardHits.clear(); }
         synchronized (itemHitBoxes) { itemHitBoxes.clear(); }
         synchronized (richTextHitBoxes) { richTextHitBoxes.clear(); }
         synchronized (avatarHitBoxes) { avatarHitBoxes.clear(); }
@@ -2518,15 +2598,18 @@ public class ModChatScreen extends Screen {
 
             int bubbleHeight;
             RowPaint paint;
+            int cardH = linkCardHeight(msg);
+            int rowY = yOffset - cardH;
             if (streamRows && msg.conversationType() != ChatMessageData.ConversationType.COMMAND) {
                 // Merge into the older row
                 ChatMessageData older = i > 0 ? messages.get(i - 1) : null;
-                paint = renderMessageRow(guiGraphics, msg, chatAreaLeft, chatAreaRight, yOffset, older, globalIdx, mouseX, mouseY);
+                paint = renderMessageRow(guiGraphics, msg, chatAreaLeft, chatAreaRight, rowY, older, globalIdx, mouseX, mouseY);
             } else {
-                paint = new RowPaint(renderMessageBubble(guiGraphics, msg, chatAreaLeft, chatAreaRight, yOffset), false, 0, 0, 0, 0, false);
+                paint = new RowPaint(renderMessageBubble(guiGraphics, msg, chatAreaLeft, chatAreaRight, rowY), false, 0, 0, 0, 0, false);
             }
-            bubbleHeight = paint.height();
+            bubbleHeight = paint.height() + cardH;
             int rowTop = yOffset - bubbleHeight;
+            if (cardH > 0) renderLinkCards(guiGraphics, msg, chatAreaLeft + 10, chatAreaRight - 10, rowY, mouseX, mouseY);
             synchronized (bubbleHitBoxes) {
                 bubbleHitBoxes.add(new BubbleHit(chatAreaLeft, rowTop, chatAreaRight - chatAreaLeft, bubbleHeight, globalIdx));
             }
@@ -2572,7 +2655,7 @@ public class ModChatScreen extends Screen {
         int textX = areaLeft + rowAvatarCol();
         int textAreaW = Math.max(120, areaRight - textX - 4 - (merge && dupW > 0 ? dupW + 6 : 0));
 
-        Component contentText = msg.renderedContent();
+        Component contentText = displayText(msg);
         boolean isVoice = msg.content().getString().startsWith("VoiceMessage#")
                 && ModVoiceMessagesIntegration.isVoiceMessagesLoaded();
         java.util.UUID vmUuid = null;
@@ -2772,7 +2855,7 @@ public class ModChatScreen extends Screen {
                 infoLine.append(Component.translatable("screen.chatsphere.cmd_output").withStyle(ChatFormatting.GRAY));
             }
         } else {
-            contentText = msg.renderedContent();
+            contentText = displayText(msg);
             if (showName) {
                 infoLine.append(msg.senderName().copy().withStyle(ChatFormatting.AQUA));
             }
@@ -2828,6 +2911,7 @@ public class ModChatScreen extends Screen {
 
         int contentH = linesContentH(displayLines, lineH) + (lines - displayLines.size()) * lineH;
         if (hasItem) contentH += 18 - lineH; // item line is taller than normal line
+        contentH += linkCardHeight(msg);
 
         int bubbleH = contentH + BUBBLE_VPAD * 2 + 1;
 
@@ -3102,7 +3186,7 @@ public class ModChatScreen extends Screen {
             int dupW = msg.duplicateCount() > 1 ? mc.font.width("x" + msg.duplicateCount()) : 0;
             int textX = areaLeft + rowAvatarCol();
             int textAreaW = Math.max(120, areaRight - textX - 4 - (merge && dupW > 0 ? dupW + 6 : 0));
-            Component contentText = msg.renderedContent();
+            Component contentText = displayText(msg);
             boolean isVoice = msg.content().getString().startsWith("VoiceMessage#")
                     && ModVoiceMessagesIntegration.isVoiceMessagesLoaded();
             List<Component> displayLines = getWrappedLines(mc, msg, contentText, false, textAreaW);
@@ -3130,7 +3214,7 @@ public class ModChatScreen extends Screen {
         if (isCommand) {
             contentText = msg.senderName().copy();
         } else {
-            contentText = msg.renderedContent();
+            contentText = displayText(msg);
             if (showName) {
                 infoLine.append(msg.senderName().copy().withStyle(ChatFormatting.AQUA));
             }
@@ -3170,6 +3254,7 @@ public class ModChatScreen extends Screen {
         boolean hasItem = msg.itemNbt() != null && !msg.itemNbt().isEmpty();
         int contentH = linesContentH(displayLines, lineHb) + (lines - displayLines.size()) * lineHb;
         if (hasItem) contentH += 18 - lineHb;
+        contentH += linkCardHeight(msg);
         int bubbleH = contentH + BUBBLE_VPAD * 2 + 1;
         return bubbleH + 2;
     }
