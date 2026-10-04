@@ -60,7 +60,10 @@ public final class LinkPreviewService {
         int max = Math.max(1, ModClientConfig.CONFIG.linkPreviewMaxPerMessage.get());
         List<String> out = new ArrayList<>();
         for (String url : cn.sarskin.ChatSphere.client.RichTextParser.findUrls(text, max)) {
-            if (allowed(url)) out.add(url);
+            if (!allowed(url)) continue;
+            // a failed fetch would otherwise reserve height for a card that never fills
+            if (LinkPreviewCache.get(url) == null && LinkPreviewCache.failedRecently(url)) continue;
+            out.add(url);
         }
         return out;
     }
