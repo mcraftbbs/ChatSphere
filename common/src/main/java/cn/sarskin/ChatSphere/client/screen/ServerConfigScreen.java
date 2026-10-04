@@ -200,7 +200,7 @@ public class ServerConfigScreen extends Screen {
             return;
         }
         PacketSender.toServer(ServerboundConfigUpdatePayload.ID,
-                new ServerboundConfigUpdatePayload(key, value));
+                new ServerboundConfigUpdatePayload(key, value).toBuf());
     }
 
     private EditBox mkIntBox(int y, String fieldName, String initial, int min, int max, int maxLen) {

@@ -1117,7 +1117,7 @@ public class ModChatScreen extends Screen {
                 PacketSender.toServer(ServerboundCommandMessagePayload.ID,
                             new ServerboundCommandMessagePayload(
                                     Component.Serializer.toJson(Component.literal(stripped)),
-                                    this.minecraft.player.getUUID(), true));
+                                    this.minecraft.player.getUUID(), true).toBuf());
             }
         } else if (currentType == ChatMessageData.ConversationType.PRIVATE) {
             sentHistory.add(text);
@@ -1835,7 +1835,7 @@ public class ModChatScreen extends Screen {
     /** Text as drawn; card-only mode leaves the URL out because the card below shows it. */
     private static Component displayText(ChatMessageData msg) {
         if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) return msg.senderName().copy();
-        Component rendered = displayText(msg);
+        Component rendered = msg.renderedContent();
         if (LinkPreviewService.mode() == 2) {
             String plain = rendered.getString();
             String stripped = RichTextParser.stripUrls(plain);
@@ -3443,14 +3443,14 @@ public class ModChatScreen extends Screen {
                         ServerboundChannelActionPayload.Action.SEND_CHAT,
                         channelId, this.minecraft.player.getUUID(),
                         true, text, "", List.<String>of(), List.<String>of(), List.<String>of(), "", true,
-                        replyContent, replySender, itemNbt, false, ""));
+                        replyContent, replySender, itemNbt, false, "").toBuf());
     }
 
     private void sendChannelPacket(ServerboundChannelActionPayload.Action action, String channelId, UUID ownerUuid) {
         if (this.minecraft == null || this.minecraft.getConnection() == null) return;
         PacketSender.toServer(ServerboundChannelActionPayload.ID,
                 new ServerboundChannelActionPayload(action, channelId, ownerUuid,
-                        true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
+                        true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf());
     }
 
     private static List<Component> splitCommandLines(Component component) {

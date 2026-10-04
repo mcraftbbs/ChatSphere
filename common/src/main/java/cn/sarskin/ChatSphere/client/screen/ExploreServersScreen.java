@@ -79,7 +79,7 @@ public class ExploreServersScreen extends Screen {
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.LIST_PUBLIC,
                                 "", minecraft.player != null ? minecraft.player.getUUID() : null,
-                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
+                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf());
     }
 
     private void createRowButtons() {
@@ -124,7 +124,7 @@ public class ExploreServersScreen extends Screen {
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.JOIN_MEMBER,
                                 channelId, minecraft.player.getUUID(),
-                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
+                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf());
     }
 
     @Override

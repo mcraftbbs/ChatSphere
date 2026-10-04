@@ -36,8 +36,8 @@ public final class ForgeNetwork {
         SimpleChannel c = NetworkRegistry.newSimpleChannel(
                 new ResourceLocation(ModInfo.MODID, "main"),
                 () -> PROTOCOL,
-                NetworkRegistry.ACCEPTVANILLA,
-                NetworkRegistry.ACCEPTVANILLA);
+                version -> true,
+                version -> true);
         c.registerMessage(0, EnvelopeC2S.class,
                 EnvelopeC2S::encode, EnvelopeC2S::decode, EnvelopeC2S::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
@@ -49,12 +49,19 @@ public final class ForgeNetwork {
 
     public static void sendToServer(ResourceLocation id, FriendlyByteBuf buf) {
         init();
-        channel.sendToServer(new EnvelopeC2S(id.toString(), buf.array()));
+        channel.sendToServer(new EnvelopeC2S(id.toString(), exact(buf)));
     }
 
     public static void sendToPlayer(ServerPlayer player, ResourceLocation id, FriendlyByteBuf buf) {
         init();
-        channel.send(PacketDistributor.PLAYER.with(() -> player), new EnvelopeS2C(id.toString(), buf.array()));
+        channel.send(PacketDistributor.PLAYER.with(() -> player), new EnvelopeS2C(id.toString(), exact(buf)));
+    }
+
+    /** Readable bytes only; the backing array is padded past the writer index. */
+    private static byte[] exact(FriendlyByteBuf buf) {
+        byte[] data = new byte[buf.readableBytes()];
+        buf.getBytes(buf.readerIndex(), data);
+        return data;
     }
 
     public record EnvelopeC2S(String id, byte[] data) {

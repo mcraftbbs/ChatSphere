@@ -688,7 +688,7 @@ public class ChatHistoryManager {
                                 new ArrayList<>(config.invitedPlayers),
                                 config.inviteCode,
                                 config.showInExplore, "", "", "", config.mainChatEnabled, config.defaultSubChannel,
-                                config.slowModeSeconds));
+                                config.slowModeSeconds).toBuf());
             }
         }
     }

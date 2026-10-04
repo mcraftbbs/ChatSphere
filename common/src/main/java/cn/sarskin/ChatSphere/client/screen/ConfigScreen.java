@@ -527,7 +527,7 @@ public class ConfigScreen extends Screen {
             return;
         }
         PacketSender.toServer(ServerboundConfigUpdatePayload.ID,
-                new ServerboundConfigUpdatePayload(key, value));
+                new ServerboundConfigUpdatePayload(key, value).toBuf());
     }
 
     private AbstractWidget mkServerBool(int y, String fieldName, CfgValue.Bool cfg) {
@@ -584,7 +584,7 @@ public class ConfigScreen extends Screen {
         }
         if (mc.getConnection() != null) {
             PacketSender.toServer(ServerboundPermissionCheckPayload.ID,
-                    new ServerboundPermissionCheckPayload("SERVER_CONFIG"));
+                    new ServerboundPermissionCheckPayload("SERVER_CONFIG").toBuf());
             pendingOpMsg = "chatsphere.server_config.pending_op";
         }
     }

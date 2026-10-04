@@ -91,7 +91,7 @@ public final class ServerPayloadHandlers {
             case LIST_PUBLIC -> {
                 if (player instanceof ServerPlayer sp) {
                     var publicList = msc.getPublicChannels();
-                    PacketSender.toPlayer(sp, ClientboundPublicChannelListPayload.ID, new ClientboundPublicChannelListPayload(publicList));
+                    PacketSender.toPlayer(sp, ClientboundPublicChannelListPayload.ID, new ClientboundPublicChannelListPayload(publicList).toBuf());
                 }
             }
             case CREATE_VOICE_ROOM -> {
@@ -271,7 +271,7 @@ public final class ServerPayloadHandlers {
     public static void permissionCheck(Player player, ServerboundPermissionCheckPayload p) {
         if (player instanceof ServerPlayer sp) {
             boolean allowed = sp.hasPermissions(2);
-            PacketSender.toPlayer(sp, ClientboundPermissionResponsePayload.ID, new ClientboundPermissionResponsePayload(p.scope(), allowed));
+            PacketSender.toPlayer(sp, ClientboundPermissionResponsePayload.ID, new ClientboundPermissionResponsePayload(p.scope(), allowed).toBuf());
         }
     }
 

@@ -43,6 +43,8 @@ dependencies {
     forge "net.minecraftforge:forge:${forge_version}"
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     compileOnly "de.maxhenkel.voicechat:voicechat-api:2.1.12"
+    compileOnly "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    compileOnly "org.jetbrains.kotlin:kotlin-stdlib:1.9.25"
     compileOnly "su.plo.voice.api:server:2.1.13"
 }
 

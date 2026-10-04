@@ -27,6 +27,8 @@ dependencies {
         parchment("org.parchmentmc.data:parchment-${parchment_minecraft_version}:${parchment_mappings_version}@zip")
     }
     compileOnly "net.fabricmc:sponge-mixin:0.15.4+mixin.0.8.7"
+    compileOnly "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    compileOnly "org.jetbrains.kotlin:kotlin-stdlib:1.9.25"
     compileOnly "de.maxhenkel.voicechat:voicechat-api:2.1.12"
     compileOnly "su.plo.voice.api:server:2.1.13"
 }

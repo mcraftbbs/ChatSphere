@@ -150,7 +150,7 @@ public class JoinChannelScreen extends Screen {
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.JOIN_BY_CODE,
                                 "", this.minecraft.player.getUUID(),
-                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), code, true, "", "", "", false, ""));
+                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), code, true, "", "", "", false, "").toBuf());
             }
         }
         if (this.minecraft != null) {

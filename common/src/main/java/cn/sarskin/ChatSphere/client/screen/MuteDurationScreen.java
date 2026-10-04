@@ -69,7 +69,7 @@ public class MuteDurationScreen extends Screen {
                     new ServerboundChannelActionPayload(
                         ServerboundChannelActionPayload.Action.TOGGLE_MUTE,
                         channelId, minecraft.player.getUUID(), false, spec, "",
-                        List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
+                        List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf());
         }
         if (minecraft != null) minecraft.setScreen(parent);
     }
