@@ -38,6 +38,11 @@ public class ModClientConfig {
     public final CfgValue.StrList urlLinkFilter;
     public final CfgValue.Bool consoleTabsEnabled;
     public final CfgValue.Str consoleTabs;
+    /** Link cards: 0 off, 1 text plus card, 2 card only. */
+    public final CfgValue.Int linkPreviewMode;
+    public final CfgValue.Int linkPreviewCacheMb;
+    public final CfgValue.Int linkPreviewTtlHours;
+    public final CfgValue.Int linkPreviewMaxPerMessage;
     public final CfgValue.Int scrollHistoryLimit;
     public final CfgValue.Int commandHistoryLimit;
     public final CfgValue.Bool renderEmojiShortcodes;
@@ -76,6 +81,11 @@ public class ModClientConfig {
 
         consoleTabsEnabled = new CfgValue.Bool(store, "consoleTabsEnabled", false);
         consoleTabs = new CfgValue.Str(store, "consoleTabs", "[]");
+
+        linkPreviewMode = new CfgValue.Int(store, "linkPreviewMode", 1);
+        linkPreviewCacheMb = new CfgValue.Int(store, "linkPreviewCacheMb", 32);
+        linkPreviewTtlHours = new CfgValue.Int(store, "linkPreviewTtlHours", 168);
+        linkPreviewMaxPerMessage = new CfgValue.Int(store, "linkPreviewMaxPerMessage", 2);
         scrollHistoryLimit = new CfgValue.Int(store, "scrollHistoryLimit", 200);
         renderEmojiShortcodes = new CfgValue.Bool(store, "renderEmojiShortcodes", true);
         renderRichText = new CfgValue.Bool(store, "renderRichText", true);

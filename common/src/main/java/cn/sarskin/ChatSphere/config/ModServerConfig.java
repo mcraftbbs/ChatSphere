@@ -34,6 +34,10 @@ public class ModServerConfig {
     public final CfgValue.Bool emojiUploadRequiresOp;
     public final CfgValue.Int emojiUploadCooldownSeconds;
     public final CfgValue.Int emojiMaxTotal;
+    /** Link previews on clients; off means links stay plain text everywhere. */
+    public final CfgValue.Bool linkPreviewEnabled;
+    /** Newline or comma separated regexes; empty allows every host. Also gates pasted image URLs. */
+    public final CfgValue.Str linkPreviewAllowedDomains;
 
     /** Discord interop: off by default, secrets stay on the server. */
     public final CfgValue.Bool discordEnabled;
@@ -79,6 +83,9 @@ public class ModServerConfig {
         emojiUploadCooldownSeconds = new CfgValue.Int(store, "emojiUploadCooldownSeconds", 5);
         // cap applies per folder
         emojiMaxTotal = new CfgValue.Int(store, "emojiMaxTotal", 100);
+
+        linkPreviewEnabled = new CfgValue.Bool(store, "linkPreviewEnabled", true);
+        linkPreviewAllowedDomains = new CfgValue.Str(store, "linkPreviewAllowedDomains", "");
 
         discordEnabled = new CfgValue.Bool(store, "discordEnabled", false);
         discordWebhookUrl = new CfgValue.Str(store, "discordWebhookUrl", "");

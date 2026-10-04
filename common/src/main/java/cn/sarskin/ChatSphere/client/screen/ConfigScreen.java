@@ -124,6 +124,21 @@ public class ConfigScreen extends Screen {
             }),
             ModClientConfig.CONFIG.bubbleColorOther::get));
 
+        // Link cards: mode, cache size and lifetime, per message cap
+        List<Opt> links = new ArrayList<>();
+        links.add(new Opt("config.chatsphere.link_preview_mode",
+            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.linkPreviewMode.get()), 0, 2, 1,
+                v -> { ModClientConfig.CONFIG.linkPreviewMode.set(v); scheduleConfigSave(); })));
+        links.add(new Opt("config.chatsphere.link_preview_cache_mb",
+            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.linkPreviewCacheMb.get()), 4, 512, 3,
+                v -> { ModClientConfig.CONFIG.linkPreviewCacheMb.set(v); scheduleConfigSave(); })));
+        links.add(new Opt("config.chatsphere.link_preview_ttl",
+            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.linkPreviewTtlHours.get()), 1, 8760, 4,
+                v -> { ModClientConfig.CONFIG.linkPreviewTtlHours.set(v); scheduleConfigSave(); })));
+        links.add(new Opt("config.chatsphere.link_preview_max",
+            y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.linkPreviewMaxPerMessage.get()), 1, 10, 1,
+                v -> { ModClientConfig.CONFIG.linkPreviewMaxPerMessage.set(v); scheduleConfigSave(); })));
+
         List<Opt> ui = new ArrayList<>();
         ui.add(new Opt("config.chatsphere.show_timestamp", y -> mkBool(y, ModClientConfig.CONFIG.showTimestamp)));
         ui.add(new Opt("config.chatsphere.show_sender_name", y -> mkBool(y, ModClientConfig.CONFIG.showSenderName)));
@@ -141,6 +156,7 @@ public class ConfigScreen extends Screen {
         uiGroups.add(new Group("config.chatsphere.hud_group", hud));
         uiGroups.add(new Group("config.chatsphere.sound_settings", sound));
         uiGroups.add(new Group("config.chatsphere.bubble", bubble));
+        uiGroups.add(new Group("config.chatsphere.link_group", links));
         cats.add(new Cat("config.chatsphere.ui", uiGroups));
 
         cats.add(new Cat("config.chatsphere.corner_style_cat", List.of()));
