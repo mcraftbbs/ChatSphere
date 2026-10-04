@@ -51,6 +51,8 @@ public final class ChatImageClient {
         if (count > ModServerImages.MAX_CHUNKS) return ChatImageGuard.ERR_SIZE;
         String id = randomId();
         PENDING_UPLOADS.put(id, data);
+        // show the sender its own image even when the server never answers
+        ChatImageCache.put(id, data);
         for (int i = 0; i < count; i++) {
             int from = i * CHUNK;
             int to = Math.min(data.length, from + CHUNK);
