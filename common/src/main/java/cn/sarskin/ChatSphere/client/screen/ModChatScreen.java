@@ -126,7 +126,6 @@ public class ModChatScreen extends Screen {
     private long lastTypingSent;
     private static final int MUTE_BAR_H = 14;
     private static final int TAB_STRIP_H = 20;
-    private static final org.slf4j.Logger WHEEL_LOGGER = org.slf4j.LoggerFactory.getLogger("ChatSphere-Wheel");
     private static final int AVATAR_SIZE = 10;
     private static final int SIDEBAR_AVATAR_SIZE = 12;
     private static final int BUBBLE_HPAD = 8;
@@ -1259,7 +1258,6 @@ public class ModChatScreen extends Screen {
         if (mouseX >= chatLeft() && mouseY >= chatAreaTop()) {
             scrollOffset += scrollY > 0 ? 1 : (scrollY < 0 ? -1 : 0);
             scrollOffset = Math.max(0, Math.min(scrollOffset, maxScrollOffset()));
-            WHEEL_LOGGER.info("wheel rows offset={} max={} space={} areaTop={} y={} x={}", scrollOffset, maxScrollOffset(), height - 14 - TOOLBAR_HEIGHT - MESSAGE_BOTTOM_PAD - chatAreaTop(), chatAreaTop(), mouseY, mouseX);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollY);

@@ -22,7 +22,6 @@ import java.util.stream.Stream;
 
 /** Client side chat image cache: bytes on disk, textures created on first draw. */
 public final class ChatImageCache {
-    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ChatSphere-ChatImage");
     private static final int MAX_TEXTURES = 48;
     private static final Map<String, byte[]> BYTES = new ConcurrentHashMap<>();
     private static final Map<String, ResourceLocation> TEXTURES = new ConcurrentHashMap<>();
@@ -162,11 +161,7 @@ public final class ChatImageCache {
                 && (d[4] & 0xFF) == 0x0D && (d[5] & 0xFF) == 0x0A && (d[6] & 0xFF) == 0x1A && (d[7] & 0xFF) == 0x0A;
     }
 
-    private static String head(byte[] d) {
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < Math.min(12, d.length); i++) out.append(String.format("%02X ", d[i]));
-        return out.toString().trim();
-    }
+
 
     /** Texture for a cached image, or null while the bytes are missing; built on the render thread. */
     public static ResourceLocation texture(String id) {
@@ -177,7 +172,6 @@ public final class ChatImageCache {
         }
         byte[] data = bytes(id);
         if (data != null && ChatImageGuard.isPng(data) && !strictPng(data)) {
-            LOGGER.warn("chat image {} dropped: bad head {}", id, head(data));
             BYTES.remove(id);
             try {
                 Files.deleteIfExists(dir().resolve(id + ".img"));
@@ -186,16 +180,13 @@ public final class ChatImageCache {
             data = null;
         }
         if (data == null) {
-            LOGGER.info("chat image {} has no bytes", id);
             return null;
         }
         if (ChatImageGuard.extensionFor(data) == null) {
-            LOGGER.info("chat image {} is not png/jpeg ({} bytes, head={})", id, data.length, String.format("%02X %02X %02X %02X", data[0], data[1], data[2], data[3]));
             return null;
         }
         byte[] png = ChatImageGuard.pngBytes(data);
         if (png == null) {
-            LOGGER.warn("chat image {} cannot be read as png", id);
             return null;
         }
         try {
@@ -209,7 +200,6 @@ public final class ChatImageCache {
             evict();
             return location;
         } catch (Exception e) {
-            LOGGER.warn("chat image {} could not be decoded: {} head={}", id, e.toString(), head(data));
             return null;
         }
     }

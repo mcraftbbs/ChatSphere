@@ -23,7 +23,11 @@ public class ChatImageViewerScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g) {
-        BackgroundBlur.blurScreen(g, width, height);
+        if (parent != null) {
+            parent.render(g, 0, 0, 0f);
+        } else {
+            BackgroundBlur.blurScreen(g, width, height);
+        }
         g.fill(0, 0, this.width, this.height, Theme.screenBg());
     }
 

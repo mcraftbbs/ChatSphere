@@ -15,8 +15,6 @@ import org.lwjgl.opengl.GL30;
 public final class BackgroundBlur {
     private BackgroundBlur() {}
 
-    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ChatSphere-Blur");
-    private static boolean WARNED;
     private static int fbo0 = -1, tex0 = -1; // 1:1 copy
     private static int fbo1 = -1, tex1 = -1; // 1/2
     private static int fbo2 = -1, tex2 = -1; // 1/4
@@ -30,12 +28,7 @@ public final class BackgroundBlur {
         try {
             g.flush();
             blurRegion();
-        } catch (Throwable err) {
-            if (!WARNED) {
-                WARNED = true;
-                LOGGER.warn("background blur unavailable: {}", err.toString());
-            }
-        }
+        } catch (Exception ignored) {}
     }
 
     private static void blurRegion() {
