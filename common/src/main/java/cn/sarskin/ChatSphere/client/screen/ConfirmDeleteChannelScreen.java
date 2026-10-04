@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.Ui;
@@ -62,12 +64,11 @@ public class ConfirmDeleteChannelScreen extends Screen {
         if (minecraft == null || minecraft.player == null) return;
         UUID playerUuid = minecraft.player.getUUID();
         if (minecraft.getConnection() != null) {
-            var conn = minecraft.getConnection().getConnection();
-            conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+            PacketSender.toServer(ServerboundChannelActionPayload.ID,
                 new ServerboundChannelActionPayload(
                     ServerboundChannelActionPayload.Action.REMOVE_CHANNEL,
                     channelId, playerUuid, true, "", "",
-                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf()));
+                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
         }
     }
 
@@ -75,12 +76,11 @@ public class ConfirmDeleteChannelScreen extends Screen {
         if (minecraft == null || minecraft.player == null) return;
         UUID playerUuid = minecraft.player.getUUID();
         if (minecraft.getConnection() != null) {
-            var conn = minecraft.getConnection().getConnection();
-            conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+            PacketSender.toServer(ServerboundChannelActionPayload.ID,
                 new ServerboundChannelActionPayload(
                     ServerboundChannelActionPayload.Action.LEAVE_CHANNEL,
                     channelId, playerUuid, true, "", "",
-                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf()));
+                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
         }
     }
 

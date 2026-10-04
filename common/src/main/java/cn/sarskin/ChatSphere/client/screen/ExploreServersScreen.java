@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
@@ -73,12 +75,11 @@ public class ExploreServersScreen extends Screen {
 
     private void sendRequest() {
         if (minecraft == null || minecraft.getConnection() == null) return;
-        minecraft.getConnection().getConnection().send(
-                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+        PacketSender.toServer(ServerboundChannelActionPayload.ID,
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.LIST_PUBLIC,
                                 "", minecraft.player != null ? minecraft.player.getUUID() : null,
-                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf()));
+                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
     }
 
     private void createRowButtons() {
@@ -119,12 +120,11 @@ public class ExploreServersScreen extends Screen {
 
     private void doJoin(String channelId) {
         if (minecraft == null || minecraft.getConnection() == null || minecraft.player == null) return;
-        minecraft.getConnection().getConnection().send(
-                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+        PacketSender.toServer(ServerboundChannelActionPayload.ID,
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.JOIN_MEMBER,
                                 channelId, minecraft.player.getUUID(),
-                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf()));
+                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
     }
 
     @Override

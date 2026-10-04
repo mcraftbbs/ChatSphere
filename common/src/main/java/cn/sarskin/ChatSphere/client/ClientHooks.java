@@ -2,9 +2,8 @@ package cn.sarskin.ChatSphere.client;
 
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
+import cn.sarskin.ChatSphere.platform.PacketSender;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientPacketListener;
-import net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,11 +18,10 @@ public final class ClientHooks {
     public static void onClientLogin() {
         Map<String, Boolean> pending = ModServerConfig.flushPendingBooleans();
         Minecraft mc = Minecraft.getInstance();
-        ClientPacketListener conn = mc.getConnection();
-        if (conn == null || mc.player == null) return;
+        if (mc.getConnection() == null || mc.player == null) return;
         for (Map.Entry<String, Boolean> e : pending.entrySet()) {
-            conn.send(new ServerboundCustomPayloadPacket(ServerboundConfigUpdatePayload.ID,
-                    new ServerboundConfigUpdatePayload(e.getKey(), String.valueOf(e.getValue())).toBuf()));
+            PacketSender.toServer(ServerboundConfigUpdatePayload.ID,
+                    new ServerboundConfigUpdatePayload(e.getKey(), String.valueOf(e.getValue())).toBuf());
         }
         // Pull server-shared custom emoji after joining.
         cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry.requestSync();

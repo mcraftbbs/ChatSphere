@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.UiToggle;
@@ -197,9 +199,8 @@ public class ServerConfigScreen extends Screen {
             ModServerConfig.queuePendingUpdate(key, value);
             return;
         }
-        mc.getConnection().getConnection().send(
-            new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundConfigUpdatePayload.ID,
-                new ServerboundConfigUpdatePayload(key, value).toBuf()));
+        PacketSender.toServer(ServerboundConfigUpdatePayload.ID,
+                new ServerboundConfigUpdatePayload(key, value));
     }
 
     private EditBox mkIntBox(int y, String fieldName, String initial, int min, int max, int maxLen) {

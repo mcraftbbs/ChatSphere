@@ -2,7 +2,7 @@ package cn.sarskin.ChatSphere.server;
 
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.network.ClientboundConfigSyncPayload;
-import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
+import cn.sarskin.ChatSphere.platform.PacketSender;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -13,8 +13,8 @@ public final class ServerHooks {
     public static void onPlayerJoin(ServerPlayer sp) {
         ModServerChannels msc = ModServerChannels.getInstance(sp.server);
         // Send caps first so the client trims history with them.
-        sp.connection.send(new ClientboundCustomPayloadPacket(ClientboundConfigSyncPayload.ID,
-                new ClientboundConfigSyncPayload(ModServerConfig.snapshot()).toBuf()));
+        PacketSender.toPlayer(sp, ClientboundConfigSyncPayload.ID,
+                new ClientboundConfigSyncPayload(ModServerConfig.snapshot()).toBuf());
         msc.onPlayerJoined(sp);
         msc.sendToPlayer(sp);
         msc.sendMessagesToPlayer(sp);

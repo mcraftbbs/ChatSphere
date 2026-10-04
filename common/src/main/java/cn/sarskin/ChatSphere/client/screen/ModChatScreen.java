@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.ModInfo;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ChatMessageData;
@@ -428,10 +430,8 @@ public class ModChatScreen extends Screen {
         long now = System.currentTimeMillis();
         if (now - lastTypingSent < TYPING_INTERVAL_MS) return;
         lastTypingSent = now;
-        this.minecraft.getConnection().getConnection().send(
-                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(
-                        ServerboundTypingPayload.ID,
-                        new ServerboundTypingPayload(currentConversation, type.name()).toBuf()));
+        PacketSender.toServer(ServerboundTypingPayload.ID,
+                new ServerboundTypingPayload(currentConversation, type.name()).toBuf());
     }
 
     private void onSearchChanged(String query) {
@@ -1114,12 +1114,10 @@ public class ModChatScreen extends Screen {
                     true);
             // Persist to server for cross-session sync
             if (history.isServerConnected()) {
-                this.minecraft.player.connection.getConnection().send(
-                    new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(
-                            ServerboundCommandMessagePayload.ID,
+                PacketSender.toServer(ServerboundCommandMessagePayload.ID,
                             new ServerboundCommandMessagePayload(
                                     Component.Serializer.toJson(Component.literal(stripped)),
-                                    this.minecraft.player.getUUID(), true).toBuf()));
+                                    this.minecraft.player.getUUID(), true));
             }
         } else if (currentType == ChatMessageData.ConversationType.PRIVATE) {
             sentHistory.add(text);
@@ -3440,23 +3438,19 @@ public class ModChatScreen extends Screen {
         if (this.minecraft == null || this.minecraft.getConnection() == null) return;
         String itemNbt = pendingItemNbt;
         pendingItemNbt = null;
-        var conn = this.minecraft.getConnection().getConnection();
-        conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(
-                ServerboundChannelActionPayload.ID,
+        PacketSender.toServer(ServerboundChannelActionPayload.ID,
                 new ServerboundChannelActionPayload(
                         ServerboundChannelActionPayload.Action.SEND_CHAT,
                         channelId, this.minecraft.player.getUUID(),
                         true, text, "", List.<String>of(), List.<String>of(), List.<String>of(), "", true,
-                        replyContent, replySender, itemNbt, false, "").toBuf()));
+                        replyContent, replySender, itemNbt, false, ""));
     }
 
     private void sendChannelPacket(ServerboundChannelActionPayload.Action action, String channelId, UUID ownerUuid) {
         if (this.minecraft == null || this.minecraft.getConnection() == null) return;
-        var conn = this.minecraft.getConnection().getConnection();
-        conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(
-                ServerboundChannelActionPayload.ID,
+        PacketSender.toServer(ServerboundChannelActionPayload.ID,
                 new ServerboundChannelActionPayload(action, channelId, ownerUuid,
-                        true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf()));
+                        true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
     }
 
     private static List<Component> splitCommandLines(Component component) {

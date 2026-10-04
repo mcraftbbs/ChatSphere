@@ -1,10 +1,11 @@
 package cn.sarskin.ChatSphere.server;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.emoji.EmojiFileGuard;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.network.ClientboundCustomEmojiPayload;
 import cn.sarskin.ChatSphere.storage.ModStoragePaths;
-import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
@@ -133,7 +134,7 @@ public class ModServerEmoji {
                 ClientboundCustomEmojiPayload.Action.ADD, name, channelId, data);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             for (ClientboundCustomEmojiPayload part : parts) {
-                player.connection.send(new ClientboundCustomPayloadPacket(ClientboundCustomEmojiPayload.ID, part.toBuf()));
+                PacketSender.toPlayer(player, ClientboundCustomEmojiPayload.ID, part.toBuf());
             }
         }
     }
@@ -142,7 +143,7 @@ public class ModServerEmoji {
         ClientboundCustomEmojiPayload payload =
                 new ClientboundCustomEmojiPayload(ClientboundCustomEmojiPayload.Action.DELETE, name, channelId, new byte[0]);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            player.connection.send(new ClientboundCustomPayloadPacket(ClientboundCustomEmojiPayload.ID, payload.toBuf()));
+            PacketSender.toPlayer(player, ClientboundCustomEmojiPayload.ID, payload.toBuf());
         }
     }
 
@@ -174,7 +175,7 @@ public class ModServerEmoji {
     private static void sendTo(ServerPlayer player, String channelId, String name, byte[] data) {
         for (ClientboundCustomEmojiPayload part : ClientboundCustomEmojiPayload.chunked(
                 ClientboundCustomEmojiPayload.Action.ADD, name, channelId, data)) {
-            player.connection.send(new ClientboundCustomPayloadPacket(ClientboundCustomEmojiPayload.ID, part.toBuf()));
+            PacketSender.toPlayer(player, ClientboundCustomEmojiPayload.ID, part.toBuf());
         }
     }
 

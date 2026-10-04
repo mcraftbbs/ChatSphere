@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -133,8 +135,7 @@ public class ModVoiceMessagesIntegration {
                                         voiceMessageId, pv.conversationId(), pv.conversationType(),
                                         mc.player.getUUID(), audio.size(), serialized);
                                 if (mc.getConnection() != null) {
-                                    mc.getConnection().getConnection().send(
-                                        new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(cn.sarskin.ChatSphere.network.ServerboundVoicePacket.ID, pkt.toBuf()));
+                                    PacketSender.toServer(cn.sarskin.ChatSphere.network.ServerboundVoicePacket.ID, pkt.toBuf());
                                 }
                                 String senderName = localPlayerName;
                                 if (senderName == null) senderName = mc.player.getName().getString();
@@ -183,10 +184,8 @@ public class ModVoiceMessagesIntegration {
         if (!voiceFetchRequested.add(voiceMessageId)) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.getConnection() == null || mc.player == null) return;
-        mc.getConnection().getConnection().send(
-                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(
-                        cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload.ID,
-                        new cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload(voiceMessageId).toBuf()));
+        PacketSender.toServer(cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload.ID,
+                new cn.sarskin.ChatSphere.network.ServerboundVoiceRequestPayload(voiceMessageId).toBuf());
     }
 
     public static Object createPlaybackPlayer(UUID playbackUuid, int bgColor) {
@@ -362,8 +361,7 @@ public class ModVoiceMessagesIntegration {
             cn.sarskin.ChatSphere.network.ServerboundVoicePacket pkt =
                     new cn.sarskin.ChatSphere.network.ServerboundVoicePacket(
                     voiceMessageId, convId, convType.name(), mc.player.getUUID(), typed.size(), serialized);
-            mc.getConnection().getConnection().send(
-                    new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(cn.sarskin.ChatSphere.network.ServerboundVoicePacket.ID, pkt.toBuf()));
+            PacketSender.toServer(cn.sarskin.ChatSphere.network.ServerboundVoicePacket.ID, pkt.toBuf());
             // Cache our audio so the row stays playable without a re-fetch.
             ModVoiceCache.save(convId, convType.name(), mc.player.getUUID(), voiceMessageId, serialized, typed.size());
         } catch (Exception ignored) {

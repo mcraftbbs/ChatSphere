@@ -3,13 +3,13 @@ package cn.sarskin.ChatSphere.network;
 import cn.sarskin.ChatSphere.client.image.ChatImageGuard;
 import cn.sarskin.ChatSphere.config.CfgValue;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
+import cn.sarskin.ChatSphere.platform.PacketSender;
 import cn.sarskin.ChatSphere.server.ModServerChannels;
 import cn.sarskin.ChatSphere.server.ModServerEmoji;
 import cn.sarskin.ChatSphere.server.ModServerImages;
 import cn.sarskin.ChatSphere.server.ModVoiceStorage;
 import net.minecraft.Util;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -91,7 +91,7 @@ public final class ServerPayloadHandlers {
             case LIST_PUBLIC -> {
                 if (player instanceof ServerPlayer sp) {
                     var publicList = msc.getPublicChannels();
-                    sp.connection.send(new ClientboundCustomPayloadPacket(ClientboundPublicChannelListPayload.ID, new ClientboundPublicChannelListPayload(publicList).toBuf()));
+                    PacketSender.toPlayer(sp, ClientboundPublicChannelListPayload.ID, new ClientboundPublicChannelListPayload(publicList));
                 }
             }
             case CREATE_VOICE_ROOM -> {
@@ -224,14 +224,14 @@ public final class ServerPayloadHandlers {
         if (targetUuid != null) {
             ServerPlayer target = server.getPlayerList().getPlayer(targetUuid);
             if (target != null) {
-                target.connection.send(new ClientboundCustomPayloadPacket(ClientboundChatPayload.ID, relay.toBuf()));
+                PacketSender.toPlayer(target, ClientboundChatPayload.ID, relay.toBuf());
             }
         } else {
             List<String> recipients = msc.effectiveMembers(chatChannelId);
             for (ServerPlayer other : server.getPlayerList().getPlayers()) {
                 if (recipients.contains(other.getUUID().toString())
                         && !other.getUUID().equals(realUuid)) {
-                    other.connection.send(new ClientboundCustomPayloadPacket(ClientboundChatPayload.ID, relay.toBuf()));
+                    PacketSender.toPlayer(other, ClientboundChatPayload.ID, relay.toBuf());
                 }
             }
         }
@@ -271,7 +271,7 @@ public final class ServerPayloadHandlers {
     public static void permissionCheck(Player player, ServerboundPermissionCheckPayload p) {
         if (player instanceof ServerPlayer sp) {
             boolean allowed = sp.hasPermissions(2);
-            sp.connection.send(new ClientboundCustomPayloadPacket(ClientboundPermissionResponsePayload.ID, new ClientboundPermissionResponsePayload(p.scope(), allowed).toBuf()));
+            PacketSender.toPlayer(sp, ClientboundPermissionResponsePayload.ID, new ClientboundPermissionResponsePayload(p.scope(), allowed));
         }
     }
 
@@ -300,7 +300,7 @@ public final class ServerPayloadHandlers {
             if (ModServerConfig.isSecret(p.key())) return;
             ClientboundConfigSyncPayload sync = new ClientboundConfigSyncPayload(Map.of(p.key(), p.value()));
             for (ServerPlayer target : sp.server.getPlayerList().getPlayers()) {
-                target.connection.send(new ClientboundCustomPayloadPacket(ClientboundConfigSyncPayload.ID, sync.toBuf()));
+                PacketSender.toPlayer(target, ClientboundConfigSyncPayload.ID, sync.toBuf());
             }
         } catch (Exception e) {
             org.slf4j.LoggerFactory.getLogger("ConfigUpdate").warn("Failed to apply config {}={}", p.key(), p.value(), e);
@@ -346,7 +346,7 @@ public final class ServerPayloadHandlers {
                 }
                 ServerPlayer target = server.getPlayerList().getPlayer(targetUuid);
                 if (target != null) {
-                    target.connection.send(new ClientboundCustomPayloadPacket(ClientboundVoicePacket.ID, relay.toBuf()));
+                    PacketSender.toPlayer(target, ClientboundVoicePacket.ID, relay.toBuf());
                 }
             }
         } else if ("PRIVATE".equals(p.conversationType()) && p.conversationId() != null && p.conversationId().contains(":")) {
@@ -371,7 +371,7 @@ public final class ServerPayloadHandlers {
 
             ServerPlayer target = server.getPlayerList().getPlayer(recipientUuid);
             if (target != null) {
-                target.connection.send(new ClientboundCustomPayloadPacket(ClientboundVoicePacket.ID, relay.toBuf()));
+                PacketSender.toPlayer(target, ClientboundVoicePacket.ID, relay.toBuf());
             }
         }
     }
@@ -394,7 +394,7 @@ public final class ServerPayloadHandlers {
                 sv.voiceMessageId(), sender, sv.conversationId(), sv.conversationType(),
                 sv.frameCount(), sv.audioData());
         if (player instanceof ServerPlayer sp) {
-            sp.connection.send(new ClientboundCustomPayloadPacket(ClientboundVoicePacket.ID, relay.toBuf()));
+            PacketSender.toPlayer(sp, ClientboundVoicePacket.ID, relay.toBuf());
         }
     }
 
@@ -490,8 +490,7 @@ public final class ServerPayloadHandlers {
         for (UUID uuid : targets) {
             ServerPlayer target = server.getPlayerList().getPlayer(uuid);
             if (target != null) {
-                target.connection.send(new ClientboundCustomPayloadPacket(
-                        ClientboundTypingPayload.ID, relay.toBuf()));
+                PacketSender.toPlayer(target, ClientboundTypingPayload.ID, relay.toBuf());
             }
         }
     }

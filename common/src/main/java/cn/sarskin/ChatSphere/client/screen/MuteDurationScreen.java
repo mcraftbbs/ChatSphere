@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.Ui;
@@ -63,12 +65,11 @@ public class MuteDurationScreen extends Screen {
 
     private void sendMute(String spec) {
         if (minecraft != null && minecraft.player != null && minecraft.getConnection() != null) {
-            minecraft.getConnection().getConnection().send(
-                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+            PacketSender.toServer(ServerboundChannelActionPayload.ID,
                     new ServerboundChannelActionPayload(
                         ServerboundChannelActionPayload.Action.TOGGLE_MUTE,
                         channelId, minecraft.player.getUUID(), false, spec, "",
-                        List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf()));
+                        List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
         }
         if (minecraft != null) minecraft.setScreen(parent);
     }

@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.emoji;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.ModInfo;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.platform.PlatformPaths;
@@ -541,9 +543,7 @@ public final class CustomEmojiRegistry {
     private static void sendToServer(cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload p) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.getConnection() == null || mc.getConnection().getConnection() == null) return;
-        mc.getConnection().getConnection().send(
-                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(
-                        cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload.ID, p.toBuf()));
+        PacketSender.toServer(cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload.ID, p.toBuf());
     }
 
     public static List<CustomEmoji> list() {

@@ -1,10 +1,10 @@
 package cn.sarskin.ChatSphere.network;
 
 import cn.sarskin.ChatSphere.ModInfo;
+import cn.sarskin.ChatSphere.platform.PacketSender;
 import cn.sarskin.ChatSphere.server.ModServerImages;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket;
 import net.minecraft.resources.ResourceLocation;
 
 import java.nio.charset.StandardCharsets;
@@ -84,6 +84,6 @@ public record ServerboundChatImagePayload(Action action, String id, int partInde
     public static void sendToServer(ServerboundChatImagePayload payload) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.getConnection() == null) return;
-        mc.getConnection().send(new ServerboundCustomPayloadPacket(ID, payload.toBuf()));
+        PacketSender.toServer(ID, payload.toBuf());
     }
 }

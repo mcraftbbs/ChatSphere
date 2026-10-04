@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
@@ -144,12 +146,11 @@ public class JoinChannelScreen extends Screen {
             ChatHistoryManager history = ChatHistoryManager.getInstance();
             if (this.minecraft != null && this.minecraft.player != null
                     && this.minecraft.getConnection() != null && history.isServerConnected()) {
-                var conn = this.minecraft.getConnection().getConnection();
-                conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+                PacketSender.toServer(ServerboundChannelActionPayload.ID,
                         new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.JOIN_BY_CODE,
                                 "", this.minecraft.player.getUUID(),
-                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), code, true, "", "", "", false, "").toBuf()));
+                                true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), code, true, "", "", "", false, ""));
             }
         }
         if (this.minecraft != null) {

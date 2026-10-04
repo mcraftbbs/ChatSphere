@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.server;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.ModInfo;
 import static cn.sarskin.ChatSphere.ModInfo.DEFAULT_CHANNEL_ID;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
@@ -17,7 +19,6 @@ import com.google.gson.JsonObject;
 import net.minecraft.Util;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -431,7 +432,7 @@ public class ModServerChannels {
             cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload renamedPayload =
                     new cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload(en.getKey(), en.getValue());
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-                p.connection.send(new ClientboundCustomPayloadPacket(cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload.ID, renamedPayload.toBuf()));
+                PacketSender.toPlayer(p, cn.sarskin.ChatSphere.network.ClientboundChannelRenamedPayload.ID, renamedPayload.toBuf());
             }
         }
     }
@@ -522,7 +523,7 @@ public class ModServerChannels {
         if (!list.isEmpty()) {
             collectOnlinePlayerNames();
             Map<String, String> kp = getKnownPlayers();
-            player.connection.send(new ClientboundCustomPayloadPacket(ClientboundChannelSyncPayload.ID, new ClientboundChannelSyncPayload(list, kp).toBuf()));
+            PacketSender.toPlayer(player, ClientboundChannelSyncPayload.ID, new ClientboundChannelSyncPayload(list, kp).toBuf());
         }
     }
 
@@ -571,7 +572,7 @@ public class ModServerChannels {
             }
         }
         if (msgs.isEmpty()) return;
-        player.connection.send(new ClientboundCustomPayloadPacket(ClientboundMessageSyncPayload.ID, new ClientboundMessageSyncPayload(msgs).toBuf()));
+        PacketSender.toPlayer(player, ClientboundMessageSyncPayload.ID, new ClientboundMessageSyncPayload(msgs).toBuf());
     }
 
     /** Sends one channel's history to a player who just joined it. */
@@ -592,7 +593,7 @@ public class ModServerChannels {
             }
         }
         if (msgs.isEmpty()) return;
-        player.connection.send(new ClientboundCustomPayloadPacket(ClientboundMessageSyncPayload.ID, new ClientboundMessageSyncPayload(msgs).toBuf()));
+        PacketSender.toPlayer(player, ClientboundMessageSyncPayload.ID, new ClientboundMessageSyncPayload(msgs).toBuf());
     }
 
     public void sendChannelHistoryToOnlinePlayer(String channelId, String playerUuid) {
@@ -721,7 +722,7 @@ public class ModServerChannels {
                         msg.replySender(), msg.itemNbt(), msg.messageId(), msg.isInput()));
         for (ServerPlayer other : server.getPlayerList().getPlayers()) {
             if (recipients.contains(other.getUUID().toString())) {
-                other.connection.send(new ClientboundCustomPayloadPacket(ClientboundChatPayload.ID, relay.toBuf()));
+                PacketSender.toPlayer(other, ClientboundChatPayload.ID, relay.toBuf());
             }
         }
     }
@@ -967,7 +968,7 @@ public class ModServerChannels {
                     .filter(e -> effectiveMembers(e.id()).contains(p.getUUID().toString())
                             || (ModServerConfig.CONFIG.syncDefaultChannel.get() && DEFAULT_CHANNEL_ID.equals(e.id())))
                     .collect(Collectors.toList());
-            p.connection.send(new ClientboundCustomPayloadPacket(ClientboundChannelSyncPayload.ID, new ClientboundChannelSyncPayload(playerChannels, kp).toBuf()));
+            PacketSender.toPlayer(p, ClientboundChannelSyncPayload.ID, new ClientboundChannelSyncPayload(playerChannels, kp).toBuf());
         }
     }
 

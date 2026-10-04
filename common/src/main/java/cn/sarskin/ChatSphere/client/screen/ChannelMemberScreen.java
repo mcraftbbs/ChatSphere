@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
@@ -253,10 +255,9 @@ public class ChannelMemberScreen extends Screen {
 
     private void sendAction(ServerboundChannelActionPayload.Action actionType, String targetUuid) {
         if (minecraft != null && minecraft.getConnection() != null && minecraft.player != null) {
-            minecraft.getConnection().getConnection().send(
-                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+            PacketSender.toServer(ServerboundChannelActionPayload.ID,
                     new ServerboundChannelActionPayload(actionType, channelId, minecraft.player.getUUID(),
-                        false, targetUuid, "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf()));
+                        false, targetUuid, "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf());
         }
         rebuild();
     }

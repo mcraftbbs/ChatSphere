@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
 import cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry;
@@ -524,9 +526,8 @@ public class ConfigScreen extends Screen {
             ModServerConfig.queuePendingUpdate(key, value);
             return;
         }
-        mc.getConnection().getConnection().send(
-            new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundConfigUpdatePayload.ID,
-                new ServerboundConfigUpdatePayload(key, value).toBuf()));
+        PacketSender.toServer(ServerboundConfigUpdatePayload.ID,
+                new ServerboundConfigUpdatePayload(key, value));
     }
 
     private AbstractWidget mkServerBool(int y, String fieldName, CfgValue.Bool cfg) {
@@ -582,9 +583,8 @@ public class ConfigScreen extends Screen {
             return;
         }
         if (mc.getConnection() != null) {
-            mc.getConnection().getConnection().send(
-                new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundPermissionCheckPayload.ID,
-                    new ServerboundPermissionCheckPayload("SERVER_CONFIG").toBuf()));
+            PacketSender.toServer(ServerboundPermissionCheckPayload.ID,
+                    new ServerboundPermissionCheckPayload("SERVER_CONFIG"));
             pendingOpMsg = "chatsphere.server_config.pending_op";
         }
     }

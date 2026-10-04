@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
@@ -543,10 +545,9 @@ public class CreateChannelScreen extends Screen {
 
         if (ownerUuid != null && history.isServerConnected() && this.minecraft != null
                 && this.minecraft.getConnection() != null) {
-            var conn = this.minecraft.getConnection().getConnection();
-            conn.send(createPayload(channelId, ownerUuid, sub));
+            PacketSender.toServer(ServerboundChannelActionPayload.ID, createPayload(channelId, ownerUuid, sub));
             for (String child : children) {
-                conn.send(createPayload(channelId + "/" + child, ownerUuid, ""));
+                PacketSender.toServer(ServerboundChannelActionPayload.ID, createPayload(channelId + "/" + child, ownerUuid, ""));
             }
         } else {
             history.addChannel(channelId, ownerUuid);
@@ -565,15 +566,13 @@ public class CreateChannelScreen extends Screen {
         return out;
     }
 
-    private static net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket createPayload(
+    private static net.minecraft.network.FriendlyByteBuf createPayload(
             String channelId, UUID ownerUuid, String defaultSub) {
-        return new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(
-                ServerboundChannelActionPayload.ID,
-                new ServerboundChannelActionPayload(
+        return new ServerboundChannelActionPayload(
                         ServerboundChannelActionPayload.Action.CREATE,
                         channelId, ownerUuid, true, "", "",
                         List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "",
-                        true, defaultSub).toBuf());
+                        true, defaultSub).toBuf();
     }
 
     private void cancel() {

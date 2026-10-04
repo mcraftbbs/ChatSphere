@@ -1,9 +1,9 @@
 package cn.sarskin.ChatSphere.network;
 
 import cn.sarskin.ChatSphere.ModInfo;
+import cn.sarskin.ChatSphere.platform.PacketSender;
 import cn.sarskin.ChatSphere.server.ModServerImages;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -90,7 +90,6 @@ public record ClientboundChatImagePayload(Action action, String id, int width, i
     }
 
     public static void sendTo(ServerPlayer player, ClientboundChatImagePayload payload) {
-        if (player == null) return;
-        player.connection.send(new ClientboundCustomPayloadPacket(ID, payload.toBuf()));
+        PacketSender.toPlayer(player, ID, payload.toBuf());
     }
 }

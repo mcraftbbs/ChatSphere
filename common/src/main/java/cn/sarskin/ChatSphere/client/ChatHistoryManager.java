@@ -8,6 +8,7 @@ import cn.sarskin.ChatSphere.network.ClientboundBridgeInfoPayload;
 import cn.sarskin.ChatSphere.network.ClientboundMessageSyncPayload;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
+import cn.sarskin.ChatSphere.platform.PacketSender;
 import cn.sarskin.ChatSphere.server.ModServerChannels;
 import cn.sarskin.ChatSphere.storage.ModStoragePaths;
 import net.minecraft.Util;
@@ -678,8 +679,7 @@ public class ChatHistoryManager {
         if (serverConnected) {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player != null && mc.getConnection() != null) {
-                var conn = mc.getConnection().getConnection();
-                conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
+                PacketSender.toServer(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
                                 ServerboundChannelActionPayload.Action.UPDATE_CONFIG,
                                 channelId, mc.player.getUUID(),
                                 config.isPublic, config.description, config.displayName,
@@ -688,7 +688,7 @@ public class ChatHistoryManager {
                                 new ArrayList<>(config.invitedPlayers),
                                 config.inviteCode,
                                 config.showInExplore, "", "", "", config.mainChatEnabled, config.defaultSubChannel,
-                                config.slowModeSeconds).toBuf()));
+                                config.slowModeSeconds));
             }
         }
     }
@@ -697,11 +697,10 @@ public class ChatHistoryManager {
         if (oldId == null || oldId.isEmpty() || newName == null || newName.isEmpty()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.getConnection() == null) return;
-        var conn = mc.getConnection().getConnection();
-        conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
+        PacketSender.toServer(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
                         ServerboundChannelActionPayload.Action.RENAME_SUBCHANNEL,
                         oldId, mc.player.getUUID(), false, "", newName,
-                        List.of(), List.of(), List.of(), "", false, "", "", "", false, "").toBuf()));
+                        List.of(), List.of(), List.of(), "", false, "", "", "", false, "").toBuf());
     }
 
     public void sendMoveSubChannel(String channelId, String newParentId) {
@@ -709,11 +708,10 @@ public class ChatHistoryManager {
         String parent = newParentId == null || newParentId.isEmpty() ? ROOT_PARENT : newParentId;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.getConnection() == null) return;
-        var conn = mc.getConnection().getConnection();
-        conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
+        PacketSender.toServer(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
                         ServerboundChannelActionPayload.Action.MOVE_CHANNEL,
                         channelId, mc.player.getUUID(), false, parent, "",
-                        List.of(), List.of(), List.of(), "", false, "", "", "", false, "").toBuf()));
+                        List.of(), List.of(), List.of(), "", false, "", "", "", false, "").toBuf());
     }
 
     public void sendReorderChannels(String groupParent, List<String> orderedIds) {
@@ -725,11 +723,10 @@ public class ChatHistoryManager {
             if (sb.length() > 0) sb.append(",");
             sb.append(id);
         }
-        var conn = mc.getConnection().getConnection();
-        conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
+        PacketSender.toServer(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
                         ServerboundChannelActionPayload.Action.REORDER_CHANNEL,
                         groupParent != null ? groupParent : "", mc.player.getUUID(), false,
-                        sb.toString(), "", List.of(), List.of(), List.of(), "", false, "", "", "", false, "").toBuf()));
+                        sb.toString(), "", List.of(), List.of(), List.of(), "", false, "", "", "", false, "").toBuf());
     }
 
     public Map<String, ChatDataStore.ChannelConfig> getAllChannelConfigs() {
@@ -1758,6 +1755,6 @@ public class ChatHistoryManager {
         var payload = new ServerboundChannelActionPayload(
                 action, channelId, playerUuid, true, roomName, "",
                 List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "");
-        mc.getConnection().send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID, payload.toBuf()));
+        PacketSender.toServer(ServerboundChannelActionPayload.ID, payload.toBuf());
     }
 }

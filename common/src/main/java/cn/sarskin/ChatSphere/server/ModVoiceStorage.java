@@ -1,12 +1,13 @@
 package cn.sarskin.ChatSphere.server;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.network.ClientboundVoicePacket;
 import cn.sarskin.ChatSphere.storage.ModStoragePaths;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
@@ -119,7 +120,7 @@ public class ModVoiceStorage {
                     sender,
                     sv.conversationId, sv.conversationType,
                     sv.frameCount, sv.audioData);
-            player.connection.send(new ClientboundCustomPayloadPacket(ClientboundVoicePacket.ID, relay.toBuf()));
+            PacketSender.toPlayer(player, ClientboundVoicePacket.ID, relay.toBuf());
         }
         if (!toDeliver.isEmpty()) save();
     }

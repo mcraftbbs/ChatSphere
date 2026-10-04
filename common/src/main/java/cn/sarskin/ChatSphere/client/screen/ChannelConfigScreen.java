@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.voice.VoiceIntegration;
@@ -841,13 +843,12 @@ public class ChannelConfigScreen extends Screen {
                         && minecraft.getConnection() != null) {
                     if (!name.contains("/")) {
                         String newId = channelId + "/" + name;
-                        var conn = minecraft.getConnection().getConnection();
-                        conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+                        PacketSender.toServer(ServerboundChannelActionPayload.ID,
                                 new ServerboundChannelActionPayload(
                                         ServerboundChannelActionPayload.Action.CREATE,
                                         newId, minecraft.player.getUUID(), false, "", "",
                                         List.<String>of(), List.<String>of(), List.<String>of(),
-                                        "", false, "", "", "", false, "").toBuf()));
+                                        "", false, "", "", "", false, "").toBuf());
                         subCreateInput.setValue("");
                     }
                 }
@@ -873,13 +874,12 @@ public class ChannelConfigScreen extends Screen {
                 int parentX = renameX - 6 - 22;
                 if (mouseX >= delX && mouseX < delX + 18) {
                     if (minecraft != null && minecraft.player != null && minecraft.getConnection() != null) {
-                        var conn = minecraft.getConnection().getConnection();
-                        conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+                        PacketSender.toServer(ServerboundChannelActionPayload.ID,
                                 new ServerboundChannelActionPayload(
                                         ServerboundChannelActionPayload.Action.REMOVE_CHANNEL,
                                         id, minecraft.player.getUUID(), false, "", "",
                                         List.<String>of(), List.<String>of(), List.<String>of(),
-                                        "", false, "", "", "", false, "").toBuf()));
+                                        "", false, "", "", "", false, "").toBuf());
                     }
                     return true;
                 }

@@ -1,5 +1,7 @@
 package cn.sarskin.ChatSphere.client.screen;
 
+import cn.sarskin.ChatSphere.platform.PacketSender;
+
 import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
@@ -116,13 +118,12 @@ public class InvitePlayerScreen extends Screen {
 
     private void toggleInvite(String uuid) {
         if (minecraft != null && minecraft.getConnection() != null && minecraft.player != null) {
-            var conn = minecraft.getConnection().getConnection();
-            conn.send(new net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket(ServerboundChannelActionPayload.ID,
+            PacketSender.toServer(ServerboundChannelActionPayload.ID,
                 new ServerboundChannelActionPayload(
                     ServerboundChannelActionPayload.Action.TOGGLE_INVITE,
                     channelId, minecraft.player.getUUID(),
                     false, uuid, "",
-                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "").toBuf()));
+                    List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, ""));
         }
         rebuild();
     }

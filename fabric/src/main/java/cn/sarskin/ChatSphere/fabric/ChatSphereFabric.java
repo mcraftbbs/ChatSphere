@@ -1,5 +1,6 @@
 package cn.sarskin.ChatSphere.fabric;
 
+import cn.sarskin.ChatSphere.fabric.network.FabricPacketSender;
 import cn.sarskin.ChatSphere.fabric.network.FabricServerNetwork;
 import cn.sarskin.ChatSphere.fabric.server.ChatSphereServerEvents;
 import cn.sarskin.ChatSphere.platform.LoaderFacade;
@@ -29,6 +30,7 @@ public class ChatSphereFabric implements ModInitializer {
         });
         LoaderFacade.setProvider(FabricLoader.getInstance()::isModLoaded);
 
+        FabricPacketSender.init();
         ChatSphereServerEvents.init();
         ChatSphereCommands.init();
         FabricServerNetwork.init();
