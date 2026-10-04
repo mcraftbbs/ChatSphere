@@ -90,7 +90,8 @@ public final class LinkPreviewCache {
             if (data == null) return null;
             THUMBS.put(url, data);
         }
-        if (!isImage(data)) return null;
+        data = LinkPreviewService.toDrawable(data);
+        if (data == null) return null;
         try {
             NativeImage image = NativeImage.read(new ByteArrayInputStream(data));
             THUMB_SIZE.put(url, new int[]{image.getWidth(), image.getHeight()});
@@ -177,11 +178,7 @@ public final class LinkPreviewCache {
         }
     }
 
-    /** PNG or JPEG magic; thumbnails keep the fetched bytes so the extension cannot be trusted. */
-    private static boolean isImage(byte[] d) {
-        if (d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 'P' && d[2] == 'N' && d[3] == 'G') return true;
-        return d.length >= 3 && (d[0] & 0xFF) == 0xFF && (d[1] & 0xFF) == 0xD8 && (d[2] & 0xFF) == 0xFF;
-    }
+
 
     private static void writeDisk(String url, LinkPreview preview, byte[] thumb) {
         Path dir = dir();

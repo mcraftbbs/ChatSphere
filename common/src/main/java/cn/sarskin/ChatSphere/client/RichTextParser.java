@@ -76,14 +76,22 @@ public final class RichTextParser {
 
     /** Text without its bare URLs, for card-only mode where the card carries them. */
     public static String stripUrls(String text) {
+        return stripUrls(text, url -> true);
+    }
+
+    /** Drops only the URLs the caller reports as shown elsewhere, so a failed card never hides a link. */
+    public static String stripUrls(String text, java.util.function.Predicate<String> drop) {
         if (text == null || text.isEmpty()) return "";
         Matcher matcher = URL_PATTERN.matcher(text);
         StringBuilder out = new StringBuilder();
         int last = 0;
         while (matcher.find()) {
             int end = trimUrlEnd(matcher.group());
+            String url = matcher.group().substring(0, end);
+            if (url.startsWith("www.")) url = "https://" + url;
             out.append(text, last, matcher.start());
-            out.append(text, matcher.start() + end, matcher.end());
+            if (!drop.test(url)) out.append(text, matcher.start(), matcher.end());
+            else out.append(text, matcher.start() + end, matcher.end());
             last = matcher.end();
         }
         out.append(text.substring(last));
