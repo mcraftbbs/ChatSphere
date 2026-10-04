@@ -140,6 +140,22 @@ public final class ChatImageCache {
         return System.currentTimeMillis() - Files.getLastModifiedTime(file).toMillis() > ttl;
     }
 
+    /** MC decodes png only, so jpeg goes through ImageIO first; null when nothing here can read it. */
+    private static byte[] toPng(byte[] data) {
+        if (ChatImageGuard.isPng(data)) return data;
+        if (data == null || data.length == 0) return null;
+        try {
+            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(new ByteArrayInputStream(data));
+            if (image == null) return null;
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            if (!javax.imageio.ImageIO.write(image, "png", out)) return null;
+            byte[] png = out.toByteArray();
+            return png.length > 0 ? png : null;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
     /** Full eight byte PNG signature; the four byte check alone lets a corrupt entry through. */
     private static boolean strictPng(byte[] d) {
         return d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 0x50 && d[2] == 0x4E && d[3] == 0x47
@@ -177,8 +193,13 @@ public final class ChatImageCache {
             LOGGER.info("chat image {} is not png/jpeg ({} bytes, head={})", id, data.length, String.format("%02X %02X %02X %02X", data[0], data[1], data[2], data[3]));
             return null;
         }
+        byte[] png = ChatImageGuard.pngBytes(data);
+        if (png == null) {
+            LOGGER.warn("chat image {} cannot be read as png", id);
+            return null;
+        }
         try {
-            NativeImage image = NativeImage.read(new ByteArrayInputStream(data));
+            NativeImage image = NativeImage.read(new ByteArrayInputStream(png));
             SIZES.put(id, new int[]{image.getWidth(), image.getHeight()});
             DynamicTexture texture = new DynamicTexture(image);
             ResourceLocation location = ResourceLocation.fromNamespaceAndPath("chatsphere", "images/" + id);

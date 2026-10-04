@@ -255,18 +255,9 @@ public final class LinkPreviewService {
     /** PNG/JPEG pass through; WebP is re-encoded when a reader exists, otherwise null. */
     static byte[] toDrawable(byte[] data) {
         if (data == null || data.length == 0) return null;
-        if (isPng(data) || isJpeg(data)) return data;
-        if (!isWebp(data)) return null;
-        try {
-            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(data));
-            if (image == null) return null;
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            if (!javax.imageio.ImageIO.write(image, "png", out)) return null;
-            byte[] png = out.toByteArray();
-            return png.length > 0 && png.length <= MAX_IMAGE ? png : null;
-        } catch (Exception e) {
-            return null;
-        }
+        if (isPng(data)) return data;
+        byte[] converted = cn.sarskin.ChatSphere.client.image.ChatImageGuard.pngBytes(data);
+        return converted != null && converted.length > 0 && converted.length <= MAX_IMAGE ? converted : null;
     }
 
     static boolean isPng(byte[] d) {
