@@ -546,7 +546,6 @@ public final class ServerPayloadHandlers {
                 }
                 store.recordUpload(sp.getUUID());
                 ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.accepted(p.id(), dims[0], dims[1]));
-                LOGGER.info("{} uploaded chat image {}", player.getName().getString(), p.id());
             }
         }
     }

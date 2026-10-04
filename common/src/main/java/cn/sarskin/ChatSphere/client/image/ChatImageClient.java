@@ -17,7 +17,6 @@ import java.util.function.Consumer;
 
 /** Chat image upload and fetch; callers set the sinks once a screen is open. */
 public final class ChatImageClient {
-    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ChatSphere-ChatImage");
     private static final int CHUNK = ModServerImages.CHUNK_BYTES;
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final Set<String> URLs_IN_FLIGHT = ConcurrentHashMap.newKeySet();
@@ -96,7 +95,6 @@ public final class ChatImageClient {
     /** Asks the server for an image; repeated calls for the same id are dropped. */
     public static void request(String id) {
         if (id == null || id.isEmpty() || ChatImage.LOCAL.equals(id)) return;
-        LOGGER.info("chat image request {} cached={} requested={} missing={}", id, ChatImageCache.cached(id), ChatImageCache.requested(id), ChatImageCache.missing(id));
         if (ChatImageCache.cached(id) || ChatImageCache.requested(id) || ChatImageCache.missing(id)) return;
         ChatImageCache.markRequested(id);
         ServerboundChatImagePayload.sendToServer(new ServerboundChatImagePayload(
@@ -130,11 +128,9 @@ public final class ChatImageClient {
             offset += part.length;
         }
         if (ChatImageGuard.validate(data, new int[2]) != null) {
-            LOGGER.warn("chat image {} rejected after reassembly", id);
             ChatImageCache.markMissing(id);
             return;
         }
-        LOGGER.info("chat image {} assembled {} bytes", id, data.length);
         ChatImageCache.put(id, data);
     }
 

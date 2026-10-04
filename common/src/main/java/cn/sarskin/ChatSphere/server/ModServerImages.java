@@ -22,7 +22,6 @@ import java.util.stream.Stream;
 public final class ModServerImages {
     public static final int CHUNK_BYTES = 16 * 1024;
     public static final int MAX_CHUNKS = 48;
-    private static final Logger LOGGER = LoggerFactory.getLogger("ChatSphere-Images");
     private static final Map<MinecraftServer, ModServerImages> INSTANCES = new ConcurrentHashMap<>();
 
     private final Path dir;
@@ -56,7 +55,6 @@ public final class ModServerImages {
             Files.writeString(dir.resolve(id + ".meta"), sourceUrl == null ? "" : sourceUrl);
             return null;
         } catch (Exception e) {
-            LOGGER.warn("Failed to store chat image {}: {}", id, e.getMessage());
             return ChatImageGuard.ERR_FORMAT;
         }
     }
