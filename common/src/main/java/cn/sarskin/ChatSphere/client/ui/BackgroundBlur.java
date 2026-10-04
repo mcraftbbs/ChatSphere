@@ -30,7 +30,12 @@ public final class BackgroundBlur {
         try {
             g.flush();
             blurRegion();
-        } catch (Exception ignored) {}
+        } catch (Throwable err) {
+            if (!WARNED) {
+                WARNED = true;
+                LOGGER.warn("background blur unavailable: {}", err.toString());
+            }
+        }
     }
 
     private static void blurRegion() {
