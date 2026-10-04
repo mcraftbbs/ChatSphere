@@ -12,12 +12,6 @@ description='''
 A sleek social chat mod for Minecraft with channels, private messaging, and a modern UI.
 '''
 
-[[mixins]]
-config="chatsphere.mixins.json"
-
-[[mixins]]
-config="chatsphere.forge.mixins.json"
-
 [[dependencies.${mod_id}]]
     modId="forge"
     mandatory=true

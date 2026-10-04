@@ -75,6 +75,9 @@ tasks.withType(JavaCompile).configureEach {
 
 // The jar is downloaded on its own, so LICENSE and THIRD-PARTY.md have to sit inside it.
 tasks.withType(Jar).configureEach {
+    manifest {
+        attributes "MixinConfigs": "chatsphere.mixins.json,chatsphere.forge.mixins.json"
+    }
     from(rootProject.file("LICENSE"))
     from(rootProject.file("THIRD-PARTY.md"))
 }
