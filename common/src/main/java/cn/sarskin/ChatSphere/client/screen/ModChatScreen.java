@@ -230,7 +230,7 @@ public class ModChatScreen extends Screen {
     private static final int IMAGE_MAX_H = 200;
     private static final int IMAGE_MIN_H = 36;
     private static final int IMAGE_GAP = 4;
-    private static final Pattern IMAGE_URL = Pattern.compile("^https?://\\S+$");
+    private static final Pattern IMAGE_URL = Pattern.compile("(?i)^https?://\\S+\\.(?:png|jpe?g)(?:[?#]\\S*)?$");
 
     private record LinkCardHit(int x, int y, int w, int h, String url) {}
     private record ImageHit(int x, int y, int w, int h, String id) {}
