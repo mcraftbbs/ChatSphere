@@ -1256,7 +1256,7 @@ public class ModChatScreen extends Screen {
                 && this.commandSuggestions.mouseScrolled(scrollY)) {
             return true;
         }
-        if (mouseY >= chatAreaTop() && mouseY < height - 14 - TOOLBAR_HEIGHT - MESSAGE_BOTTOM_PAD && mouseX >= chatLeft()) {
+        if (mouseX >= chatLeft() && mouseY >= chatAreaTop()) {
             scrollOffset += scrollY > 0 ? 1 : (scrollY < 0 ? -1 : 0);
             scrollOffset = Math.max(0, Math.min(scrollOffset, maxScrollOffset()));
             return true;
@@ -1913,6 +1913,7 @@ public class ModChatScreen extends Screen {
             int h = box[1];
             ResourceLocation texture = ChatImageCache.texture(token.id());
             int[] size = texture != null ? ChatImageCache.textureSize(token.id()) : null;
+            if (size == null || size[0] <= 0 || size[1] <= 0) size = new int[]{Math.max(1, token.width()), Math.max(1, token.height())};
             if (texture == null || size == null) {
                 Ui.fillRoundedRect(g, x, y, w, h, 6, Theme.popupBg());
                 if (Theme.popupBorderVisible()) {
