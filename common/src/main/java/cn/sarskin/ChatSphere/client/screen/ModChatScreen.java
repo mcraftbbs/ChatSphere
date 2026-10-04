@@ -474,6 +474,9 @@ public class ModChatScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
             if (consoleTabClicked(mouseX, mouseY)) return true;
+            boolean popupOpen = emojiPanel.visible || itemPickerPanel.visible || quickPhrasesPanel.visible
+                    || emojiAutoComplete.visible || mentionPopup.visible || contextType != CTX_NONE;
+            if (!popupOpen) {
             synchronized (linkCardHits) {
                 for (LinkCardHit hit : linkCardHits) {
                     if (mouseX >= hit.x && mouseX <= hit.x + hit.w && mouseY >= hit.y && mouseY <= hit.y + hit.h) {
@@ -489,6 +492,7 @@ public class ModChatScreen extends Screen {
                         return true;
                     }
                 }
+            }
             }
             if (showSearch && searchInput != null && searchInput.isVisible()) {
                 int barY = HEADER_BAR_HEIGHT + 6;
