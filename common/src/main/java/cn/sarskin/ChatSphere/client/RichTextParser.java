@@ -60,6 +60,42 @@ public final class RichTextParser {
     }
 
     /** True if the text contains a linkable bare URL. */
+    /** Bare URLs in order, trailing punctuation trimmed; {@code max} caps the list. */
+    public static List<String> findUrls(String text, int max) {
+        List<String> out = new ArrayList<>();
+        if (text == null || text.isEmpty()) return out;
+        Matcher matcher = URL_PATTERN.matcher(text);
+        while (matcher.find() && out.size() < Math.max(1, max)) {
+            String group = matcher.group();
+            int end = trimUrlEnd(group);
+            String url = group.substring(0, end);
+            if (!url.isEmpty()) out.add(url.startsWith("www.") ? "https://" + url : url);
+        }
+        return out;
+    }
+
+    /** Text without its bare URLs, for card-only mode where the card carries them. */
+    public static String stripUrls(String text) {
+        if (text == null || text.isEmpty()) return "";
+        Matcher matcher = URL_PATTERN.matcher(text);
+        StringBuilder out = new StringBuilder();
+        int last = 0;
+        while (matcher.find()) {
+            int end = trimUrlEnd(matcher.group());
+            out.append(text, last, matcher.start());
+            out.append(text, matcher.start() + end, matcher.end());
+            last = matcher.end();
+        }
+        out.append(text.substring(last));
+        return out.toString().trim();
+    }
+
+    private static int trimUrlEnd(String url) {
+        int end = url.length();
+        while (end > 0 && ".,;:!?)]}".indexOf(url.charAt(end - 1)) >= 0) end--;
+        return end;
+    }
+
     public static boolean containsUrl(String text) {
         return text != null && URL_PATTERN.matcher(text).find();
     }
