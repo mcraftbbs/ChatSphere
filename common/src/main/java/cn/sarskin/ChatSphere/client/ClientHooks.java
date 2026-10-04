@@ -30,6 +30,7 @@ public final class ClientHooks {
     }
 
     public static void onClientDisconnect() {
+        cn.sarskin.ChatSphere.client.image.ChatImageClient.reset();
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         try {
             history.saveNow();

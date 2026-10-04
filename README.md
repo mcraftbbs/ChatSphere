@@ -8,7 +8,7 @@ A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**
 
 > **License:** GNU LGPLv3 — released jars carry the LGPLv3 text and a third-party notice (`LICENSE`, `THIRD-PARTY.md`)
 > **Mod ID:** `chatsphere`
-> **Version:** 2.4.1-1.20.1
+> **Version:** 2.5.0-1.20.1
 
 ---
 
@@ -24,6 +24,8 @@ A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**
 - Message search, quote reply, right-click menu
 - Member management: admins, mute, kick, invites, ownership
 - Rich text markup (`[b]`, `[color]`, `[gradient]`, `[url]`, `[code]`), bare URLs auto-linkified
+- Link cards under messages, in three modes (off / text plus card / card only)
+- Chat images: drag and drop a png/jpg, or paste an image URL; server cached, loaded as you scroll
 - Anti-spam duplicate merging
 - 4 corner styles (square / pixel / rounded / stream) and custom `.ctheme` themes
 - Optional Discord bridge: mirror a channel to Discord with a webhook, or both ways with a bot token

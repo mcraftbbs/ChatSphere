@@ -35,14 +35,6 @@ public class ModClientConfig {
     public final CfgValue.Bool soundSystem;
     public final CfgValue.Bool soundPublic;
     public final CfgValue.StrList quickPhrases;
-    public final CfgValue.StrList urlLinkFilter;
-    public final CfgValue.Bool consoleTabsEnabled;
-    public final CfgValue.Str consoleTabs;
-    /** Link cards: 0 off, 1 text plus card, 2 card only. */
-    public final CfgValue.Int linkPreviewMode;
-    public final CfgValue.Int linkPreviewCacheMb;
-    public final CfgValue.Int linkPreviewTtlHours;
-    public final CfgValue.Int linkPreviewMaxPerMessage;
     public final CfgValue.Int scrollHistoryLimit;
     public final CfgValue.Int commandHistoryLimit;
     public final CfgValue.Bool renderEmojiShortcodes;
@@ -60,6 +52,18 @@ public class ModClientConfig {
     public final CfgValue.Int voiceCacheMaxMB;
     public final CfgValue.Bool customThemeActive;
     public final CfgValue.Str customThemeFile;
+    public final CfgValue.StrList urlLinkFilter;
+    /** Tabs shown above the console log; the tabs themselves live in {@link #consoleTabs}. */
+    public final CfgValue.Bool consoleTabsEnabled;
+    public final CfgValue.Str consoleTabs;
+    /** Link cards: 0 off, 1 text plus card, 2 card only. */
+    public final CfgValue.Int linkPreviewMode;
+    public final CfgValue.Int linkPreviewCacheMb;
+    public final CfgValue.Int linkPreviewTtlHours;
+    public final CfgValue.Int linkPreviewMaxPerMessage;
+    /** Chat images: dropped files or a pasted image URL. */
+    public final CfgValue.Bool chatImagesEnabled;
+    public final CfgValue.Int chatImageCacheMb;
 
     private ModClientConfig() {
         this.store = new ConfigStore("chatsphere-client.json");
@@ -77,15 +81,6 @@ public class ModClientConfig {
         preserveInput = new CfgValue.Bool(store, "preserveInput", true);
         timeSeparatorMinutes = new CfgValue.Int(store, "timeSeparatorMinutes", 5);
         quickPhrases = new CfgValue.StrList(store, "quickPhrases", new ArrayList<>());
-        urlLinkFilter = new CfgValue.StrList(store, "urlLinkFilter", new ArrayList<>());
-
-        consoleTabsEnabled = new CfgValue.Bool(store, "consoleTabsEnabled", false);
-        consoleTabs = new CfgValue.Str(store, "consoleTabs", "[]");
-
-        linkPreviewMode = new CfgValue.Int(store, "linkPreviewMode", 1);
-        linkPreviewCacheMb = new CfgValue.Int(store, "linkPreviewCacheMb", 32);
-        linkPreviewTtlHours = new CfgValue.Int(store, "linkPreviewTtlHours", 168);
-        linkPreviewMaxPerMessage = new CfgValue.Int(store, "linkPreviewMaxPerMessage", 2);
         scrollHistoryLimit = new CfgValue.Int(store, "scrollHistoryLimit", 200);
         renderEmojiShortcodes = new CfgValue.Bool(store, "renderEmojiShortcodes", true);
         renderRichText = new CfgValue.Bool(store, "renderRichText", true);
@@ -121,6 +116,18 @@ public class ModClientConfig {
 
         customThemeActive = new CfgValue.Bool(store, "customThemeActive", false);
         customThemeFile = new CfgValue.Str(store, "customThemeFile", "");
+        urlLinkFilter = new CfgValue.StrList(store, "urlLinkFilter", new ArrayList<>());
+
+        consoleTabsEnabled = new CfgValue.Bool(store, "consoleTabsEnabled", false);
+        consoleTabs = new CfgValue.Str(store, "consoleTabs", "[]");
+
+        linkPreviewMode = new CfgValue.Int(store, "linkPreviewMode", 1);
+        linkPreviewCacheMb = new CfgValue.Int(store, "linkPreviewCacheMb", 32);
+        linkPreviewTtlHours = new CfgValue.Int(store, "linkPreviewTtlHours", 168);
+        linkPreviewMaxPerMessage = new CfgValue.Int(store, "linkPreviewMaxPerMessage", 2);
+
+        chatImagesEnabled = new CfgValue.Bool(store, "chatImagesEnabled", true);
+        chatImageCacheMb = new CfgValue.Int(store, "chatImageCacheMb", 64);
 
         store.save();
     }

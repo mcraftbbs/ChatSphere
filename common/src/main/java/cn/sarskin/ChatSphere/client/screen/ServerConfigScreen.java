@@ -115,6 +115,27 @@ public class ServerConfigScreen extends Screen {
         }));
         cats.add(new Cat("config.chatsphere.links_cat", links));
 
+        List<Opt> images = new ArrayList<>();
+        images.add(new Opt("config.chatsphere.chat_image_enabled",
+            y -> mkBool(y, "chatImageEnabled", ModServerConfig.CONFIG.chatImageEnabled)));
+        images.add(new Opt("config.chatsphere.chat_image_op",
+            y -> mkBool(y, "chatImageUploadRequiresOp", ModServerConfig.CONFIG.chatImageUploadRequiresOp)));
+        images.add(new Opt("config.chatsphere.chat_image_max_kb",
+            y -> mkIntBox(y, "chatImageMaxKb", safeGetStr(ModServerConfig.CONFIG.chatImageMaxKb, "512"), 16, 4096, 4)));
+        images.add(new Opt("config.chatsphere.chat_image_max_dim",
+            y -> mkIntBox(y, "chatImageMaxDim", safeGetStr(ModServerConfig.CONFIG.chatImageMaxDim, "1280"), 64, 4096, 4)));
+        images.add(new Opt("config.chatsphere.chat_image_max_pixels",
+            y -> mkIntBox(y, "chatImageMaxPixels", safeGetStr(ModServerConfig.CONFIG.chatImageMaxPixels, "1500000"), 10000, 16000000, 8)));
+        images.add(new Opt("config.chatsphere.chat_image_server_ttl",
+            y -> mkIntBox(y, "chatImageServerTtlMinutes", safeGetStr(ModServerConfig.CONFIG.chatImageServerTtlMinutes, "1440"), 1, 1000000, 7)));
+        images.add(new Opt("config.chatsphere.chat_image_client_ttl",
+            y -> mkIntBox(y, "chatImageClientTtlMinutes", safeGetStr(ModServerConfig.CONFIG.chatImageClientTtlMinutes, "2880"), 1, 1000000, 7)));
+        images.add(new Opt("config.chatsphere.chat_image_cooldown",
+            y -> mkIntBox(y, "chatImageUploadCooldownSeconds", safeGetStr(ModServerConfig.CONFIG.chatImageUploadCooldownSeconds, "10"), 0, 600, 3)));
+        images.add(new Opt("config.chatsphere.chat_image_max_per_player",
+            y -> mkIntBox(y, "chatImageMaxPerPlayer", safeGetStr(ModServerConfig.CONFIG.chatImageMaxPerPlayer, "50"), 1, 1000000, 7)));
+        cats.add(new Cat("config.chatsphere.images_cat", images));
+
         List<Opt> discord = new ArrayList<>();
         discord.add(new Opt("config.chatsphere.discord_enabled",
             y -> mkBool(y, "discordEnabled", ModServerConfig.CONFIG.discordEnabled)));

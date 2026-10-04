@@ -11,6 +11,7 @@ import cn.sarskin.ChatSphere.network.ClientboundPermissionResponsePayload;
 import cn.sarskin.ChatSphere.network.ClientboundPublicChannelListPayload;
 import cn.sarskin.ChatSphere.network.ClientboundVoicePacket;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
+import cn.sarskin.ChatSphere.network.ServerboundChatImagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundCommandMessagePayload;
 import cn.sarskin.ChatSphere.network.ServerboundConfigUpdatePayload;
 import cn.sarskin.ChatSphere.network.ServerboundCustomEmojiPayload;
@@ -66,6 +67,11 @@ public final class FabricServerNetwork {
                 (server, player, networkHandler, buf, responseSender) -> {
                     ServerboundTypingPayload p = ServerboundTypingPayload.read(buf);
                     server.execute(() -> ServerPayloadHandlers.typing(player, p));
+                });
+        ServerPlayNetworking.registerGlobalReceiver(ServerboundChatImagePayload.ID,
+                (server, player, networkHandler, buf, responseSender) -> {
+                    ServerboundChatImagePayload p = ServerboundChatImagePayload.read(buf);
+                    server.execute(() -> ServerPayloadHandlers.chatImage(player, p));
                 });
     }
 }

@@ -1,6 +1,7 @@
 package cn.sarskin.ChatSphere.client;
 
 import cn.sarskin.ChatSphere.client.emoji.EmojiRegistry;
+import cn.sarskin.ChatSphere.client.image.ChatImage;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.util.ItemSerialization;
 import net.minecraft.network.chat.Component;
@@ -51,15 +52,18 @@ public class ChatMessageData {
         this.messageId = messageId != null ? messageId : UUID.randomUUID();
         this.duplicateCount = 1;
         String raw = content.getString();
+        // Image tokens become boxes in the chat screen, so they leave the drawn text
+        boolean hasImage = ChatImage.hasToken(raw);
+        String body = hasImage ? ChatImage.mapTokens(raw, "").trim() : raw;
         boolean richText = conversationType != ConversationType.COMMAND
                 && ModClientConfig.CONFIG.renderRichText.get()
-                && (RichTextParser.containsMarkup(raw) || RichTextParser.containsUrl(raw));
+                && (RichTextParser.containsMarkup(body) || RichTextParser.containsUrl(body));
         if (richText) {
-            this.renderedContent = RichTextParser.parse(raw);
+            this.renderedContent = RichTextParser.parse(body);
+        } else if (ModClientConfig.CONFIG.renderEmojiShortcodes.get()) {
+            this.renderedContent = EmojiRegistry.toComponent(EmojiRegistry.replaceShortcodes(body));
         } else {
-            this.renderedContent = ModClientConfig.CONFIG.renderEmojiShortcodes.get()
-                    ? EmojiRegistry.toComponent(EmojiRegistry.replaceShortcodes(raw))
-                    : content;
+            this.renderedContent = hasImage ? Component.literal(body) : content;
         }
     }
 

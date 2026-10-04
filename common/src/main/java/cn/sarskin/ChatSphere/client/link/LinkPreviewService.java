@@ -225,6 +225,12 @@ public final class LinkPreviewService {
         }
     }
 
+    /** Downloads one image for the chat image uploader; null when the URL is blocked or not an image. */
+    public static byte[] downloadImage(String url) {
+        if (url == null || url.isEmpty() || !allowed(url)) return null;
+        return fetchImage(url);
+    }
+
     private static byte[] fetchImage(String imageUrl) {
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(imageUrl))

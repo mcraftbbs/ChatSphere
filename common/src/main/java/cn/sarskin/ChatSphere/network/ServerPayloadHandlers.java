@@ -1,9 +1,11 @@
 package cn.sarskin.ChatSphere.network;
 
+import cn.sarskin.ChatSphere.client.image.ChatImageGuard;
 import cn.sarskin.ChatSphere.config.CfgValue;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.server.ModServerChannels;
 import cn.sarskin.ChatSphere.server.ModServerEmoji;
+import cn.sarskin.ChatSphere.server.ModServerImages;
 import cn.sarskin.ChatSphere.server.ModVoiceStorage;
 import net.minecraft.Util;
 import net.minecraft.network.chat.Component;
@@ -492,6 +494,112 @@ public final class ServerPayloadHandlers {
                         ClientboundTypingPayload.ID, relay.toBuf()));
             }
         }
+    }
+
+    /** Chat images: requests replay stored bytes, uploads are gated by config, permission, cooldown and cap. */
+    public static void chatImage(Player player, ServerboundChatImagePayload p) {
+        var server = player.getServer();
+        if (server == null) return;
+        if (!(player instanceof ServerPlayer sp)) return;
+        ModServerImages store = ModServerImages.getInstance(server);
+        if (!ModServerConfig.CONFIG.chatImageEnabled.get()) {
+            ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), ChatImageGuard.ERR_DISABLED));
+            return;
+        }
+        switch (p.action()) {
+            case REQUEST -> {
+                byte[] data = store.load(p.id());
+                if (data == null || data.length == 0) {
+                    ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), ChatImageGuard.ERR_FORMAT));
+                    return;
+                }
+                int count = (data.length + ModServerImages.CHUNK_BYTES - 1) / ModServerImages.CHUNK_BYTES;
+                if (count > ModServerImages.MAX_CHUNKS) {
+                    ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), ChatImageGuard.ERR_SIZE));
+                    return;
+                }
+                for (int i = 0; i < count; i++) {
+                    int from = i * ModServerImages.CHUNK_BYTES;
+                    int to = Math.min(data.length, from + ModServerImages.CHUNK_BYTES);
+                    ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.data(
+                            p.id(), i, count, java.util.Arrays.copyOfRange(data, from, to)));
+                }
+            }
+            case UPLOAD -> {
+                if (ModServerConfig.CONFIG.chatImageUploadRequiresOp.get() && !player.hasPermissions(2)) {
+                    ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), "chatsphere.image.err_op"));
+                    return;
+                }
+                // Assemble first: a rejection must be reported once, not once per chunk.
+                byte[] data = p.partCount() > 1 ? assembleImage(sp.getUUID(), p) : p.data();
+                if (data == null) return;
+                long cooldown = store.uploadCooldownRemaining(sp.getUUID());
+                if (cooldown > 0) {
+                    ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), "chatsphere.image.err_cooldown"));
+                    return;
+                }
+                int cap = ModServerConfig.CONFIG.chatImageMaxPerPlayer.get();
+                if (cap > 0 && store.countFor(sp.getUUID()) >= cap) {
+                    ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), "chatsphere.image.err_limit"));
+                    return;
+                }
+                int[] dims = new int[2];
+                String error = store.store(p.id(), data, p.sourceUrl(), dims);
+                if (error != null) {
+                    ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), error));
+                    return;
+                }
+                store.recordUpload(sp.getUUID());
+                ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.accepted(p.id(), dims[0], dims[1]));
+                LOGGER.info("{} uploaded chat image {}", player.getName().getString(), p.id());
+            }
+        }
+    }
+
+    /** Chunks of one upload in flight, keyed by player. */
+    private static final Map<UUID, PendingImage> PENDING_IMAGES = new ConcurrentHashMap<>();
+    private static final long PENDING_IMAGE_TIMEOUT_MS = 30_000L;
+
+    private static final class PendingImage {
+        private final String sourceUrl;
+        private final byte[][] parts;
+        private final long startedAt = System.currentTimeMillis();
+        private int received;
+
+        private PendingImage(String sourceUrl, int total) {
+            this.sourceUrl = sourceUrl == null ? "" : sourceUrl;
+            this.parts = new byte[total][];
+        }
+    }
+
+    /** Whole image once every chunk arrived, else null. */
+    private static byte[] assembleImage(UUID playerUuid, ServerboundChatImagePayload p) {
+        PendingImage pending = PENDING_IMAGES.get(playerUuid);
+        if (p.partIndex() == 0 || pending == null || pending.parts.length != p.partCount()
+                || !pending.sourceUrl.equals(p.sourceUrl() == null ? "" : p.sourceUrl())) {
+            pending = new PendingImage(p.sourceUrl(), p.partCount());
+            PENDING_IMAGES.put(playerUuid, pending);
+        }
+        if (pending.parts[p.partIndex()] == null) {
+            pending.parts[p.partIndex()] = p.data();
+            pending.received++;
+        }
+        if (pending.received < pending.parts.length) {
+            if (System.currentTimeMillis() - pending.startedAt > PENDING_IMAGE_TIMEOUT_MS) {
+                PENDING_IMAGES.remove(playerUuid, pending);
+            }
+            return null;
+        }
+        PENDING_IMAGES.remove(playerUuid, pending);
+        int size = 0;
+        for (byte[] part : pending.parts) size += part.length;
+        byte[] full = new byte[size];
+        int offset = 0;
+        for (byte[] part : pending.parts) {
+            System.arraycopy(part, 0, full, offset, part.length);
+            offset += part.length;
+        }
+        return full;
     }
 
     private static UUID parseUuid(String value) {

@@ -7,6 +7,7 @@ import cn.sarskin.ChatSphere.client.ChatMessageData;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
 import cn.sarskin.ChatSphere.client.emoji.CustomEmoji;
 import cn.sarskin.ChatSphere.client.emoji.CustomEmojiRegistry;
+import cn.sarskin.ChatSphere.client.image.ChatImage;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.config.ModServerConfig;
@@ -172,10 +173,11 @@ public class ChatHudOverlay {
     }
 
     private Component clipContent(Minecraft mc, Component content, int budget) {
-        // HUD is text only, so custom emoji become a label instead of the raw shortcode
+        // HUD is text only, so custom emoji and images become a label instead of the raw token
         String raw = CustomEmojiRegistry.mapTokens(content.getString(), ChatHudOverlay::emojiLabel);
-        String clipped = clip(mc, raw, budget);
-        return clipped.equals(raw) && raw.equals(content.getString()) ? content : Component.literal(clipped);
+        String mapped = ChatImage.mapTokens(raw, Component.translatable("chatsphere.image.label").getString());
+        String clipped = clip(mc, mapped, budget);
+        return clipped.equals(mapped) && mapped.equals(content.getString()) ? content : Component.literal(clipped);
     }
 
     private static String emojiLabel(CustomEmoji emoji) {
