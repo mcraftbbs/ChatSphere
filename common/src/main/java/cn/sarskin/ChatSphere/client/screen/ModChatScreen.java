@@ -2742,11 +2742,8 @@ public class ModChatScreen extends Screen {
             int contentX = lastContentX > 0 ? lastContentX : chatAreaLeft + 10;
             int contentW = lastContentW > 0 ? lastContentW : Math.max(40, chatAreaRight - contentX - 10);
             // attachments sit under the text layer so they never cover other widgets
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0f, 0f, -8f);
             if (cardH > 0) renderLinkCards(guiGraphics, msg, contentX, contentX + contentW, rowY, mouseX, mouseY);
             if (imgH > 0) renderImageBlocks(guiGraphics, msg, contentX, rowY + cardH, contentW);
-            guiGraphics.pose().popPose();
             synchronized (bubbleHitBoxes) {
                 bubbleHitBoxes.add(new BubbleHit(chatAreaLeft, rowTop, chatAreaRight - chatAreaLeft, bubbleHeight, globalIdx));
             }
