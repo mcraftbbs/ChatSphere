@@ -3335,6 +3335,7 @@ public class ModChatScreen extends Screen {
             if (msg.replyContent() != null) contentH += lineH;
             if (msg.itemNbt() != null && !msg.itemNbt().isEmpty()) contentH += 18;
             if (isVoice) contentH = Math.max(contentH, 20);
+            contentH += linkCardHeight(msg) + imageBlockHeight(msg, textAreaW);
             boolean pureEmoji = displayLines.size() == 1
                     && !displayLines.get(0).getString().isEmpty()
                     && EmojiRegistry.isEmojiOnly(displayLines.get(0).getString())

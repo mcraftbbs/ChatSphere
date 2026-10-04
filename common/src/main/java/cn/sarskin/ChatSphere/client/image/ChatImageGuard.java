@@ -31,6 +31,26 @@ public final class ChatImageGuard {
         return null;
     }
 
+    /** Bytes the texture loader can read: png passes through, jpeg and webp are converted. */
+    public static byte[] pngBytes(byte[] data) {
+        if (data == null || data.length == 0) return null;
+        if (strictPng(data)) return data;
+        try {
+            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(data));
+            if (image == null) return null;
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            return javax.imageio.ImageIO.write(image, "png", out) ? out.toByteArray() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Minecraft reads png only, so anything else has to be converted first. */
+    static boolean strictPng(byte[] d) {
+        return d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 0x50 && d[2] == 0x4E && d[3] == 0x47
+                && (d[4] & 0xFF) == 0x0D && (d[5] & 0xFF) == 0x0A && (d[6] & 0xFF) == 0x1A && (d[7] & 0xFF) == 0x0A;
+    }
+
     public static boolean isPng(byte[] d) {
         return d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 'P' && d[2] == 'N' && d[3] == 'G';
     }
