@@ -1908,12 +1908,12 @@ public class ModChatScreen extends Screen {
     }
 
     /** Box space this row has to reserve for its image tokens; zero when there are none. */
-    private int imageBlockHeight(ChatMessageData msg, int chatWidth) {
+    private int imageBlockHeight(ChatMessageData msg) {
         if (msg == null || msg.conversationType() == ChatMessageData.ConversationType.COMMAND) return 0;
         List<ChatImage.Token> tokens = ChatImage.tokens(msg.plainText());
         int total = 0;
         for (int i = 0; i < tokens.size(); i++) {
-            total += imageBox(chatWidth, tokens.get(i))[1] + (i > 0 ? IMAGE_GAP : 0);
+            total += imageBox(IMAGE_MAX_W, tokens.get(i))[1] + (i > 0 ? IMAGE_GAP : 0);
         }
         return total;
     }
@@ -1924,7 +1924,7 @@ public class ModChatScreen extends Screen {
         if (tokens.isEmpty()) return;
         String label = Component.translatable("chatsphere.image.label").getString();
         for (ChatImage.Token token : tokens) {
-            int[] box = imageBox(chatWidth, token);
+            int[] box = imageBox(IMAGE_MAX_W, token);
             int w = box[0];
             int h = box[1];
             ResourceLocation texture = ChatImageCache.texture(token.id());
@@ -2745,7 +2745,7 @@ public class ModChatScreen extends Screen {
             int bubbleHeight;
             RowPaint paint;
             int cardH = linkCardHeight(msg);
-            int imgH = imageBlockHeight(msg, chatAreaRight - chatAreaLeft);
+            int imgH = imageBlockHeight(msg);
             int rowY = yOffset - cardH - imgH;
             if (streamRows && msg.conversationType() != ChatMessageData.ConversationType.COMMAND) {
                 // Merge into the older row
@@ -3064,7 +3064,7 @@ public class ModChatScreen extends Screen {
 
         int contentH = linesContentH(displayLines, lineH) + (lines - displayLines.size()) * lineH;
         if (hasItem) contentH += 18 - lineH; // item line is taller than normal line
-        contentH += linkCardHeight(msg) + imageBlockHeight(msg, areaRight - areaLeft);
+        contentH += linkCardHeight(msg) + imageBlockHeight(msg);
 
         int bubbleH = contentH + BUBBLE_VPAD * 2 + 1;
 
@@ -3349,7 +3349,7 @@ public class ModChatScreen extends Screen {
             if (msg.replyContent() != null) contentH += lineH;
             if (msg.itemNbt() != null && !msg.itemNbt().isEmpty()) contentH += 18;
             if (isVoice) contentH = Math.max(contentH, 20);
-            contentH += linkCardHeight(msg) + imageBlockHeight(msg, textAreaW);
+            contentH += linkCardHeight(msg) + imageBlockHeight(msg);
             boolean pureEmoji = displayLines.size() == 1
                     && !displayLines.get(0).getString().isEmpty()
                     && EmojiRegistry.isEmojiOnly(displayLines.get(0).getString())
@@ -3410,7 +3410,7 @@ public class ModChatScreen extends Screen {
         boolean hasItem = msg.itemNbt() != null && !msg.itemNbt().isEmpty();
         int contentH = linesContentH(displayLines, lineHb) + (lines - displayLines.size()) * lineHb;
         if (hasItem) contentH += 18 - lineHb;
-        contentH += linkCardHeight(msg) + imageBlockHeight(msg, areaRight - areaLeft);
+        contentH += linkCardHeight(msg) + imageBlockHeight(msg);
         int bubbleH = contentH + BUBBLE_VPAD * 2 + 1;
         return bubbleH + 2;
     }
