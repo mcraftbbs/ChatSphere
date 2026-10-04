@@ -1838,7 +1838,7 @@ public class ModChatScreen extends Screen {
         Component rendered = msg.renderedContent();
         if (LinkPreviewService.mode() == 2) {
             String plain = rendered.getString();
-            String stripped = RichTextParser.stripUrls(plain);
+            String stripped = RichTextParser.stripUrls(plain, url -> LinkPreviewService.preview(url) != null);
             if (!stripped.equals(plain)) return RichTextParser.parse(stripped);
         }
         return rendered;

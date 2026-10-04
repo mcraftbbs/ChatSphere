@@ -236,22 +236,47 @@ public final class LinkPreviewService {
             HttpRequest request = HttpRequest.newBuilder(URI.create(imageUrl))
                     .timeout(Duration.ofSeconds(8))
                     .header("User-Agent", "ChatSphere link preview")
-                    .header("Accept", "image/*")
+                    .header("Accept", "image/jpeg,image/png,image/apng,image/*;q=0.5")
                     .GET()
                     .build();
             HttpResponse<InputStream> response = HTTP.send(request, HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream in = response.body()) {
                 byte[] data = readLimited(in, MAX_IMAGE);
-                return isImage(data) ? data : null;
+                return toDrawable(data);
             }
         } catch (Exception e) {
             return null;
         }
     }
 
-    private static boolean isImage(byte[] d) {
-        if (d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 'P' && d[2] == 'N' && d[3] == 'G') return true;
+    /** PNG/JPEG pass through; WebP is re-encoded when a reader exists, otherwise null. */
+    static byte[] toDrawable(byte[] data) {
+        if (data == null || data.length == 0) return null;
+        if (isPng(data) || isJpeg(data)) return data;
+        if (!isWebp(data)) return null;
+        try {
+            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(data));
+            if (image == null) return null;
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            if (!javax.imageio.ImageIO.write(image, "png", out)) return null;
+            byte[] png = out.toByteArray();
+            return png.length > 0 && png.length <= MAX_IMAGE ? png : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static boolean isPng(byte[] d) {
+        return d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 'P' && d[2] == 'N' && d[3] == 'G';
+    }
+
+    static boolean isJpeg(byte[] d) {
         return d.length >= 3 && (d[0] & 0xFF) == 0xFF && (d[1] & 0xFF) == 0xD8 && (d[2] & 0xFF) == 0xFF;
+    }
+
+    static boolean isWebp(byte[] d) {
+        return d.length >= 12 && d[0] == 'R' && d[1] == 'I' && d[2] == 'F' && d[3] == 'F'
+                && d[8] == 'W' && d[9] == 'E' && d[10] == 'B' && d[11] == 'P';
     }
 
     private static byte[] readLimited(InputStream in, int limit) throws Exception {
