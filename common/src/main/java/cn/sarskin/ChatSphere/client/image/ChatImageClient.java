@@ -21,6 +21,7 @@ public final class ChatImageClient {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final Set<String> URLs_IN_FLIGHT = ConcurrentHashMap.newKeySet();
     private static final Map<String, byte[][]> INCOMING = new ConcurrentHashMap<>();
+    private static final Map<String, byte[]> PENDING_UPLOADS = new ConcurrentHashMap<>();
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2, runnable -> {
         Thread thread = new Thread(runnable, "ChatSphere-ChatImage");
         thread.setDaemon(true);
@@ -49,6 +50,7 @@ public final class ChatImageClient {
         int count = Math.max(1, (data.length + CHUNK - 1) / CHUNK);
         if (count > ModServerImages.MAX_CHUNKS) return ChatImageGuard.ERR_SIZE;
         String id = randomId();
+        PENDING_UPLOADS.put(id, data);
         for (int i = 0; i < count; i++) {
             int from = i * CHUNK;
             int to = Math.min(data.length, from + CHUNK);
@@ -94,6 +96,8 @@ public final class ChatImageClient {
     }
 
     public static void handleAccepted(String id, int width, int height) {
+        byte[] local = PENDING_UPLOADS.remove(id);
+        if (local != null) ChatImageCache.put(id, local);
         insertLater(ChatImage.token(id, width, height));
     }
 
@@ -125,12 +129,16 @@ public final class ChatImageClient {
     }
 
     public static void handleFailed(String id, String reasonKey) {
-        if (id != null) ChatImageCache.markMissing(id);
+        if (id != null) {
+            PENDING_UPLOADS.remove(id);
+            ChatImageCache.markMissing(id);
+        }
         notifyLater(reasonKey);
     }
 
     public static void reset() {
         INCOMING.clear();
+        PENDING_UPLOADS.clear();
         URLs_IN_FLIGHT.clear();
     }
 
