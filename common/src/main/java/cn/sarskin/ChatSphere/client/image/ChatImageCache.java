@@ -140,6 +140,18 @@ public final class ChatImageCache {
         return System.currentTimeMillis() - Files.getLastModifiedTime(file).toMillis() > ttl;
     }
 
+    /** Full eight byte PNG signature; the four byte check alone lets a corrupt entry through. */
+    private static boolean strictPng(byte[] d) {
+        return d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 0x50 && d[2] == 0x4E && d[3] == 0x47
+                && (d[4] & 0xFF) == 0x0D && (d[5] & 0xFF) == 0x0A && (d[6] & 0xFF) == 0x1A && (d[7] & 0xFF) == 0x0A;
+    }
+
+    private static String head(byte[] d) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < Math.min(12, d.length); i++) out.append(String.format("%02X ", d[i]));
+        return out.toString().trim();
+    }
+
     /** Texture for a cached image, or null while the bytes are missing; built on the render thread. */
     public static ResourceLocation texture(String id) {
         ResourceLocation cached = TEXTURES.get(id);
@@ -148,6 +160,15 @@ public final class ChatImageCache {
             return cached;
         }
         byte[] data = bytes(id);
+        if (data != null && ChatImageGuard.isPng(data) && !strictPng(data)) {
+            LOGGER.warn("chat image {} dropped: bad head {}", id, head(data));
+            BYTES.remove(id);
+            try {
+                Files.deleteIfExists(dir().resolve(id + ".img"));
+            } catch (Exception ignored) {
+            }
+            data = null;
+        }
         if (data == null) {
             LOGGER.info("chat image {} has no bytes", id);
             return null;
@@ -167,7 +188,7 @@ public final class ChatImageCache {
             evict();
             return location;
         } catch (Exception e) {
-            LOGGER.warn("chat image {} could not be decoded: {}", id, e.toString());
+            LOGGER.warn("chat image {} could not be decoded: {} head={}", id, e.toString(), head(data));
             return null;
         }
     }
