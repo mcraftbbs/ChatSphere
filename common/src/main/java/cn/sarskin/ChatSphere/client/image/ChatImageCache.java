@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 
 /** Client side chat image cache: bytes on disk, textures created on first draw. */
 public final class ChatImageCache {
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ChatSphere-ChatImage");
     private static final int MAX_TEXTURES = 48;
     private static final Map<String, byte[]> BYTES = new ConcurrentHashMap<>();
     private static final Map<String, ResourceLocation> TEXTURES = new ConcurrentHashMap<>();
@@ -147,7 +148,14 @@ public final class ChatImageCache {
             return cached;
         }
         byte[] data = bytes(id);
-        if (data == null || ChatImageGuard.extensionFor(data) == null) return null;
+        if (data == null) {
+            LOGGER.info("chat image {} has no bytes", id);
+            return null;
+        }
+        if (ChatImageGuard.extensionFor(data) == null) {
+            LOGGER.info("chat image {} is not png/jpeg ({} bytes, head={})", id, data.length, String.format("%02X %02X %02X %02X", data[0], data[1], data[2], data[3]));
+            return null;
+        }
         try {
             NativeImage image = NativeImage.read(new ByteArrayInputStream(data));
             SIZES.put(id, new int[]{image.getWidth(), image.getHeight()});
@@ -159,6 +167,7 @@ public final class ChatImageCache {
             evict();
             return location;
         } catch (Exception e) {
+            LOGGER.warn("chat image {} could not be decoded: {}", id, e.toString());
             return null;
         }
     }
