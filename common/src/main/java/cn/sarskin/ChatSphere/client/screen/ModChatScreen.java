@@ -1889,8 +1889,17 @@ public class ModChatScreen extends Screen {
 
     /** One image box: width capped by the chat width, height from the token ratio, clamped for compact rows. */
     private static int[] imageBox(int chatWidth, ChatImage.Token token) {
-        int w = Math.max(40, Math.min(IMAGE_MAX_W, chatWidth - 40));
-        int h = Math.round((float) w * token.height() / Math.max(1, token.width()));
+        int maxW = Math.max(40, Math.min(IMAGE_MAX_W, chatWidth - 40));
+        int srcW = Math.max(1, token.width());
+        int srcH = Math.max(1, token.height());
+        float scale = Math.min(1f, Math.min((float) maxW / srcW, (float) IMAGE_MAX_H / srcH));
+        int w = Math.max(1, Math.round(srcW * scale));
+        int h = Math.max(1, Math.round(srcH * scale));
+        if (w < 40) {
+            float up = 40f / w;
+            w = Math.round(w * up);
+            h = Math.round(h * up);
+        }
         return new int[]{w, Math.max(IMAGE_MIN_H, Math.min(IMAGE_MAX_H, h))};
     }
 
