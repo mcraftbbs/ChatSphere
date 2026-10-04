@@ -1,6 +1,5 @@
 package cn.sarskin.ChatSphere.forge;
 
-import cn.sarskin.ChatSphere.forge.client.ModKeyMappings;
 import cn.sarskin.ChatSphere.forge.network.ForgeNetwork;
 import cn.sarskin.ChatSphere.forge.server.ModCommands;
 import cn.sarskin.ChatSphere.forge.server.ModServerEvents;
@@ -40,17 +39,15 @@ public class ModMain {
         ModServerEvents.init();
         ModCommands.init();
 
-        // Client-only classes are loaded reflectively so dedicated servers never touch them.
-        net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
-                () -> () -> {
-                    modBus.register(ModKeyMappings.class);
-                    try {
-                        Class.forName("cn.sarskin.ChatSphere.forge.client.ModClientSetup")
-                                .getMethod("init", IEventBus.class)
-                                .invoke(null, modBus);
-                    } catch (Exception ignored) {
-                    }
-                });
+        // Client setup is reached by name, so a dedicated server never resolves client classes.
+        if (net.minecraftforge.fml.loading.FMLLoader.getDist() == net.minecraftforge.api.distmarker.Dist.CLIENT) {
+            try {
+                Class.forName("cn.sarskin.ChatSphere.forge.client.ModClientSetup")
+                        .getMethod("init", IEventBus.class)
+                        .invoke(null, modBus);
+            } catch (Exception ignored) {
+            }
+        }
 
         try {
             if (ModList.get().isLoaded("plasmovoice")) {

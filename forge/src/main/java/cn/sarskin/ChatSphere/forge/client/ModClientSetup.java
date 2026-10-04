@@ -10,6 +10,7 @@ public final class ModClientSetup {
 
     public static void init(IEventBus modBus) {
         modBus.register(ModClientModBusEvents.class);
+        modBus.register(ModKeyMappings.class);
         ModClientEvents.init();
         ModLoadingContext.get().registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class,
                 () -> new ConfigScreenHandler.ConfigScreenFactory((mc, lastScreen) -> new ConfigScreen(lastScreen)));
