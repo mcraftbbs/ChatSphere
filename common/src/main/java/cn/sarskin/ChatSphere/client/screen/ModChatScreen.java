@@ -1835,7 +1835,7 @@ public class ModChatScreen extends Screen {
     /** Text as drawn; card-only mode leaves the URL out because the card below shows it. */
     private static Component displayText(ChatMessageData msg) {
         if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) return msg.senderName().copy();
-        Component rendered = displayText(msg);
+        Component rendered = msg.renderedContent();
         if (LinkPreviewService.mode() == 2) {
             String plain = rendered.getString();
             String stripped = RichTextParser.stripUrls(plain);
