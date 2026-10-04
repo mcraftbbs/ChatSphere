@@ -102,6 +102,19 @@ public class ServerConfigScreen extends Screen {
             y -> mkIntBox(y, "emojiMaxTotal", safeGetStr(ModServerConfig.CONFIG.emojiMaxTotal, "100"), 1, 10000, 5)));
         cats.add(new Cat("config.chatsphere.emoji", emoji));
 
+        List<Opt> links = new ArrayList<>();
+        links.add(new Opt("config.chatsphere.link_preview_enabled",
+            y -> mkBool(y, "linkPreviewEnabled", ModServerConfig.CONFIG.linkPreviewEnabled)));
+        links.add(new Opt("config.chatsphere.link_preview_domains", y -> {
+            int boxW = Math.min(btnW * 3, Math.max(btnW, width - inputX - 10));
+            EditBox box = new EditBox(font, inputX, y, boxW, 40, Component.literal(""));
+            box.setValue(safeGetStr(ModServerConfig.CONFIG.linkPreviewAllowedDomains, ""));
+            box.setMaxLength(2000);
+            box.setResponder(val -> scheduleConfigSend("linkPreviewAllowedDomains", val));
+            return box;
+        }));
+        cats.add(new Cat("config.chatsphere.links_cat", links));
+
         List<Opt> discord = new ArrayList<>();
         discord.add(new Opt("config.chatsphere.discord_enabled",
             y -> mkBool(y, "discordEnabled", ModServerConfig.CONFIG.discordEnabled)));

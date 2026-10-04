@@ -56,6 +56,11 @@ public class ModClientConfig {
     /** Tabs shown above the console log; the tabs themselves live in {@link #consoleTabs}. */
     public final CfgValue.Bool consoleTabsEnabled;
     public final CfgValue.Str consoleTabs;
+    /** Link cards: 0 off, 1 text plus card, 2 card only. */
+    public final CfgValue.Int linkPreviewMode;
+    public final CfgValue.Int linkPreviewCacheMb;
+    public final CfgValue.Int linkPreviewTtlHours;
+    public final CfgValue.Int linkPreviewMaxPerMessage;
 
     private ModClientConfig() {
         this.store = new ConfigStore("chatsphere-client.json");
@@ -112,6 +117,11 @@ public class ModClientConfig {
 
         consoleTabsEnabled = new CfgValue.Bool(store, "consoleTabsEnabled", false);
         consoleTabs = new CfgValue.Str(store, "consoleTabs", "[]");
+
+        linkPreviewMode = new CfgValue.Int(store, "linkPreviewMode", 1);
+        linkPreviewCacheMb = new CfgValue.Int(store, "linkPreviewCacheMb", 32);
+        linkPreviewTtlHours = new CfgValue.Int(store, "linkPreviewTtlHours", 168);
+        linkPreviewMaxPerMessage = new CfgValue.Int(store, "linkPreviewMaxPerMessage", 2);
 
         store.save();
     }
