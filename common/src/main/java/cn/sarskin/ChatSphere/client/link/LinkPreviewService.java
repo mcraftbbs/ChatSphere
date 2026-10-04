@@ -27,6 +27,7 @@ public final class LinkPreviewService {
     private static final int MAX_HTML = 256 * 1024;
     private static final int MAX_IMAGE = 512 * 1024;
     private static final int MAX_PENDING = 48;
+    private static final Pattern BILI = Pattern.compile("(?i)^https?://(?:www\\.)?bilibili\\.com/video/(BV[0-9A-Za-z]+)");
     private static final Pattern META = Pattern.compile("(?is)<meta\\s+([^>]*?)>");
     private static final Pattern TITLE = Pattern.compile("(?is)<title[^>]*>(.*?)</title>");
     private static final Pattern ATTR = Pattern.compile("(?is)(property|name|content)\\s*=\\s*(\"([^\"]*)\"|'([^']*)')");
@@ -141,6 +142,7 @@ public final class LinkPreviewService {
     }
 
     private static void fetch(String url) throws Exception {
+        if (bilibiliCard(url) != null) return;
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(8))
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
@@ -167,6 +169,48 @@ public final class LinkPreviewService {
             return;
         }
         LinkPreviewCache.put(url, preview, thumb);
+    }
+
+    /** Bilibili video pages render their head with script, so ask the public view api instead. */
+    private static LinkPreview bilibiliCard(String url) {
+        java.util.regex.Matcher matcher = BILI.matcher(url);
+        if (!matcher.find()) return null;
+        try {
+            HttpRequest request = HttpRequest.newBuilder(
+                            URI.create("https://api.bilibili.com/x/web-interface/view?bvid=" + matcher.group(1)))
+                    .timeout(Duration.ofSeconds(8))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+                    .header("Referer", "https://www.bilibili.com/")
+                    .GET()
+                    .build();
+            HttpResponse<InputStream> response = HTTP.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) return null;
+            String json;
+            try (InputStream in = response.body()) {
+                json = new String(readLimited(in, MAX_HTML), StandardCharsets.UTF_8);
+            }
+            com.google.gson.JsonObject root = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+            if (root.has("code") && root.get("code").getAsInt() != 0) return null;
+            if (!root.has("data") || !root.get("data").isJsonObject()) return null;
+            com.google.gson.JsonObject data = root.getAsJsonObject("data");
+            String title = data.has("title") ? data.get("title").getAsString() : "";
+            String desc = data.has("desc") ? data.get("desc").getAsString() : "";
+            String pic = data.has("pic") ? data.get("pic").getAsString() : "";
+            if (title.isEmpty() && pic.isEmpty()) return null;
+            byte[] thumb = null;
+            if (!pic.isEmpty() && allowed(pic)) thumb = fetchImage(pic);
+            String site = hostOf(url);
+            if (data.has("owner") && data.get("owner").isJsonObject()) {
+                String owner = data.getAsJsonObject("owner").has("name")
+                        ? data.getAsJsonObject("owner").get("name").getAsString() : "";
+                site = owner.isEmpty() ? site : owner + " 路 " + site;
+            }
+            LinkPreview preview = new LinkPreview(url, title, desc, pic, site);
+            LinkPreviewCache.put(url, preview, thumb);
+            return preview;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Card built from the URL alone, so a blocked or tag-less page still shows something. */
