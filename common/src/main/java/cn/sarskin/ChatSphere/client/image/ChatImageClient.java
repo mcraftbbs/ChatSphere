@@ -73,12 +73,16 @@ public final class ChatImageClient {
                 byte[] data = LinkPreviewService.downloadImage(url);
                 if (data == null) {
                     notifyLater(ChatImageGuard.ERR_FORMAT);
+                    insertLater(url);
                     return;
                 }
                 int[] dims = new int[2];
                 String error = ChatImageGuard.validate(data, dims);
                 if (error == null) error = upload(data, url, dims);
-                if (error != null) notifyLater(error);
+                if (error != null) {
+                    notifyLater(error);
+                    insertLater(url);
+                }
             } catch (Exception e) {
                 notifyLater(ChatImageGuard.ERR_FORMAT);
             } finally {
