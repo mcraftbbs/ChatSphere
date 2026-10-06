@@ -211,6 +211,7 @@ public class ModChatScreen extends Screen {
     private java.util.UUID contextMenuUuid;
     private int replyHighlightTarget = -1;
     private int replyHighlightTicks;
+    private static ModChatScreen activeScreen;
     private int consoleTabIndex;
     private List<Integer> consoleView;
     private int consoleViewSig = Integer.MIN_VALUE;    private List<ConsoleTabs.Tab> cachedTabs;
@@ -386,6 +387,7 @@ public class ModChatScreen extends Screen {
 
         refreshOnlinePlayers();
         ChatHistoryManager.getInstance().refreshPrivateConversationDisplayNames();
+        activeScreen = this;
         ChatImageClient.setTokenSink(this::insertImageToken);
         ChatImageClient.setMessageSink(this::showImageMessage);
     }
@@ -1628,6 +1630,8 @@ public class ModChatScreen extends Screen {
             drawAvatarContextMenu(g, mouseX, mouseY);
         }
 
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 200);
         if (emojiPanel.visible) {
             emojiPanel.render(g, chatLeft() + 4, this.height - 14 - TOOLBAR_HEIGHT - emojiPanel.panelH() - 4, mouseX, mouseY);
         }
@@ -1651,6 +1655,7 @@ public class ModChatScreen extends Screen {
         if (emojiAutoComplete.visible && !COMMAND_CONVERSATION_ID.equals(currentConversation)) {
             emojiAutoComplete.render(g, input, mouseX, mouseY);
         }
+        g.pose().popPose();
 
         replyBar.render(g, mouseX, mouseY, chatLeft(), this.width, 0, false);
 
@@ -2605,13 +2610,16 @@ public class ModChatScreen extends Screen {
     }
 
     public static void invalidateConsoleTabs() {
-        if (Minecraft.getInstance().screen instanceof ModChatScreen chat) {
-            chat.consoleView = null;
-            chat.consoleViewSig = Integer.MIN_VALUE;
-            chat.cachedTabs = null;
-            chat.consoleTabIndex = 0;
-            chat.scrollOffset = 0;
-        }
+        // The editor is its own screen, so fall back to the chat screen it was opened from
+        ModChatScreen chat = Minecraft.getInstance().screen instanceof ModChatScreen screen
+                ? screen : activeScreen;
+        if (chat == null) return;
+        chat.cachedTabs = null;
+        chat.cachedTabsRaw = null;
+        chat.consoleView = null;
+        chat.consoleViewSig = Integer.MIN_VALUE;
+        chat.consoleTabIndex = Math.max(0, chat.consoleTabIndex);
+        chat.scrollOffset = 0;
     }
 
     private void renderConsoleTabs(GuiGraphics g, int mouseX, int mouseY) {
