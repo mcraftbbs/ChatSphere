@@ -212,7 +212,8 @@ public class ModChatScreen extends Screen {
     private int replyHighlightTarget = -1;
     private int replyHighlightTicks;
     private static ModChatScreen activeScreen;
-    private int consoleTabIndex;
+    private static int lastConsoleTabIndex;
+    private static int consoleTabIndex;
     private List<Integer> consoleView;
     private int consoleViewSig = Integer.MIN_VALUE;
     private List<ConsoleTabs.Tab> cachedTabs;
@@ -301,6 +302,7 @@ public class ModChatScreen extends Screen {
         super(Component.translatable("screen.chatsphere.mod_chat.title"));
         this.initial = initial;
         this.scrollOffset = 0;
+        this.consoleTabIndex = lastConsoleTabIndex;
         Minecraft mc = Minecraft.getInstance();
         this.openedWhileSleeping = mc.player != null && mc.player.isSleeping();
         ChatHistoryManager.getInstance().load();
@@ -1100,6 +1102,7 @@ public class ModChatScreen extends Screen {
                             true);
                     this.input.setValue("");
                     this.scrollOffset = 0;
+        this.consoleTabIndex = lastConsoleTabIndex;
                     return;
                 }
             }
@@ -1205,6 +1208,7 @@ public class ModChatScreen extends Screen {
         replyHighlightTarget = -1;
         this.input.setValue("");
         this.scrollOffset = 0;
+        this.consoleTabIndex = lastConsoleTabIndex;
     }
 
     private void moveInHistory(int direction) {
@@ -2653,6 +2657,7 @@ public class ModChatScreen extends Screen {
                     : tabs.get(i - 1).name()) + 12;
             if (mouseX >= x && mouseX < x + w) {
                 consoleTabIndex = i;
+                lastConsoleTabIndex = i;
                 consoleViewSig = Integer.MIN_VALUE;
                 scrollOffset = 0;
                 return true;
@@ -2900,12 +2905,12 @@ public class ModChatScreen extends Screen {
             int tsX = areaRight - mc.font.width(ts) - 4;
             if (msg.duplicateCount() > 1) {
                 String dupLabel = "x" + msg.duplicateCount();
-                g.drawString(mc.font, dupLabel, tsX - mc.font.width(dupLabel) - 3, rowTop, 0xFFAA66AA, false);
+                g.drawString(mc.font, dupLabel, Math.max(areaLeft + 2, textX - mc.font.width(dupLabel) - 6), rowTop, 0xFFAA66AA, false);
             }
             g.drawString(mc.font, ts, tsX, rowTop, Theme.textDim(), false);
         } else if (msg.duplicateCount() > 1) {
             String dupLabel = "x" + msg.duplicateCount();
-            g.drawString(mc.font, dupLabel, areaRight - mc.font.width(dupLabel) - 4, rowTop + 2, 0xFFAA66AA, false);
+            g.drawString(mc.font, dupLabel, Math.max(areaLeft + 2, textX - mc.font.width(dupLabel) - 6), rowTop + 2, 0xFFAA66AA, false);
         }
 
         if (msg.replyContent() != null) {
@@ -3128,11 +3133,7 @@ public class ModChatScreen extends Screen {
         if (dupLabel != null) {
             int dupColor = 0xFFFFAA00;
             int dupX, dupY = bubbleY + (bubbleH - lineH) / 2;
-            if (msg.isOwn()) {
-                dupX = bubbleX - dupW;
-            } else {
-                dupX = bubbleX + bubbleW + 2;
-            }
+            dupX = bubbleX - dupW - 2;
             if (dupX >= chatLeft() + 4) {
                 guiGraphics.drawString(mc.font, dupLabel, dupX, dupY, dupColor, false);
             }
@@ -3306,7 +3307,10 @@ public class ModChatScreen extends Screen {
         List<ConsoleTabs.Tab> tabs = tabs();
         int size = messages.size();
         String tail = size == 0 ? "" : messages.get(size - 1).content().getString();
-        int sig = java.util.Objects.hash(size, tail, tabs.size(), consoleTabIndex);
+        int tabsHash = 1;
+        for (ConsoleTabs.Tab tab : tabs) tabsHash = tabsHash * 31 + tab.name().hashCode() * 31 + tab.pattern().hashCode();
+        String head = size == 0 ? "" : messages.get(0).content().getString();
+        int sig = java.util.Objects.hash(size, head, tail, tabsHash, consoleTabIndex);
         if (consoleView != null && consoleViewSig == sig) return consoleView;
         if (consoleTabIndex > tabs.size()) consoleTabIndex = 0;
         consoleView = ConsoleTabs.build(messages, tabs, consoleTabIndex);
