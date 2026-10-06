@@ -23,12 +23,15 @@ public class ChatImageViewerScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        BackgroundBlur.blurScreen(g, width, height);
         if (parent != null) {
+            try {
+                parent.renderBackground(g, mouseX, mouseY, partialTick);
+            } catch (Throwable ignored) {
+            }
             parent.render(g, mouseX, mouseY, partialTick);
-        } else {
-            BackgroundBlur.blurScreen(g, width, height);
         }
-        g.fill(0, 0, this.width, this.height, Theme.screenBg());
+        g.fill(0, 0, this.width, this.height, 0xB0101018);
     }
 
     @Override
@@ -50,12 +53,32 @@ public class ChatImageViewerScreen extends Screen {
             g.drawString(font, title, x + (boxW - font.width(title)) / 2, y + boxH / 2 - 4, Theme.textDim(), false);
             return;
         }
+        drawClose(g, mouseX, mouseY);
         float scale = Math.min((float) maxW / size[0], (float) maxH / size[1]);
         int drawW = Math.max(1, Math.round(size[0] * scale));
         int drawH = Math.max(1, Math.round(size[1] * scale));
         int x = (this.width - drawW) / 2;
         int y = (this.height - drawH) / 2;
         g.blit(texture, x, y, drawW, drawH, 0f, 0f, size[0], size[1], size[0], size[1]);
+    }
+
+    private static final int CLOSE_SIZE = 16;
+
+    private int closeX() {
+        return Math.max(4, this.width - CLOSE_SIZE - 12);
+    }
+
+    private int closeY() {
+        return 12;
+    }
+
+    private void drawClose(GuiGraphics g, int mouseX, int mouseY) {
+        int x = closeX();
+        int y = closeY();
+        boolean hover = mouseX >= x && mouseX <= x + CLOSE_SIZE && mouseY >= y && mouseY <= y + CLOSE_SIZE;
+        Ui.fillRoundedRect(g, x, y, CLOSE_SIZE, CLOSE_SIZE, 4, hover ? 0x66FF5555 : 0x44000000);
+        String mark = "X";
+        g.drawString(font, mark, x + (CLOSE_SIZE - font.width(mark)) / 2, y + 4, 0xFFFFFFFF, false);
     }
 
     @Override
