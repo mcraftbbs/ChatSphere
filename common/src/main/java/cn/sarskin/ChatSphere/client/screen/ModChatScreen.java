@@ -2905,12 +2905,12 @@ public class ModChatScreen extends Screen {
             int tsX = areaRight - mc.font.width(ts) - 4;
             if (msg.duplicateCount() > 1) {
                 String dupLabel = "x" + msg.duplicateCount();
-                g.drawString(mc.font, dupLabel, Math.max(areaLeft + 2, textX - mc.font.width(dupLabel) - 6), rowTop, 0xFFAA66AA, false);
+                g.drawString(mc.font, dupLabel, tsX - mc.font.width(dupLabel) - 3, rowTop, 0xFFAA66AA, false);
             }
             g.drawString(mc.font, ts, tsX, rowTop, Theme.textDim(), false);
         } else if (msg.duplicateCount() > 1) {
             String dupLabel = "x" + msg.duplicateCount();
-            g.drawString(mc.font, dupLabel, Math.max(areaLeft + 2, textX - mc.font.width(dupLabel) - 6), rowTop + 2, 0xFFAA66AA, false);
+            g.drawString(mc.font, dupLabel, areaRight - mc.font.width(dupLabel) - 4, rowTop + 2, 0xFFAA66AA, false);
         }
 
         if (msg.replyContent() != null) {
@@ -3133,7 +3133,13 @@ public class ModChatScreen extends Screen {
         if (dupLabel != null) {
             int dupColor = 0xFFFFAA00;
             int dupX, dupY = bubbleY + (bubbleH - lineH) / 2;
-            dupX = bubbleX - dupW - 2;
+            if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) {
+                dupX = bubbleX - dupW - 2;
+            } else if (msg.isOwn()) {
+                dupX = bubbleX - dupW;
+            } else {
+                dupX = bubbleX + bubbleW + 2;
+            }
             if (dupX >= chatLeft() + 4) {
                 guiGraphics.drawString(mc.font, dupLabel, dupX, dupY, dupColor, false);
             }
