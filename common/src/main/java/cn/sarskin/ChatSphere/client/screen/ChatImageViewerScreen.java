@@ -23,15 +23,7 @@ public class ChatImageViewerScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        BackgroundBlur.blurScreen(g, width, height);
-        if (parent != null) {
-            try {
-                parent.renderBackground(g, mouseX, mouseY, partialTick);
-            } catch (Throwable ignored) {
-            }
-            parent.render(g, mouseX, mouseY, partialTick);
-        }
-        g.fill(0, 0, this.width, this.height, 0xB0101018);
+        g.fill(0, 0, this.width, this.height, 0xFF101018);
     }
 
     @Override
@@ -77,8 +69,7 @@ public class ChatImageViewerScreen extends Screen {
         int y = closeY();
         boolean hover = mouseX >= x && mouseX <= x + CLOSE_SIZE && mouseY >= y && mouseY <= y + CLOSE_SIZE;
         Ui.fillRoundedRect(g, x, y, CLOSE_SIZE, CLOSE_SIZE, 4, hover ? 0x66FF5555 : 0x44000000);
-        String mark = "X";
-        g.drawString(font, mark, x + (CLOSE_SIZE - font.width(mark)) / 2, y + 4, 0xFFFFFFFF, false);
+        Ui.drawCloseIcon(g, x, y, CLOSE_SIZE);
     }
 
     @Override

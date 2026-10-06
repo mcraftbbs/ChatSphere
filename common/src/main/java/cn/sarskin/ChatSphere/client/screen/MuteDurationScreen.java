@@ -106,8 +106,7 @@ public class MuteDurationScreen extends Screen {
         if (closeHover) {
             Ui.fillRoundedRect(g, closeX, closeY, 16, 16, 4, Theme.hoverRow());
         }
-        g.drawString(font, "×", closeX + (16 - font.width("×")) / 2, closeY + 4,
-            closeHover ? Theme.text() : Theme.textInactive(), false);
+        Ui.drawCloseIcon(g, closeX, closeY, 16);
 
         for (var renderable : ((cn.sarskin.ChatSphere.mixin.ScreenAccessor) this).chatsphere$getRenderables()) {
             renderable.render(g, mouseX, mouseY, partialTick);

@@ -1,11 +1,20 @@
 package cn.sarskin.ChatSphere.client.ui;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public final class Ui {
+    private static final ResourceLocation CLOSE_ICON = ResourceLocation.fromNamespaceAndPath("chatsphere", "textures/gui/close_icon.png");
+
+    /** Shared close glyph, centred in a box of the given size. */
+    public static void drawCloseIcon(GuiGraphics g, int x, int y, int size) {
+        int icon = 10;
+        int offset = Math.max(0, (size - icon) / 2);
+        g.blit(CLOSE_ICON, x + offset, y + offset, icon, icon, 0f, 0f, icon, icon, icon, icon);
+    }
     private Ui() {}
 
     private static final Map<Integer, int[]> CORNER_ALPHA_CACHE = new HashMap<>();
