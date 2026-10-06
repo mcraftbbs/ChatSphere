@@ -109,8 +109,7 @@ public class ConfirmDeleteChannelScreen extends Screen {
         if (closeHover) {
             Ui.fillRoundedRect(g, closeX, closeY, 16, 16, 4, Theme.hoverRow());
         }
-        g.drawString(font, "×", closeX + (16 - font.width("×")) / 2, closeY + 4,
-            closeHover ? Theme.text() : Theme.textInactive(), false);
+        Ui.drawCloseIcon(g, closeX, closeY, 16);
 
         Component warn = Component.translatable(leaveMode ? "screen.chatsphere.confirm_leave.warning" : "screen.chatsphere.confirm_delete.warning");
         g.drawString(font, warn, popupX + 10, popupY + 38, 0xFFFF6666, false);

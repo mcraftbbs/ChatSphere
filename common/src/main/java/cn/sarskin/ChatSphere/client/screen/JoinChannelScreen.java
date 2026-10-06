@@ -95,8 +95,7 @@ public class JoinChannelScreen extends Screen {
         if (closeHover) {
             Ui.fillRoundedRect(guiGraphics, closeX, closeY, 16, 16, 4, Theme.hoverRow());
         }
-        guiGraphics.drawString(this.font, "×", closeX + (16 - this.font.width("×")) / 2, closeY + 4,
-            closeHover ? Theme.text() : Theme.textInactive(), false);
+        Ui.drawCloseIcon(guiGraphics, closeX, closeY, 16);
 
         guiGraphics.drawString(this.font,
                 Component.translatable("screen.chatsphere.join_channel.input_label"),

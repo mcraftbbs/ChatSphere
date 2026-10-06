@@ -371,8 +371,7 @@ public class CreateChannelScreen extends Screen {
         int closeY = popupY + 9;
         boolean closeHover = isInside(mouseX, mouseY, closeX, closeY, 16, 16);
         if (closeHover) Ui.fillRoundedRect(g, closeX, closeY, 16, 16, 4, Theme.hoverRow());
-        g.drawString(this.font, "×", closeX + (16 - this.font.width("×")) / 2, closeY + 4,
-                closeHover ? Theme.text() : Theme.textInactive(), false);
+        Ui.drawCloseIcon(g, closeX, closeY, 16);
 
         int dotY = popupY + 17;
         int dotX = closeX - 14 - STEP_COUNT * 10;

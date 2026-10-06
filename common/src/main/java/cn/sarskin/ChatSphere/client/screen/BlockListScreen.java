@@ -130,8 +130,7 @@ public class BlockListScreen extends Screen {
         if (closeHover) {
             Ui.fillRoundedRect(g, closeX, closeY, 16, 16, 4, Theme.hoverRow());
         }
-        g.drawString(font, "×", closeX + (16 - font.width("×")) / 2, closeY + 4,
-            closeHover ? Theme.text() : Theme.textInactive(), false);
+        Ui.drawCloseIcon(g, closeX, closeY, 16);
 
         g.fill(PAD, HEADER_H + 2, width - PAD, HEADER_H + 3, Theme.divider());
 
