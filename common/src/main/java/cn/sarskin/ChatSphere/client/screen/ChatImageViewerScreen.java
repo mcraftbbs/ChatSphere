@@ -28,6 +28,7 @@ public class ChatImageViewerScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        g.fill(0, 0, this.width, this.height, 0xFF101018);
         super.render(g, mouseX, mouseY, partialTick);
         ResourceLocation texture = ChatImageCache.texture(imageId);
         int[] size = texture != null ? ChatImageCache.textureSize(imageId) : null;
