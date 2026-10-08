@@ -15,10 +15,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
-/**
- * Server side chat image store: validated bytes on disk under a client supplied hex id, served on
- * request and swept once the configured lifetime is over.
- */
+    /** Chat image store: validated bytes on disk under a client supplied id, served and swept by lifetime. */
 public final class ModServerImages {
     public static final int CHUNK_BYTES = 16 * 1024;
     public static final int MAX_CHUNKS = 48;

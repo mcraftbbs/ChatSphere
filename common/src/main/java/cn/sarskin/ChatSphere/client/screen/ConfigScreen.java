@@ -126,7 +126,6 @@ public class ConfigScreen extends Screen {
             }),
             ModClientConfig.CONFIG.bubbleColorOther::get));
 
-        // Link cards: mode, cache size and lifetime, per message cap
         List<Opt> links = new ArrayList<>();
         links.add(new Opt("config.chatsphere.link_preview_mode",
             y -> mkIntBox(y, String.valueOf(ModClientConfig.CONFIG.linkPreviewMode.get()), 0, 2, 1,

@@ -2,12 +2,15 @@
 
 ### Added
 - Link cards under messages: title, description and thumbnail, with three modes (off, text plus card, card only)
-- Preview fetches only happen for messages on screen, and the server can turn previews off or restrict the hosts
-- Chat images: drag and drop a png/jpg into the chat, or paste an image URL
-- Images are validated, stored on the server and fetched lazily with a placeholder box; gif still goes through custom emoji
-- `[图片]` / `[Image]` label wherever an image cannot be drawn, such as the HUD bubble and search results
-- Client image settings and a server Images category for size, dimension, lifetime, cooldown and per-player caps
-- Forge support alongside Fabric
+- Link previews are fetched only for messages on screen; the server can disable them or restrict the hosts
+- Chat images: drag a png/jpg into the chat, or paste an image URL, and they load on demand from the server cache
+- `[Image]` stands in wherever an image cannot be drawn, such as the HUD bubble and search results
+- Client image settings, and a server Images category for size, dimensions, lifetime, cooldown and per-player cap
+- Forge 1.20.1 support
+
+### Fixed
+- Console tabs keep the selected tab after a command is sent, and a tab edit refreshes the view
+- The repeats counter sits on the left of console lines instead of running off the right edge
 
 ## 2.4.1-1.20.1
 

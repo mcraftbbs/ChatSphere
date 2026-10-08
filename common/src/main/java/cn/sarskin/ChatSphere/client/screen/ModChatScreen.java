@@ -1040,7 +1040,6 @@ public class ModChatScreen extends Screen {
         text = cn.sarskin.ChatSphere.client.emoji.EmojiRegistry.shortcodesToUnicode(text);
         text = text.trim();
         if (text.isEmpty()) return;
-        // A lone image URL becomes an upload; the token is inserted once the server accepts it
         if (IMAGE_URL.matcher(text).matches() && ChatImageClient.uploadFromUrl(text)) {
             this.input.setValue("");
             return;
@@ -2774,7 +2773,6 @@ public class ModChatScreen extends Screen {
             int rowTop = yOffset - bubbleHeight;
             int contentX = lastContentX > 0 ? lastContentX : chatAreaLeft + 10;
             int contentW = lastContentW > 0 ? lastContentW : Math.max(40, chatAreaRight - contentX - 10);
-            // attachments sit under the text layer so they never cover other widgets
             if (cardH > 0) renderLinkCards(guiGraphics, msg, contentX, contentX + contentW, rowY, mouseX, mouseY);
             if (imgH > 0) renderImageBlocks(guiGraphics, msg, contentX, rowY + cardH, contentW);
             synchronized (bubbleHitBoxes) {
