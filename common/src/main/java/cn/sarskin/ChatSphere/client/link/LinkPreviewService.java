@@ -19,10 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Fetches link cards for URLs that are on screen. Everything happens off the render thread; callers
- * only ask for a URL and read whatever the cache already holds.
- */
+    /** Fetches link cards for on-screen URLs off the render thread; callers only read the cache. */
 public final class LinkPreviewService {
     private static final int MAX_HTML = 256 * 1024;
     private static final int MAX_IMAGE = 512 * 1024;
