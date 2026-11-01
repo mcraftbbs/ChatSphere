@@ -688,9 +688,32 @@ public class ChatHistoryManager {
                                 new ArrayList<>(config.invitedPlayers),
                                 config.inviteCode,
                                 config.showInExplore, "", "", "", config.mainChatEnabled, config.defaultSubChannel,
-                                config.slowModeSeconds).toBuf());
+                                config.slowModeSeconds, config.iconId != null ? config.iconId : "").toBuf());
             }
         }
+    }
+
+    /** Sends its own update: an empty iconId in {@link #updateChannelConfig} already means "unchanged". */
+    public void clearChannelIcon(String channelId) {
+        ChatDataStore.ChannelConfig config;
+        synchronized (channelConfigs) {
+            config = channelConfigs.get(channelId);
+            if (config == null) return;
+            config.iconId = "";
+        }
+        if (!serverConnected) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.getConnection() == null) return;
+        PacketSender.toServer(ServerboundChannelActionPayload.ID, new ServerboundChannelActionPayload(
+                ServerboundChannelActionPayload.Action.UPDATE_CONFIG,
+                channelId, mc.player.getUUID(),
+                config.isPublic, config.description, config.displayName,
+                new ArrayList<>(config.admins),
+                new ArrayList<>(config.mutedPlayers),
+                new ArrayList<>(config.invitedPlayers),
+                config.inviteCode,
+                config.showInExplore, "", "", "", config.mainChatEnabled, config.defaultSubChannel,
+                config.slowModeSeconds, cn.sarskin.ChatSphere.server.ModServerChannels.ICON_CLEAR).toBuf());
     }
 
     public void sendRenameSubChannel(String oldId, String newName) {
@@ -1392,6 +1415,7 @@ public class ChatHistoryManager {
                 cfg.mainChatEnabled = e.mainChatEnabled();
                 cfg.defaultSubChannel = e.defaultSubChannel() != null ? e.defaultSubChannel() : "";
                 cfg.slowModeSeconds = e.slowModeSeconds();
+                cfg.iconId = e.iconId() != null ? e.iconId() : "";
                 cfg.voiceRooms.clear();
                 for (ModServerChannels.VoiceRoom vr : e.voiceRooms()) {
                     cn.sarskin.ChatSphere.client.voice.VoiceRoom cvr = new cn.sarskin.ChatSphere.client.voice.VoiceRoom();
@@ -1756,5 +1780,18 @@ public class ChatHistoryManager {
                 action, channelId, playerUuid, true, roomName, "",
                 List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "");
         PacketSender.toServer(ServerboundChannelActionPayload.ID, payload.toBuf());
+    }
+
+    /** One room per player; SVC holds a single group, so a stale second room would be silenced by one leave. */
+    public void detachFromOtherVoiceRooms(String uuid, String keepChannelId, String keepRoomName) {
+        if (uuid == null) return;
+        synchronized (channelConfigs) {
+            for (Map.Entry<String, ChatDataStore.ChannelConfig> e : channelConfigs.entrySet()) {
+                for (cn.sarskin.ChatSphere.client.voice.VoiceRoom vr : e.getValue().voiceRooms) {
+                    if (e.getKey().equals(keepChannelId) && vr.name.equals(keepRoomName)) continue;
+                    vr.members.remove(uuid);
+                }
+            }
+        }
     }
 }

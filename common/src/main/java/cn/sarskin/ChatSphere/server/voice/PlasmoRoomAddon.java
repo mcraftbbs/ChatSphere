@@ -93,6 +93,9 @@ public class PlasmoRoomAddon implements AddonInitializer {
         var voicePlayer = a.voiceServer.getPlayerManager().getPlayerById(playerUuid);
         if (voicePlayer.isEmpty()) return;
 
+        // Sources are keyed by player, so joining elsewhere would overwrite the entry and leave the old source sending
+        a.detachEverywhere(playerUuid, key);
+
         room.members.add(playerUuid);
 
         List<VoicePlayer> others = new ArrayList<>();
@@ -119,33 +122,34 @@ public class PlasmoRoomAddon implements AddonInitializer {
         }
     }
 
+    /** Drops the stale source and the other members' listener gap, or an abandoned room kept transmitting. */
+    private void detachEverywhere(UUID playerUuid, String keepKey) {
+        ServerBroadcastSource stale = playerSources.remove(playerUuid);
+        if (stale != null) {
+            sourceLine.removeSource(stale);
+        }
+        for (Map.Entry<String, RoomInfo> e : rooms.entrySet()) {
+            String key = e.getKey();
+            RoomInfo room = e.getValue();
+            if (key.equals(keepKey)) continue;
+            if (!room.members.remove(playerUuid)) continue;
+            for (UUID uid : room.members) {
+                ServerBroadcastSource otherSource = playerSources.get(uid);
+                if (otherSource != null) {
+                    Set<VoicePlayer> updated = new HashSet<>(otherSource.getPlayers());
+                    updated.removeIf(p -> p.getInstance().getUuid().equals(playerUuid));
+                    otherSource.setPlayers(updated);
+                }
+            }
+            if (room.members.isEmpty()) rooms.remove(key);
+        }
+    }
+
     public static void leaveRoom(String channelId, String roomName, UUID playerUuid) {
         PlasmoRoomAddon a = instance;
         if (a == null) return;
-
-        String key = channelId + ":" + roomName;
-        RoomInfo room = a.rooms.get(key);
-        if (room == null) return;
-
-        room.members.remove(playerUuid);
-
-        ServerBroadcastSource source = a.playerSources.remove(playerUuid);
-        if (source != null) {
-            a.sourceLine.removeSource(source);
-        }
-
-        for (UUID uid : room.members) {
-            ServerBroadcastSource otherSource = a.playerSources.get(uid);
-            if (otherSource != null) {
-                Set<VoicePlayer> updated = new HashSet<>(otherSource.getPlayers());
-                updated.removeIf(p -> p.getInstance().getUuid().equals(playerUuid));
-                otherSource.setPlayers(updated);
-            }
-        }
-
-        if (room.members.isEmpty()) {
-            a.rooms.remove(key);
-        }
+        // By the player, not the room the packet named: the client can report a stale room after a resync
+        a.detachEverywhere(playerUuid, null);
     }
 
     private static class RoomInfo {

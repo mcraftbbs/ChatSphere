@@ -293,7 +293,12 @@ public class PlayerSkinCache {
 
     private static Path getCacheFile() {
         if (cacheDir == null) cacheDir = Path.of("").resolve("chatsphere_skincache");
-        try { Files.createDirectories(cacheDir); } catch (Exception ignored) {}
+        try {
+            Files.createDirectories(cacheDir);
+        } catch (Exception e) {
+            // the cache is optional, but a read only game folder explains why avatars never persist
+            LOGGER.warn("Could not create the skin cache folder {}", cacheDir, e);
+        }
         return cacheDir.resolve("CACHE.json");
     }
 
@@ -303,7 +308,7 @@ public class PlayerSkinCache {
         try (BufferedReader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             JsonObject root = GSON.fromJson(r, JsonObject.class);
         } catch (Exception e) {
-            LOGGER.error("Failed to load skin CACHE", e);
+            LOGGER.error("Failed to load the skin cache", e);
         }
     }
 }

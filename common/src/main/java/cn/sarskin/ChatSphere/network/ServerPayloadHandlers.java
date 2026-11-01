@@ -39,7 +39,8 @@ public final class ServerPayloadHandlers {
             case CREATE -> msc.createChannel(p.channelId(), realUuid, p.isPublic(), p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds());
             case UPDATE_CONFIG -> msc.updateChannelConfig(p.channelId(), p.isPublic(), p.description(), p.displayName(),
                     p.admins(), p.mutedPlayers(), p.invitedPlayers(), p.inviteCode(), realUuid,
-                    p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds());
+                    p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds(),
+                    p.iconId());
             case JOIN_MEMBER -> {
                 if (p.channelId() != null && !p.channelId().isEmpty()) {
                     msc.addMemberToChannel(p.channelId(), realUuid.toString());
@@ -398,7 +399,7 @@ public final class ServerPayloadHandlers {
         }
     }
 
-    /** Emoji actions: all inputs hostile — validated by EmojiFileGuard, gated by config + cooldown, per-folder capped. */
+    /** Emoji actions: all inputs hostile; validated by EmojiFileGuard, gated by config + cooldown, per-folder capped. */
     public static void customEmoji(Player player, ServerboundCustomEmojiPayload p) {
         var server = player.getServer();
         if (server == null) return;
@@ -501,7 +502,9 @@ public final class ServerPayloadHandlers {
         if (server == null) return;
         if (!(player instanceof ServerPlayer sp)) return;
         ModServerImages store = ModServerImages.getInstance(server);
-        if (!ModServerConfig.CONFIG.chatImageEnabled.get()) {
+        // Icons share the store but are not attachments, so the chat image switch must not gate them
+        boolean isIcon = "icon".equals(p.sourceUrl());
+        if (!isIcon && !ModServerConfig.CONFIG.chatImageEnabled.get()) {
             ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), ChatImageGuard.ERR_DISABLED));
             return;
         }
@@ -525,7 +528,9 @@ public final class ServerPayloadHandlers {
                 }
             }
             case UPLOAD -> {
-                if (ModServerConfig.CONFIG.chatImageUploadRequiresOp.get() && !player.hasPermissions(2)) {
+                // Uploading only stores bytes; binding them to a channel is a separate admin-only write
+                if (isIcon ? !player.hasPermissions(2)
+                        : ModServerConfig.CONFIG.chatImageUploadRequiresOp.get() && !player.hasPermissions(2)) {
                     ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), "chatsphere.image.err_op"));
                     return;
                 }

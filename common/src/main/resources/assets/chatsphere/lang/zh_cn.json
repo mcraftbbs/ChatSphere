@@ -1,7 +1,6 @@
 {
   "key.categories.chatsphere": "聊境",
   "key.chatsphere.open_config": "打开设置菜单",
-
   "config.chatsphere.ui": "界面设置",
   "config.chatsphere.show_timestamp": "显示时间戳",
   "config.chatsphere.show_sender_name": "显示发送者名称",
@@ -14,18 +13,15 @@
   "config.chatsphere.notification_flash": "图标闪烁",
   "config.chatsphere.notification_popup": "屏幕角落弹窗",
   "config.chatsphere.typing_indicator": "正在输入提示",
-
   "command.chatsphere.help.header": "§6=== 聊境 指令帮助 ===",
   "command.chatsphere.help.help": "§e/chatsphere help §7- 显示此帮助",
   "command.chatsphere.help.list": "§e/chatsphere list §7- 列出所有频道",
   "command.chatsphere.help.info": "§e/chatsphere info <名称> §7- 查看频道详情",
   "command.chatsphere.help.switch_hint": "§e§7在聊天框输入 #频道名 也可切换频道",
-
   "command.chatsphere.list.header": "§6=== 频道列表 (%s) ===",
   "command.chatsphere.list.public": "§a公开",
   "command.chatsphere.list.private": "§c私密",
   "command.chatsphere.list.entry": "§e%s §7%s §7| 成员: %d | 管理员: %d",
-
   "command.chatsphere.info.not_found": "§c频道 %s 不存在",
   "command.chatsphere.info.header": "§6=== 频道详情: %s ===",
   "command.chatsphere.info.display_name": "§7显示名: §f%s",
@@ -66,19 +62,16 @@
   "command.chatsphere.restore.failed": "§c恢复失败，详见服务端日志",
   "command.chatsphere.purge.done": "§a已清空 %s 的 %s 条记录",
   "command.chatsphere.reload.done": "§a已从磁盘重新载入聊天记录",
-
   "command.chatsphere.join.player_only": "§c此指令只能由玩家执行",
-
   "command.chatsphere.channel.switch_success": "§a已切换到频道 %s",
   "command.chatsphere.channel.register_success": "§a频道 %s 已在服务端注册",
-
   "screen.chatsphere.config.title": "聊境 - 设置",
   "screen.chatsphere.config.enabled": "启用",
   "screen.chatsphere.config.disabled": "禁用",
   "screen.chatsphere.config.hint": "使用 F7 打开此菜单",
-
   "screen.chatsphere.mod_chat.title": "聊境",
   "screen.chatsphere.mod_chat.channels_header": "频道",
+  "screen.chatsphere.mod_chat.voice_header": "语音房",
   "screen.chatsphere.mod_chat.private_header": "私聊",
   "screen.chatsphere.mod_chat.general_channel": "综合",
   "screen.chatsphere.mod_chat.switched_channel": "§7已切换到频道 #%s",
@@ -86,7 +79,6 @@
   "screen.chatsphere.mod_chat.commands_header": "命令",
   "screen.chatsphere.mod_chat.members_header": "玩家 (%d)",
   "screen.chatsphere.mod_chat.console_name": "控制台",
-
   "screen.chatsphere.channel_config.title": "频道配置 - #%s",
   "screen.chatsphere.channel_config.public_label": "公开频道: ",
   "screen.chatsphere.channel_config.enabled": "✔ 开启",
@@ -105,7 +97,6 @@
   "screen.chatsphere.channel_config.invited_count": "已邀请: %d",
   "screen.chatsphere.channel_config.online_member_count": "在线成员: %d",
   "screen.chatsphere.channel_config.hint": "管理频道配置、成员和邀请",
-
   "screen.chatsphere.channel_member.title": "成员管理",
   "screen.chatsphere.channel_member.back": "返回",
   "screen.chatsphere.channel_member.info_count": "成员: %d | 在线: %d | 管理: %d | 禁言: %d",
@@ -127,7 +118,6 @@
   "screen.chatsphere.mute_duration.24h": "24 小时",
   "screen.chatsphere.mute_duration.permanent": "永久",
   "screen.chatsphere.mute_duration.cancel": "取消",
-
   "screen.chatsphere.invite_player.title": "邀请玩家",
   "screen.chatsphere.invite_player.back": "返回",
   "screen.chatsphere.invite_player.info_count": "在线: %d | 已邀请: %d",
@@ -135,7 +125,6 @@
   "screen.chatsphere.invite_player.btn_uninvite": "取消",
   "screen.chatsphere.invite_player.tip_invite": "切换该玩家的邀请状态",
   "screen.chatsphere.invite_player.status_member": "成员",
-
   "screen.chatsphere.create_channel.title": "创建频道",
   "screen.chatsphere.create_channel.input_label": "频道名称",
   "screen.chatsphere.create_channel.input_hint": "输入频道名称",
@@ -179,7 +168,6 @@
   "screen.chatsphere.create_channel.preview_invalid": "名称不合法（1-32 位，不能包含 /）",
   "screen.chatsphere.create_channel.confirm": "创建",
   "screen.chatsphere.create_channel.cancel": "取消",
-
   "config.chatsphere.bubble": "气泡",
   "config.chatsphere.bubble_color_own": "自己气泡颜色",
   "config.chatsphere.bubble_color_other": "他人气泡颜色",
@@ -227,7 +215,6 @@
   "config.chatsphere.sound_whisper": "私聊音效",
   "config.chatsphere.sound_system": "系统消息音效",
   "config.chatsphere.sound_public": "公开消息音效",
-
   "screen.chatsphere.context.copy": "复制",
   "screen.chatsphere.context.reply": "引用回复",
   "screen.chatsphere.context.block": "屏蔽消息",
@@ -243,9 +230,7 @@
   "screen.chatsphere.rail.join": "加入",
   "screen.chatsphere.rail.create": "创建",
   "screen.chatsphere.search.no_match": "无匹配",
-
   "hint.chatsphere.mentioned": "你被 %s 提到了",
-
   "screen.chatsphere.channel_config.invite_code": "邀请码:",
   "screen.chatsphere.channel_config.regenerate_code": "重新生成",
   "screen.chatsphere.channel_config.delete_channel": "删除频道",
@@ -270,13 +255,11 @@
   "screen.chatsphere.channel_config.voice_leave": "离开",
   "screen.chatsphere.channel_config.voice_create": "创建",
   "screen.chatsphere.channel_config.voice_room_name_hint": "房间名称...",
-
   "screen.chatsphere.confirm_delete.title": "删除频道",
   "screen.chatsphere.confirm_delete.warning": "删除频道后无法撤销！",
   "screen.chatsphere.confirm_delete.hint": "所有消息将永久丢失。",
   "screen.chatsphere.confirm_delete.confirm": "删除",
   "screen.chatsphere.confirm_delete.cancel": "取消",
-
   "screen.chatsphere.join_channel.title": "加入频道",
   "screen.chatsphere.join_channel.input_label": "邀请码",
   "screen.chatsphere.join_channel.input_hint": "输入邀请码...",
@@ -285,11 +268,9 @@
   "screen.chatsphere.join_channel.result_already_member": "你已经是该频道的成员了。",
   "screen.chatsphere.join_channel.result_not_found": "未找到邀请码 %s 对应的频道。",
   "screen.chatsphere.join_channel.result_success": "已通过邀请码加入频道。",
-
   "screen.chatsphere.confirm_leave.title": "离开频道",
   "screen.chatsphere.confirm_leave.warning": "确认要离开该频道？",
   "screen.chatsphere.confirm_leave.hint": "你可以通过邀请码重新加入。",
-
   "screen.chatsphere.channel_info.title": "频道信息 - #%s",
   "screen.chatsphere.channel_info.display_name": "名称: %s",
   "screen.chatsphere.channel_info.no_description": "暂无简介",
@@ -312,7 +293,6 @@
   "screen.chatsphere.channel_info.expand": "展开",
   "screen.chatsphere.channel_info.collapse": "收起",
   "screen.chatsphere.channel_info.tip_edit_channel": "管理频道设置",
-
   "chatsphere.mute.feedback": "你已被该频道禁言",
   "chatsphere.typing.one": "§7%s 正在输入…",
   "chatsphere.typing.many": "§7%s 等 %d 人正在输入…",
@@ -329,13 +309,11 @@
   "chatsphere.hud.emoji.static": "[表情]",
   "chatsphere.hud.emoji.animated": "[动画表情]",
   "chatsphere.slowmode.feedback": "慢速模式已开启，请 %s 秒后重试",
-
   "config.chatsphere.sync_default_channel": "同步默认频道",
   "config.chatsphere.channel_history": "频道聊天历史",
   "config.chatsphere.invite_history": "邀请带入聊天历史",
   "config.chatsphere.sync": "同步",
   "config.chatsphere.render_emoji_shortcodes": "渲染 :shortcode: 为表情",
-
   "emoji.category.smileys": "笑脸与表情",
   "emoji.category.people": "人物与身体",
   "emoji.category.animals": "动物与自然",
@@ -350,7 +328,6 @@
   "emoji.panel.custom_hint": "自定义表情",
   "emoji.panel.group_builtin": "内置",
   "emoji.panel.group_custom": "自定义",
-
   "screen.chatsphere.custom_emoji.title": "自定义表情",
   "screen.chatsphere.custom_emoji.count": "%d 个",
   "screen.chatsphere.custom_emoji.hint": "把 png/gif 图片放进 %s，点刷新后选中，再点上传到服务器",
@@ -368,7 +345,6 @@
   "screen.chatsphere.custom_emoji.refresh": "刷新",
   "screen.chatsphere.custom_emoji.done": "完成",
   "screen.chatsphere.custom_emoji.empty": "还没有自定义表情，上传图片或放入文件夹后点刷新",
-
   "chatsphere.emoji.no_permission": "你没有上传服务器表情的权限（需要管理员/OP）",
   "chatsphere.emoji.cooldown": "操作太频繁，请 %s 秒后重试",
   "chatsphere.emoji.uploaded": "已上传服务器表情 :%s:",
@@ -393,17 +369,12 @@
   "chatsphere.emoji.err_total": "表情数量已达上限（%s）",
   "chatsphere.emoji.err_total_local": "本地表情数量已达上限（%s）",
   "chatsphere.emoji.err_channel": "频道不存在",
-
   "screen.chatsphere.server_config.title": "服务器配置",
   "screen.chatsphere.config.server_config": "服务器配置",
-
   "chatsphere.server_config.pending_op": "正在检查权限...",
   "chatsphere.server_config.no_op": "你没有权限编辑服务器配置",
-
   "chatsphere.notif.new_messages": "%d 条新消息",
-
   "chatsphere.quick_phrases.add_hint": "添加短语...",
-
   "screen.chatsphere.explore.title": "探索公开频道",
   "screen.chatsphere.explore.loading": "加载中...",
   "screen.chatsphere.explore.empty": "暂无公开频道",
@@ -413,7 +384,6 @@
   "screen.chatsphere.explore.joined": "已加入",
   "screen.chatsphere.explore.tip_joined": "你已加入该频道",
   "screen.chatsphere.explore.back": "返回",
-
   "config.chatsphere.explore": "探索设置",
   "config.chatsphere.explore_enabled": "启用探索功能",
   "config.chatsphere.explore_min_members": "探索最低成员数",
@@ -426,7 +396,6 @@
   "screen.chatsphere.channel_config.tip_main_chat": "关闭后消息将发送到默认聊天子频道",
   "chatsphere.chat_disabled.feedback": "主频道聊天已关闭，请到子频道发言",
   "screen.chatsphere.create_channel.tip_toggle_chat": "主频道聊天开关（关闭时需指定默认聊天子频道）",
-
   "screen.chatsphere.tip.emoji": "切换表情面板",
   "screen.chatsphere.tip.quick_phrases": "切换快捷短语面板",
   "screen.chatsphere.tip.search": "搜索消息",
@@ -462,13 +431,11 @@
   "screen.chatsphere.server_config.tip_back": "返回",
   "screen.chatsphere.config.tip_toggle": "切换此选项的开关",
   "screen.chatsphere.channel_member.tip_back": "返回频道配置",
-
   "ncr.chatsphere.not_installed": "未安装",
   "ncr.chatsphere.safe": "安全",
   "ncr.chatsphere.unsafe": "不安全",
   "ncr.chatsphere.singleplayer": "单人游戏",
   "ncr.chatsphere.unknown": "未知",
-
   "config.chatsphere.ncr": "NCR 兼容",
   "config.chatsphere.ncr_compat": "NCR 兼容功能",
   "config.chatsphere.ncr_safety": "服务器安全状态",
@@ -482,14 +449,11 @@
   "config.chatsphere.allow_vanilla_connection": "允许连接原版服务器",
   "config.chatsphere.compat": "兼容模式",
   "config.chatsphere.compat_vanilla_chat": "纯文本放回原版聊天",
-
   "chatsphere.banned_word.feedback": "您的消息因包含违禁词被屏蔽",
   "config.chatsphere.banned_words": "违禁词（每行一个，支持正则表达式）",
   "config.chatsphere.banned_words_cat": "违禁词",
-
   "pv.activation.chatsphere_room": "聊境语音房间",
   "pv.source_line.chatsphere_room": "聊境房间音频",
-
   "screen.chatsphere.blocklist.title": "已屏蔽的玩家",
   "screen.chatsphere.blocklist.empty": "暂无已屏蔽的玩家。右键消息选择「屏蔽消息」可屏蔽玩家。",
   "screen.chatsphere.blocklist.unblock": "解封",
@@ -501,7 +465,6 @@
   "screen.chatsphere.tip.pick_item": "从背包中选择一个物品分享",
   "screen.chatsphere.tip.voice_message": "语音消息",
   "chatsphere.voice.received": "语音消息",
-
   "config.chatsphere.voice_cache": "语音缓存",
   "config.chatsphere.voice_cache_enabled": "启用语音缓存",
   "config.chatsphere.voice_cache_max_age": "语音缓存最大保存时间（小时）",
@@ -533,7 +496,6 @@
   "config.chatsphere.link_preview_cache_mb": "预览缓存上限（MB）",
   "config.chatsphere.link_preview_ttl": "预览缓存时长（小时）",
   "config.chatsphere.link_preview_max": "每条消息最多卡片数",
-  "config.chatsphere.links_cat": "链接",
   "config.chatsphere.link_preview_enabled": "允许链接预览",
   "config.chatsphere.link_preview_domains": "预览域名白名单（每行一个正则，留空=不限制）",
   "config.chatsphere.image_group": "聊天图片",
@@ -558,11 +520,34 @@
   "chatsphere.image.err_op": "需要管理员权限",
   "chatsphere.image.err_cooldown": "上传太频繁，请稍后再试",
   "chatsphere.image.err_limit": "上传数量已达上限",
+  "chatsphere.image.missing": "图片已失效",
+  "chatsphere.image.missing_hint": "点击任意位置或按 ESC 返回",
   "screen.chatsphere.item_ref": "[物品]",
   "screen.chatsphere.cmd_input": "输入",
   "screen.chatsphere.cmd_output": "输出",
   "screen.chatsphere.unknown_player": "未知玩家",
   "screen.chatsphere.channel_config.invite_code_na": "无",
   "chatsphere.bridge.version_warning": "服务端聊天桥协议版本不匹配（桥 %s vs 模组 %s，桥版本 %s），部分聊天功能可能不可用",
-  "chatsphere.system_name": "系统"
+  "chatsphere.system_name": "系统",
+  "config.chatsphere.chat_cat": "聊天",
+  "config.chatsphere.voice_cat": "语音",
+  "config.chatsphere.general_cat": "常规",
+  "config.chatsphere.group_chat": "聊天",
+  "config.chatsphere.group_sync": "同步",
+  "config.chatsphere.group_voice": "语音",
+  "config.chatsphere.group_emoji": "表情",
+  "config.chatsphere.media_cat": "聊天媒体",
+  "config.chatsphere.backups_cat": "备份",
+  "screen.chatsphere.channel_config.icon_label": "频道头像",
+  "screen.chatsphere.channel_config.icon_hint": "没有头像时显示频道名首字母",
+  "screen.chatsphere.channel_config.icon_admin_only": "仅管理员可设置头像",
+  "screen.chatsphere.channel_config.tip_icon_apply": "下载链接并居中裁剪成方形头像",
+  "screen.chatsphere.channel_config.tip_icon_clear": "清除头像，恢复显示首字母",
+  "config.chatsphere.group_explore": "探索页",
+  "config.chatsphere.group_safety": "违禁词",
+  "config.chatsphere.group_links": "链接预览",
+  "config.chatsphere.group_images": "聊天图片",
+  "config.chatsphere.group_backup": "备份",
+  "screen.chatsphere.channel_config.icon_drop": "拖入图片作为头像",
+  "screen.chatsphere.channel_config.icon_not_image": "请拖入 png 或 jpg 图片"
 }

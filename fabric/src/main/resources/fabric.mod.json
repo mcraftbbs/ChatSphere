@@ -3,15 +3,16 @@
     "id": "chatsphere",
     "version": "${version}",
     "name": "ChatSphere",
-    "description": "Server-side chat channels with a modern chat UI and voice room integration.",
-    "authors": ["sarskin"],
+    "description": "A sleek social chat mod for Minecraft that replaces vanilla chat with channels, private messaging, and a modern GUI.",
+    "authors": ["xwwsdd"],
     "license": "GNU LGPLv3",
     "icon": "logo.png",
     "environment": "*",
     "entrypoints": {
         "main": ["cn.sarskin.ChatSphere.fabric.ChatSphereFabric"],
         "client": ["cn.sarskin.ChatSphere.fabric.client.ChatSphereFabricClient"],
-        "modmenu": ["cn.sarskin.ChatSphere.fabric.client.ModMenuCompat"]
+        "modmenu": ["cn.sarskin.ChatSphere.fabric.client.ModMenuCompat"],
+        "voicechat": ["cn.sarskin.ChatSphere.client.voice.ChatSphereSvcPlugin"]
     },
     "mixins": [
         "chatsphere.mixins.json",
@@ -19,7 +20,7 @@
     ],
     "depends": {
         "fabricloader": ">=0.16.0",
-        "minecraft": ">=1.20.1",
+        "minecraft": ">=1.20.1 <1.21",
         "java": ">=17",
         "fabric-api": "*"
     },

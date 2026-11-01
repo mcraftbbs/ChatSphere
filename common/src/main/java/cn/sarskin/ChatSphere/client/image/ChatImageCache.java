@@ -23,6 +23,12 @@ import java.util.stream.Stream;
 /** Client side chat image cache: bytes on disk, textures created on first draw. */
 public final class ChatImageCache {
     private static final int MAX_TEXTURES = 48;
+    /** Side of a baked channel icon texture; large enough to stay sharp at 32 px with room to spare. */
+    public static final int ICON_TEX = 128;
+    /** Corner radius of a baked channel icon, as a fraction of the side. */
+    public static final float ICON_CORNER = 0.25f;
+    /** Samples per axis used to average corner coverage when baking an icon. */
+    private static final int SS = 4;
     private static final Map<String, byte[]> BYTES = new ConcurrentHashMap<>();
     private static final Map<String, ResourceLocation> TEXTURES = new ConcurrentHashMap<>();
     private static final Map<String, int[]> SIZES = new ConcurrentHashMap<>();
@@ -216,6 +222,88 @@ public final class ChatImageCache {
     /** Pixel size of a texture that was already built, else null. */
     public static int[] textureSize(String id) {
         return SIZES.get(id);
+    }
+
+    /** Corner baked into the alpha: a draw-time mask is only as fine as one logical pixel, a staircase at GUI scale 3+. */
+    public static ResourceLocation iconTexture(String id) {
+        String key = id + ":icon";
+        ResourceLocation cached = TEXTURES.get(key);
+        if (cached != null) {
+            LAST_USE.put(key, System.currentTimeMillis());
+            return cached;
+        }
+        byte[] data = bytes(id);
+        if (data == null) return null;
+        byte[] png = ChatImageGuard.pngBytes(data);
+        if (png == null) return null;
+        byte[] baked = roundSquare(png, ICON_TEX, Math.round(ICON_TEX * ICON_CORNER));
+        if (baked == null) return null;
+        try {
+            NativeImage image = NativeImage.read(new ByteArrayInputStream(baked));
+            DynamicTexture texture = new DynamicTexture(image);
+            texture.setFilter(true, false);
+            ResourceLocation location = new ResourceLocation("chatsphere", "images/" + id + "_icon");
+            Minecraft.getInstance().getTextureManager().register(location, texture);
+            TEXTURES.put(key, location);
+            LAST_USE.put(key, System.currentTimeMillis());
+            evict();
+            return location;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Centre-crops to a square and masks a rounded corner in, both anti-aliased. */
+    private static byte[] roundSquare(byte[] png, int side, int radius) {
+        try {
+            java.awt.image.BufferedImage src = javax.imageio.ImageIO.read(new ByteArrayInputStream(png));
+            if (src == null || src.getWidth() <= 0 || src.getHeight() <= 0) return null;
+            java.awt.image.BufferedImage scaled =
+                    new java.awt.image.BufferedImage(side, side, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            java.awt.Graphics2D g = scaled.createGraphics();
+            try {
+                g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                        java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                int edge = Math.min(src.getWidth(), src.getHeight());
+                int sx = (src.getWidth() - edge) / 2;
+                int sy = (src.getHeight() - edge) / 2;
+                g.drawImage(src, 0, 0, side, side, sx, sy, sx + edge, sy + edge, null);
+            } finally {
+                g.dispose();
+            }
+            // Supersampled by hand: Java2D's DstIn leaves the alpha at 255 on a plain ARGB image, so it would not cut out
+            double r = radius;
+            int[] px = new int[side * side];
+            for (int y = 0; y < side; y++) {
+                for (int x = 0; x < side; x++) {
+                    int inside = 0;
+                    for (int oy = 0; oy < SS; oy++) {
+                        for (int ox = 0; ox < SS; ox++) {
+                            if (insideRounded(x + (ox + 0.5) / SS, y + (oy + 0.5) / SS, side, r)) inside++;
+                        }
+                    }
+                    int argb = scaled.getRGB(x, y);
+                    int a = (argb >>> 24) * Math.round(255f * inside / (SS * SS)) / 255;
+                    px[y * side + x] = (a << 24) | (argb & 0x00FFFFFF);
+                }
+            }
+            java.awt.image.BufferedImage out =
+                    new java.awt.image.BufferedImage(side, side, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            out.setRGB(0, 0, side, side, px, 0, side);
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            if (!javax.imageio.ImageIO.write(out, "png", bytes)) return null;
+            return bytes.toByteArray();
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /** True when the point lies inside the rounded square; the flat spans are unbounded in one axis. */
+    private static boolean insideRounded(double x, double y, int side, double r) {
+        double cx = Math.min(Math.max(x, r), side - r);
+        double cy = Math.min(Math.max(y, r), side - r);
+        double dx = x - cx, dy = y - cy;
+        return dx * dx + dy * dy <= r * r;
     }
 
     private static void evict() {

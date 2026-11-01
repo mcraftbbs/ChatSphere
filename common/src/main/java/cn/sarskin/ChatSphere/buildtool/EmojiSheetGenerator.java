@@ -51,7 +51,9 @@ public class EmojiSheetGenerator {
                     imgs[i] = resize(orig, CELL, CELL);
                     cdn++;
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                System.out.println("CDN miss for " + list.get(i).unicode + ": " + e);
+            }
             if (imgs[i] == null) {
                 try {
                     imgs[i] = renderAwt(list.get(i).unicode);

@@ -15,6 +15,18 @@ public final class Ui {
         int offset = Math.max(0, (size - icon) / 2);
         g.blit(CLOSE_ICON, x + offset, y + offset, icon, icon, 0f, 0f, icon, icon, icon, icon);
     }
+
+    /** Same glyph centred inside an arbitrary rect, for buttons that are not square. */
+    public static void drawCloseIcon(GuiGraphics g, int x, int y, int w, int h) {
+        int icon = 10;
+        g.blit(CLOSE_ICON, x + (w - icon) / 2, y + (h - icon) / 2, icon, icon, 0f, 0f, icon, icon, icon, icon);
+    }
+
+    /** The close glyph texture, for callers that draw it into their own button surface. */
+    public static ResourceLocation closeIcon() {
+        return CLOSE_ICON;
+    }
+
     private Ui() {}
 
     private static final Map<Integer, int[]> CORNER_ALPHA_CACHE = new HashMap<>();
@@ -118,17 +130,32 @@ public final class Ui {
 
     /** Cut rounded corners out of a blitted avatar texture (corner pixels filled with the given color). */
     public static void fillAvatarCorners(GuiGraphics g, int x, int y, int size, int r, int color) {
-        r = Math.min(r, size / 2);
+        fillCornersOutsideArc(g, x, y, size, size, r, color);
+    }
+
+    /** Paints only the pixels outside the corner arcs, so whatever was drawn inside reads rounded. */
+    public static void fillCornersOutsideArc(GuiGraphics g, int x, int y, int w, int h, int r, int color) {
+        if (g == null || w <= 0 || h <= 0) return;
+        r = Math.min(r, Math.min(w, h) / 2);
         if (r <= 0) return;
-        int x1 = x + size, y1 = y + size;
+        int baseAlpha = color >>> 24;
+        if (baseAlpha == 0) return;
+        int rgb = color & 0x00FFFFFF;
+        int[] alphas = cornerAlphas(r);
+        int x1 = x + w, y1 = y + h;
         for (int dy = 0; dy < r; dy++) {
-            for (int dx = 0; dx < r; dx++) {
-                double d = Math.sqrt((dx + 0.5 - r) * (dx + 0.5 - r) + (dy + 0.5 - r) * (dy + 0.5 - r));
-                if (d <= r) continue;
-                g.fill(x + dx, y + dy, x + dx + 1, y + dy + 1, color);
-                g.fill(x1 - 1 - dx, y + dy, x1 - dx, y + dy + 1, color);
-                g.fill(x + dx, y1 - 1 - dy, x + dx + 1, y1 - dy, color);
-                g.fill(x1 - 1 - dx, y1 - 1 - dy, x1 - dx, y1 - dy, color);
+            int topY = y + dy;
+            int botY = y1 - 1 - dy;
+            for (int col = 0; col < r; col++) {
+                int outside = 255 - alphas[dy * r + col];
+                if (outside <= 0) continue;
+                int a = (baseAlpha * outside) / 255;
+                if (a == 0) continue;
+                int argb = (a << 24) | rgb;
+                g.fill(x + col, topY, x + col + 1, topY + 1, argb);
+                g.fill(x1 - 1 - col, topY, x1 - col, topY + 1, argb);
+                g.fill(x + col, botY, x + col + 1, botY + 1, argb);
+                g.fill(x1 - 1 - col, botY, x1 - col, botY + 1, argb);
             }
         }
     }
@@ -256,7 +283,22 @@ public final class Ui {
             }
             return;
         }
+        withRoundedClipAlways(g, x, y, w, h, r, draw);
+    }
+
+    /** Same as {@link #withRoundedClip} but rounded even in the square corner style. */
+    public static void withRoundedClipAlways(GuiGraphics g, int x, int y, int w, int h, int r, Runnable draw) {
+        if (g == null || draw == null || w <= 0 || h <= 0) return;
         r = Math.min(r, Math.min(w, h) / 2);
+        if (r <= 0) {
+            g.enableScissor(x, y, x + w, y + h);
+            try {
+                draw.run();
+            } finally {
+                g.disableScissor();
+            }
+            return;
+        }
         int middleTop = y + r;
         int middleBottom = y + h - r;
         if (middleBottom > middleTop) {
@@ -280,7 +322,7 @@ public final class Ui {
     }
 
     /** Horizontal inset (px) of the arc at a given corner row; same geometry as cornerAlphas. */
-    private static int cornerInset(int radius, int row) {
+    public static int cornerInset(int radius, int row) {
         double centerDistance = radius - row - 0.5D;
         double horizontal = Math.sqrt(Math.max(0.0D, radius * radius - centerDistance * centerDistance));
         return Math.max(0, radius - (int) Math.floor(horizontal));

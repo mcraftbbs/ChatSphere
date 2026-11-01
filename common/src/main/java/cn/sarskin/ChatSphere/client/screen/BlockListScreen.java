@@ -21,9 +21,13 @@ import net.minecraft.util.Mth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Blocked players list; clicking a row also unblocks (legacy). */
 public class BlockListScreen extends Screen {
+    private static final Logger LOGGER = LoggerFactory.getLogger("BlockListScreen");
+
     private static final ResourceLocation BLOCK_ICON = new ResourceLocation(
             cn.sarskin.ChatSphere.ModInfo.MODID, "textures/gui/block.png");
     private static final int PAD = 12;
@@ -180,7 +184,9 @@ public class BlockListScreen extends Screen {
     private void drawPlayerHead(GuiGraphics g, String uuidStr, int x, int y, int size) {
         try {
             PlayerFaceRenderer.draw(g, PlayerSkinCache.getSkin(UUID.fromString(uuidStr)), x, y, size);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            LOGGER.debug("No head for {}", uuidStr, e);
+        }
     }
 
     @Override

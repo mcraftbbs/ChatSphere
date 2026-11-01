@@ -211,11 +211,13 @@ public class CreateChannelScreen extends Screen {
         this.addWidget(this.descInput);
         y += fieldH + (rowH - fieldH) + 4;
 
-        this.addRenderableWidget(new UiToggle(contentRight - 60, y + 1, 60, 18, isPublic, v -> isPublic = v))
+        int toggleY = y + (rowH - 18) / 2;
+        this.addRenderableWidget(new UiToggle(contentRight - 60, toggleY, 60, 18, isPublic, v -> isPublic = v))
                 .setTooltip(Tooltip.create(Component.translatable("screen.chatsphere.create_channel.tip_toggle_public")));
         y += rowH;
 
-        this.addRenderableWidget(new UiToggle(contentRight - 60, y + 1, 60, 18, mainChatEnabled, v -> {
+        int toggle2Y = y + (rowH - 18) / 2;
+        this.addRenderableWidget(new UiToggle(contentRight - 60, toggle2Y, 60, 18, mainChatEnabled, v -> {
             mainChatEnabled = v;
             if (this.defaultSubInput != null) this.defaultSubInput.setVisible(!v);
         })).setTooltip(Tooltip.create(Component.translatable("screen.chatsphere.create_channel.tip_toggle_chat")));

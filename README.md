@@ -4,11 +4,11 @@
 
 ![ChatSphere](https://cdn.modrinth.com/data/cached_images/8cc6c14cc43b82f8053acb11d80eed267154bdab_0.webp)
 
-A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**, plus a **Fabric (1.20.1)** port. Replaces vanilla chat with channels, private messaging, voice rooms, emoji, and a full GUI.
+A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**, plus **Fabric & Forge (1.20.1)**. Replaces vanilla chat with channels, private messaging, voice rooms, emoji, and a full GUI.
 
 > **License:** GNU LGPLv3 — released jars carry the LGPLv3 text and a third-party notice (`LICENSE`, `THIRD-PARTY.md`)
 > **Mod ID:** `chatsphere`
-> **Version:** 2.5.0-1.20.1
+> **Version:** 2.5.1-1.20.1
 
 ---
 
@@ -35,7 +35,7 @@ A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**
 
 ## Installation
 
-1. Install **NeoForge 21.1.228** or **Fabric Loader 0.16.x** (+ Fabric API) for 1.21.1, or the **Fabric 1.20.1** build
+1. Install **NeoForge 21.1.228** or **Fabric Loader 0.16.x** (+ Fabric API) for 1.21.1, or **Forge 47.4.0** / **Fabric 1.20.1**
 2. Drop the matching ChatSphere `.jar` into `mods/`
 3. (Optional) Install **Simple Voice Chat** and/or **PlasmoVoice** for voice rooms
 

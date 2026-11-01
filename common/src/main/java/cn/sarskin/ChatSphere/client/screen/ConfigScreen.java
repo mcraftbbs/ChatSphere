@@ -20,9 +20,7 @@ import cn.sarskin.ChatSphere.style.CustomTheme;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
@@ -32,6 +30,7 @@ import net.minecraft.util.Mth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static cn.sarskin.ChatSphere.config.ModClientConfig.CONFIG_SPEC;
@@ -212,11 +211,11 @@ public class ConfigScreen extends Screen {
             y -> mkStrBox(y, ModClientConfig.CONFIG.customSkinApiUrl.get(), s -> { ModClientConfig.CONFIG.customSkinApiUrl.set(s); scheduleConfigSave(); }), null));
         skin.add(new Opt("config.chatsphere.avatar_cache_enabled", y -> mkBool(y, ModClientConfig.CONFIG.avatarCacheEnabled)));
         skin.add(new Opt("config.chatsphere.refresh_skin_cache", y ->
-            Button.builder(Component.translatable("config.chatsphere.refresh_skin_cache"), btn -> {
+            StyledButton.styledBuilder(Component.translatable("config.chatsphere.refresh_skin_cache"), btn -> {
                     PlayerSkinCache.refreshCache();
                 })
                 .bounds(inputX, y, btnW, 20)
-                .tooltip(Tooltip.create(Component.translatable("config.chatsphere.refresh_skin_cache.tip")))
+                .tooltip(Component.translatable("config.chatsphere.refresh_skin_cache.tip"))
                 .build(), null));
         cats.add(Cat.plain("config.chatsphere.skin", skin));
 
@@ -238,7 +237,7 @@ public class ConfigScreen extends Screen {
                 new Opt("config.chatsphere.ncr_compat", y -> mkBool(y, ModClientConfig.CONFIG.ncrCompat)),
                 new Opt("config.chatsphere.ncr_safety", y -> {
                     Component label = NCRCompat.getSafetyStatusComponent();
-                    return Button.builder(label, btn -> {})
+                    return StyledButton.styledBuilder(label, btn -> {})
                             .bounds(inputX, y, btnW, 20).build();
                 }),
                 new Opt("config.chatsphere.ncr_prevents_reports", y -> mkServerBool(y, "preventsChatReports", ModServerConfig.CONFIG.preventsChatReports)))));
@@ -250,7 +249,7 @@ public class ConfigScreen extends Screen {
             () -> cn.sarskin.ChatSphere.style.CustomTheme.INSTANCE.isActive()
                     && cn.sarskin.ChatSphere.style.CustomTheme.INSTANCE.error() == null
                     ? "#44FF44" : "#FF4444"));
-        custTheme.add(new Opt("config.chatsphere.custom_theme_gallery", y -> Button.builder(
+        custTheme.add(new Opt("config.chatsphere.custom_theme_gallery", y -> StyledButton.styledBuilder(
                 Component.translatable("config.chatsphere.custom_theme_gallery"),
                 btn -> {
                     if (minecraft != null) minecraft.setScreen(new ThemeGalleryScreen(this));
@@ -262,17 +261,26 @@ public class ConfigScreen extends Screen {
     private AbstractWidget mkThemeToggle(int y) {
         var cfg = ModClientConfig.CONFIG.customThemeActive;
         if (Theme.originalStyle()) {
-            return Button.builder(
-                    Component.translatable(cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"),
-                    btn -> {
-                        applyThemeToggle(!cfg.get());
-                        btn.setMessage(Component.translatable(
-                                cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"));
-                    })
-                    .bounds(inputX, y, btnW, 20)
-                    .build();
+            return originalBoolButton(y, cfg::get, () -> applyThemeToggle(!cfg.get()));
         }
         return new UiToggle(inputX, y, btnW, 20, cfg.get(), this::applyThemeToggle);
+    }
+
+    /** Original corner style shows booleans as a labelled button; still a StyledButton so the role colour carries the state. */
+    private AbstractWidget originalBoolButton(int y, BooleanSupplier isOn, Runnable flip) {
+        boolean on = isOn.getAsBoolean();
+        return StyledButton.styledBuilder(boolText(on), btn -> {
+            flip.run();
+            boolean now = isOn.getAsBoolean();
+            btn.setMessage(boolText(now));
+            ((StyledButton) btn).setStyle(now ? StyledButton.Style.TOGGLE_ON : StyledButton.Style.TOGGLE_OFF);
+        }).bounds(inputX, y, btnW, 20)
+                .style(on ? StyledButton.Style.TOGGLE_ON : StyledButton.Style.TOGGLE_OFF)
+                .build();
+    }
+
+    private static Component boolText(boolean on) {
+        return Component.translatable(on ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled");
     }
 
     private void applyThemeToggle(boolean next) {
@@ -289,7 +297,7 @@ public class ConfigScreen extends Screen {
     /** Notification level for conversations without their own setting. */
     private AbstractWidget mkNotificationLevel(int y) {
         var cfg = ModClientConfig.CONFIG.defaultNotificationLevel;
-        return Button.builder(ChatHistoryManager.notificationLevelLabel(cfg.get()), btn -> {
+        return StyledButton.styledBuilder(ChatHistoryManager.notificationLevelLabel(cfg.get()), btn -> {
             int next = (cfg.get() + 1) % 3;
             cfg.set(next);
             CONFIG_SPEC.save();
@@ -426,18 +434,19 @@ public class ConfigScreen extends Screen {
             }
         }
 
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, btn -> {
+        addRenderableWidget(StyledButton.styledBuilder(CommonComponents.GUI_DONE, btn -> {
                 confirmed = true;
                 onClose();
             })
             .bounds(width / 2 - 100, height - 32, 200, 20)
-            .tooltip(Tooltip.create(Component.translatable("screen.chatsphere.config.tip_done"))).build());
+            .style(StyledButton.Style.CONFIRM)
+            .tooltip(Component.translatable("screen.chatsphere.config.tip_done")).build());
 
-        addRenderableWidget(Button.builder(
+        addRenderableWidget(StyledButton.styledBuilder(
             Component.translatable("screen.chatsphere.config.server_config"),
             btn -> tryOpenServerConfig()
         ).bounds(width / 2 + 106, height - 32, 100, 20)
-            .tooltip(Tooltip.create(Component.translatable("screen.chatsphere.config.tip_server_config"))).build());
+            .tooltip(Component.translatable("screen.chatsphere.config.tip_server_config")).build());
     }
 
     private void switchCategory(int idx) {
@@ -490,8 +499,10 @@ public class ConfigScreen extends Screen {
     private void drawColorPreview(GuiGraphics g, int y, String hex) {
         int color = ModClientConfig.parseHexColor(hex, Theme.textDim());
         int px = inputX - 22;
-        g.fill(px, y + 4, px + 12, y + 16, Theme.previewSwatchBg());
-        g.fill(px + 1, y + 5, px + 11, y + 15, color);
+        int sw = 12;
+        int sy = y + (ROW_H - sw) / 2;
+        g.fill(px, sy, px + sw, sy + sw, Theme.previewSwatchBg());
+        g.fill(px + 1, sy + 1, px + sw - 1, sy + sw - 1, color);
     }
 
     private AbstractWidget mkBool(int y, CfgValue.Bool cfg) {
@@ -500,17 +511,11 @@ public class ConfigScreen extends Screen {
 
     private AbstractWidget mkBool(int y, CfgValue.Bool cfg, Consumer<Boolean> onChange) {
         if (Theme.originalStyle()) {
-            return Button.builder(
-                    Component.translatable(cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"),
-                    btn -> {
-                        cfg.set(!cfg.get());
-                        CONFIG_SPEC.save();
-                        onChange.accept(cfg.get());
-                        btn.setMessage(Component.translatable(
-                                cfg.get() ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"));
-                    })
-                    .bounds(inputX, y, btnW, 20)
-                    .build();
+            return originalBoolButton(y, cfg::get, () -> {
+                cfg.set(!cfg.get());
+                CONFIG_SPEC.save();
+                onChange.accept(cfg.get());
+            });
         }
         return new UiToggle(inputX, y, btnW, 20, cfg.get(), v -> {
             cfg.set(v);
@@ -531,17 +536,11 @@ public class ConfigScreen extends Screen {
 
     private AbstractWidget mkServerBool(int y, String fieldName, CfgValue.Bool cfg) {
         if (Theme.originalStyle()) {
-            return Button.builder(
-                    Component.translatable(safeGetBool(cfg) ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"),
-                    btn -> {
-                        boolean next = !safeGetBool(cfg);
-                        ModServerConfig.safeSetBool(cfg, fieldName, next);
-                        sendConfigUpdate(fieldName, String.valueOf(next));
-                        btn.setMessage(Component.translatable(
-                                next ? "screen.chatsphere.config.enabled" : "screen.chatsphere.config.disabled"));
-                    })
-                    .bounds(inputX, y, btnW, 20)
-                    .build();
+            return originalBoolButton(y, () -> safeGetBool(cfg), () -> {
+                boolean next = !safeGetBool(cfg);
+                ModServerConfig.safeSetBool(cfg, fieldName, next);
+                sendConfigUpdate(fieldName, String.valueOf(next));
+            });
         }
         return new UiToggle(inputX, y, btnW, 20, safeGetBool(cfg), v -> {
             ModServerConfig.safeSetBool(cfg, fieldName, v);
@@ -651,15 +650,17 @@ public class ConfigScreen extends Screen {
                 if (y >= CONTENT_Y && y + GROUP_H <= contentBottom) {
                     g.fill(10, y, width - 10, y + 1, Theme.sectionLine());
                     String arrow = grp.collapsed ? "\u25B8" : "\u25BE";
-                    g.drawString(font, arrow, optLabelX - 14, y + 6, Theme.textDim(), false);
-                    g.drawString(font, Component.translatable(grp.key), optLabelX, y + 6, Theme.textDim(), false);
+                    g.drawString(font, arrow, optLabelX - 14, y + (GROUP_H - 8) / 2, Theme.textDim(), false);
+                    g.drawString(font, Component.translatable(grp.key), optLabelX,
+                            y + (GROUP_H - 8) / 2, Theme.textDim(), false);
                 }
                 y += GROUP_H;
             }
             if (grp.collapsed) continue;
             for (Opt opt : grp.opts) {
                 if (y >= CONTENT_Y && y + ROW_H <= contentBottom) {
-                    g.drawString(font, Component.translatable(opt.key()), optLabelX, y + 6, Theme.text(), false);
+                    g.drawString(font, Component.translatable(opt.key()), optLabelX,
+                            y + (ROW_H - 8) / 2, Theme.text(), false);
                     if (opt.previewColor() != null)
                         drawColorPreview(g, y, opt.previewColor().get());
                 }

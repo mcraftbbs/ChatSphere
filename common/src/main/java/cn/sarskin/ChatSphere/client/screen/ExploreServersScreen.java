@@ -4,6 +4,7 @@ import cn.sarskin.ChatSphere.platform.PacketSender;
 
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
+import cn.sarskin.ChatSphere.client.ui.ChannelIcons;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
@@ -109,10 +110,15 @@ public class ExploreServersScreen extends Screen {
     }
 
     private void repositionButtons() {
-        int y = HEADER_H + 8 - scrollOffset;
+        int listTop = HEADER_H + 8;
+        int listBot = height - 40;
+        int y = listTop - scrollOffset;
         for (ChannelRow r : rows) {
             if (r.joinBtn != null) {
-                r.joinBtn.setY(y + (ROW_H - 20) / 2);
+                int btnY = y + (ROW_H - 20) / 2;
+                // Hide the button with its row, or it floats over the footer while the row is clipped away
+                r.joinBtn.visible = btnY >= listTop - 20 && btnY + 20 <= listBot + 20;
+                r.joinBtn.setY(btnY);
             }
             y += ROW_H;
         }
@@ -194,15 +200,20 @@ public class ExploreServersScreen extends Screen {
             g.drawString(font, empty, width / 2 - font.width(empty) / 2,
                     height / 2 - 10, Theme.textDim(), false);
         } else {
-            scrollMax = Math.max(0, rows.size() * ROW_H - (height - HEADER_H - 8 - 40));
+            // Rows stop above the footer button; without the clip the last row slid under it
+            int listTop = HEADER_H + 8;
+            int listBot = height - 40;
+            scrollMax = Math.max(0, rows.size() * ROW_H - (listBot - listTop));
             scrollOffset = Mth.clamp(scrollOffset, 0, scrollMax);
             repositionButtons();
 
-            int y = HEADER_H + 8 - scrollOffset;
+            g.enableScissor(PAD, listTop, width - PAD, listBot);
+            int y = listTop - scrollOffset;
             for (ChannelRow r : rows) {
                 drawRow(g, r.entry, y, mouseX, mouseY);
                 y += ROW_H;
             }
+            g.disableScissor();
 
             if (scrollMax > 0) {
                 int trackTop = HEADER_H + 8;
@@ -228,11 +239,10 @@ public class ExploreServersScreen extends Screen {
             Ui.fillRoundedRect(g, PAD, y, rowW, ROW_H, 6, Theme.hoverRow());
         }
 
+        // No plate: iconBtnBg() is translucent black and this row has no card, so the square read as a black block
         int iconX = PAD + 4;
         int iconY = y + (ROW_H - 28) / 2;
-        Ui.fillRoundedRect(g, iconX, iconY, 28, 28, 7, Theme.iconBtnBg());
-        Ui.renderRoundedOutline(g, iconX, iconY, 28, 28, 7, Theme.divider());
-        g.drawString(font, "#", iconX + (28 - font.width("#")) / 2, iconY + 10, Theme.accent(), false);
+        ChannelIcons.draw(g, entry.channelId(), iconX, iconY, 28, Theme.textDim());
 
         int textX = iconX + 28 + 12;
         int textW = btnAreaX - textX - 8;

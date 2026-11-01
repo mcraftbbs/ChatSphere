@@ -31,6 +31,8 @@ public final class CustomTheme {
     private String error;
     private volatile boolean initialized;
     private int revision;
+    /** The popupBorder default is applied at most once per session. */
+    private boolean borderSeedDone;
 
     private CustomTheme() {}
 
@@ -156,12 +158,15 @@ public final class CustomTheme {
 
     /** Seed the config from styles.popupBorder; the config is the renderer's live value. */
     private void syncConfigFromStyles() {
-        if (active == null) return;
+        if (active == null || borderSeedDone) return;
         Integer v = active.styles.get("popupBorder");
         if (v == null) return;
         try {
             cn.sarskin.ChatSphere.config.ModClientConfig cfg =
                     cn.sarskin.ChatSphere.config.ModClientConfig.CONFIG;
+            // Seed once only: every bundled preset sets this to 1, so re-seeding re-enabled the border each launch
+            borderSeedDone = true;
+            if (cfg.CONFIG_SPEC.hasStoredKey("popupBorder")) return;
             if (cfg.popupBorder.get() != (v != 0)) {
                 cfg.popupBorder.set(v != 0);
                 cfg.CONFIG_SPEC.save();

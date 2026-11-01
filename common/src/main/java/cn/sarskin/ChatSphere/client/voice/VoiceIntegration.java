@@ -29,6 +29,8 @@ public class VoiceIntegration {
     private static Class<?> svcConnectionClass;
     private static Method svcGetConnection;
     private static Method svcSetGroup;
+    private static Method svcGetGroup;
+    private static Method svcGroupGetName;
     private static Class<?> svcGroupClass;
     private static volatile boolean svcReflectionCached;
 
@@ -117,6 +119,8 @@ public class VoiceIntegration {
             if (svcGetConnection == null) svcGetConnection = findMethod(svcApiClass, "fromUuid", UUID.class);
             svcGroupClass = Class.forName("de.maxhenkel.voicechat.api.Group");
             svcSetGroup = svcConnectionClass.getMethod("setGroup", svcGroupClass);
+            svcGetGroup = findMethod(svcConnectionClass, "getGroup");
+            svcGroupGetName = findMethod(svcGroupClass, "getName");
             svcReflectionCached = true;
         } catch (Throwable e) {
             svcReflectionCached = false;
@@ -128,9 +132,16 @@ public class VoiceIntegration {
     private static void joinSvcGroup(String channelId, String roomName, UUID playerUuid) {
         try {
             Object api = getSvcApi();
-            if (api == null || !svcReflectionCached) return;
-            String groupName = "chatsphere_" + channelId.replace(":", "_") + "_" + roomName;
-            UUID groupId = UUID.nameUUIDFromBytes(groupName.getBytes());
+            if (api == null) {
+                LOGGER.warn("SVC join skipped: server API not captured yet (VoicechatServerStartedEvent never fired?)");
+                return;
+            }
+            if (!svcReflectionCached) {
+                LOGGER.warn("SVC join skipped: reflection cache is empty, see the caching warning above");
+                return;
+            }
+            String groupName = expectedGroupName(channelId, roomName);
+            UUID groupId = UUID.nameUUIDFromBytes(groupName.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             Object builder = svcGroupBuilder.invoke(api);
             svcSetId.invoke(builder, groupId);
             svcSetName.invoke(builder, groupName);
@@ -138,12 +149,52 @@ public class VoiceIntegration {
             svcSetPassword.invoke(builder, "");
             Object group = svcBuild.invoke(builder);
             Object connection = svcGetConnection.invoke(api, playerUuid);
-            if (connection != null) {
-                svcSetGroup.invoke(connection, group);
+            if (connection == null) {
+                // A group only reaches SVC's list once a connection adopts it, so a null connection means the room never appears
+                LOGGER.warn("SVC join skipped: no voice connection for {} (player not voice-connected yet), group={}",
+                        playerUuid, groupName);
+                return;
             }
+            svcSetGroup.invoke(connection, group);
+            LOGGER.info("SVC joined group={} for {}", groupName, playerUuid);
         } catch (Throwable e) {
-            LOGGER.warn("SVC join failed: {}", e.getMessage());
+            LOGGER.warn("SVC join failed for group chatsphere_{}_{}: {}", channelId, roomName, e.toString());
         }
+    }
+
+    /** True when SVC already has a connection object for this player, i.e. voice is handshaked. */
+    public static boolean isVoiceConnected(UUID playerUuid) {
+        if (!isSvcPresent() || !svcReflectionCached || playerUuid == null) return false;
+        try {
+            Object api = getSvcApi();
+            if (api == null) return false;
+            return svcGetConnection.invoke(api, playerUuid) != null;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /** Groups are rebuilt per server start, so a member list can survive while the connection sits in no group. */
+    public static boolean isInSvcGroup(String channelId, String roomName, UUID playerUuid) {
+        if (!isSvcPresent()) return true;
+        if (!svcReflectionCached || playerUuid == null) return true;
+        try {
+            Object api = getSvcApi();
+            if (api == null) return true;
+            Object connection = svcGetConnection.invoke(api, playerUuid);
+            if (connection == null) return false;
+            Object group = svcGetGroup.invoke(connection);
+            if (group == null) return false;
+            Object name = svcGroupGetName.invoke(group);
+            return expectedGroupName(channelId, roomName).equals(name);
+        } catch (Throwable e) {
+            // A probe that cannot read the state must not kick the player out of the room
+            return true;
+        }
+    }
+
+    private static String expectedGroupName(String channelId, String roomName) {
+        return "chatsphere_" + channelId.replace(":", "_") + "_" + roomName;
     }
 
     @SuppressWarnings("unchecked")

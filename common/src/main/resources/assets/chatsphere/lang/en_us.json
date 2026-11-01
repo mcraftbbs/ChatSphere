@@ -5,10 +5,8 @@
   "screen.chatsphere.theme_gallery.title": "Custom Themes",
   "screen.chatsphere.theme_gallery.close": "Close",
   "screen.chatsphere.theme_gallery.load_error": "Theme load failed",
-
   "key.categories.chatsphere": "ChatSphere",
   "key.chatsphere.open_config": "Open Config Menu",
-
   "config.chatsphere.ui": "UI Settings",
   "config.chatsphere.show_timestamp": "Show Timestamp",
   "config.chatsphere.show_sender_name": "Show Sender Name",
@@ -21,19 +19,16 @@
   "config.chatsphere.notification_flash": "Icon Flash",
   "config.chatsphere.notification_popup": "Screen Corner Popup",
   "config.chatsphere.typing_indicator": "Typing Indicator",
-
   "command.chatsphere.help.header": "§6=== ChatSphere Help ===",
   "command.chatsphere.help.help": "§e/chatsphere help §7- Show this help",
   "command.chatsphere.help.list": "§e/chatsphere list §7- List all channels",
   "command.chatsphere.help.info": "§e/chatsphere info <name> §7- View channel details",
   "command.chatsphere.help.channel": "§e/chatsphere channel <name> §7- Create or switch to a channel",
   "command.chatsphere.help.switch_hint": "§e§7Type #channelname in chat to switch channels",
-
   "command.chatsphere.list.header": "§6=== Channel List (%s) ===",
   "command.chatsphere.list.public": "§aPublic",
   "command.chatsphere.list.private": "§cPrivate",
   "command.chatsphere.list.entry": "§e%s §7%s §7| Members: %d | Admins: %d",
-
   "command.chatsphere.info.not_found": "§cChannel %s does not exist",
   "command.chatsphere.info.header": "§6=== Channel Details: %s ===",
   "command.chatsphere.info.display_name": "§7Display Name: §f%s",
@@ -74,19 +69,16 @@
   "command.chatsphere.restore.failed": "§cRestore failed, see the server log",
   "command.chatsphere.purge.done": "§aCleared %s (%s messages)",
   "command.chatsphere.reload.done": "§aChat history reloaded from disk",
-
   "command.chatsphere.join.player_only": "§cThis command can only be executed by a player",
-
   "command.chatsphere.channel.switch_success": "§aSwitched to channel %s",
   "command.chatsphere.channel.register_success": "§aChannel %s registered on server",
-
   "screen.chatsphere.config.title": "ChatSphere - Settings",
   "screen.chatsphere.config.enabled": "Enabled",
   "screen.chatsphere.config.disabled": "Disabled",
   "screen.chatsphere.config.hint": "Press F7 to open this menu",
-
   "screen.chatsphere.mod_chat.title": "ChatSphere",
   "screen.chatsphere.mod_chat.channels_header": "Channels",
+  "screen.chatsphere.mod_chat.voice_header": "Voice Rooms",
   "screen.chatsphere.mod_chat.private_header": "Private",
   "screen.chatsphere.mod_chat.general_channel": "General",
   "screen.chatsphere.mod_chat.switched_channel": "§7Switched to channel #%s",
@@ -94,7 +86,6 @@
   "screen.chatsphere.mod_chat.commands_header": "Commands",
   "screen.chatsphere.mod_chat.members_header": "Players (%d)",
   "screen.chatsphere.mod_chat.console_name": "Console",
-
   "screen.chatsphere.channel_config.title": "Channel Config - #%s",
   "screen.chatsphere.channel_config.public_label": "Public Channel: ",
   "screen.chatsphere.channel_config.enabled": "✔ Enabled",
@@ -113,7 +104,6 @@
   "screen.chatsphere.channel_config.invited_count": "Invited: %d",
   "screen.chatsphere.channel_config.online_member_count": "Online: %d",
   "screen.chatsphere.channel_config.hint": "Manage channel config, members and invites",
-
   "screen.chatsphere.channel_member.title": "Member Management",
   "screen.chatsphere.channel_member.back": "Back",
   "screen.chatsphere.channel_member.info_count": "Members: %d | Online: %d | Admins: %d | Muted: %d",
@@ -135,7 +125,6 @@
   "screen.chatsphere.mute_duration.24h": "24 hours",
   "screen.chatsphere.mute_duration.permanent": "Permanent",
   "screen.chatsphere.mute_duration.cancel": "Cancel",
-
   "screen.chatsphere.invite_player.title": "Invite Players",
   "screen.chatsphere.invite_player.back": "Back",
   "screen.chatsphere.invite_player.info_count": "Online: %d | Invited: %d",
@@ -143,7 +132,6 @@
   "screen.chatsphere.invite_player.btn_uninvite": "Unv",
   "screen.chatsphere.invite_player.tip_invite": "Toggle invite for this player",
   "screen.chatsphere.invite_player.status_member": "Member",
-
   "screen.chatsphere.create_channel.title": "Create Channel",
   "screen.chatsphere.create_channel.input_label": "Channel Name",
   "screen.chatsphere.create_channel.input_hint": "Enter channel name",
@@ -187,7 +175,6 @@
   "screen.chatsphere.create_channel.preview_invalid": "Invalid name (1-32 chars, no /)",
   "screen.chatsphere.create_channel.confirm": "Create",
   "screen.chatsphere.create_channel.cancel": "Cancel",
-
   "config.chatsphere.bubble": "Bubble",
   "config.chatsphere.bubble_color_own": "Own Bubble Color",
   "config.chatsphere.bubble_color_other": "Other Bubble Color",
@@ -229,7 +216,6 @@
   "config.chatsphere.sound_whisper": "Sound on Private Message",
   "config.chatsphere.sound_system": "Sound on System Message",
   "config.chatsphere.sound_public": "Sound on Public Chat",
-
   "screen.chatsphere.context.copy": "Copy",
   "screen.chatsphere.context.reply": "Quote Reply",
   "screen.chatsphere.context.block": "Block Messages",
@@ -245,9 +231,7 @@
   "screen.chatsphere.rail.join": "Join",
   "screen.chatsphere.rail.create": "Create",
   "screen.chatsphere.search.no_match": "No matches",
-
   "hint.chatsphere.mentioned": "You were mentioned by %s",
-
   "screen.chatsphere.channel_config.invite_code": "Invite Code:",
   "screen.chatsphere.channel_config.regenerate_code": "Regen",
   "screen.chatsphere.channel_config.delete_channel": "Delete Channel",
@@ -272,15 +256,12 @@
   "screen.chatsphere.channel_config.voice_leave": "Leave",
   "screen.chatsphere.channel_config.voice_create": "Create",
   "screen.chatsphere.channel_config.voice_room_name_hint": "Room name...",
-
   "screen.chatsphere.confirm_delete.title": "Delete Channel",
   "screen.chatsphere.confirm_delete.warning": "Deleting the channel cannot be undone!",
   "screen.chatsphere.confirm_delete.hint": "All messages will be permanently lost.",
   "screen.chatsphere.confirm_delete.confirm": "Delete",
   "screen.chatsphere.confirm_delete.cancel": "Cancel",
-
   "screen.chatsphere.create_channel.public": "Public: ",
-
   "screen.chatsphere.join_channel.title": "Join Channel",
   "screen.chatsphere.join_channel.input_label": "Invite Code",
   "screen.chatsphere.join_channel.input_hint": "Enter invite code...",
@@ -289,11 +270,9 @@
   "screen.chatsphere.join_channel.result_already_member": "You are already a member of this channel.",
   "screen.chatsphere.join_channel.result_not_found": "No channel found with invite code %s.",
   "screen.chatsphere.join_channel.result_success": "Joined channel via invite code.",
-
   "screen.chatsphere.confirm_leave.title": "Leave Channel",
   "screen.chatsphere.confirm_leave.warning": "Are you sure you want to leave?",
   "screen.chatsphere.confirm_leave.hint": "You can rejoin with an invite code.",
-
   "screen.chatsphere.channel_info.title": "Channel Info - #%s",
   "screen.chatsphere.channel_info.display_name": "Name: %s",
   "screen.chatsphere.channel_info.no_description": "No description",
@@ -316,7 +295,6 @@
   "screen.chatsphere.channel_info.expand": "Expand",
   "screen.chatsphere.channel_info.collapse": "Collapse",
   "screen.chatsphere.channel_info.tip_edit_channel": "Manage channel settings",
-
   "chatsphere.mute.feedback": "You are muted in this channel",
   "chatsphere.typing.one": "§7%s is typing…",
   "chatsphere.typing.many": "§7%s and %d more are typing…",
@@ -333,13 +311,11 @@
   "chatsphere.hud.emoji.static": "[emoji]",
   "chatsphere.hud.emoji.animated": "[animated emoji]",
   "chatsphere.slowmode.feedback": "Slowmode is on. Try again in %s seconds.",
-
   "config.chatsphere.sync_default_channel": "Sync Default Channel",
   "config.chatsphere.channel_history": "Channel History",
   "config.chatsphere.invite_history": "Invite Brings Chat History",
   "config.chatsphere.sync": "Sync",
   "config.chatsphere.render_emoji_shortcodes": "Render :shortcode: as Emoji",
-
   "emoji.category.smileys": "Smileys & Emotion",
   "emoji.category.people": "People & Body",
   "emoji.category.animals": "Animals & Nature",
@@ -354,7 +330,6 @@
   "emoji.panel.custom_hint": "custom emoji",
   "emoji.panel.group_builtin": "Built-in",
   "emoji.panel.group_custom": "Custom",
-
   "screen.chatsphere.custom_emoji.title": "Custom Emoji",
   "screen.chatsphere.custom_emoji.count": "%d",
   "screen.chatsphere.custom_emoji.hint": "Put png/gif images into %s, refresh, then select one and upload to the server",
@@ -372,7 +347,6 @@
   "screen.chatsphere.custom_emoji.refresh": "Refresh",
   "screen.chatsphere.custom_emoji.done": "Done",
   "screen.chatsphere.custom_emoji.empty": "No custom emoji yet. Upload an image or drop files into the folder and refresh.",
-
   "chatsphere.emoji.no_permission": "You don't have permission to upload server emoji (OP required)",
   "chatsphere.emoji.cooldown": "Too fast, try again in %s seconds",
   "chatsphere.emoji.uploaded": "Server emoji :%s: uploaded",
@@ -397,17 +371,12 @@
   "chatsphere.emoji.err_total": "Emoji limit reached (%s)",
   "chatsphere.emoji.err_total_local": "Local emoji limit reached (%s)",
   "chatsphere.emoji.err_channel": "Channel not found",
-
   "screen.chatsphere.server_config.title": "Server Config",
   "screen.chatsphere.config.server_config": "Server Config",
-
   "chatsphere.server_config.pending_op": "Checking permissions...",
   "chatsphere.server_config.no_op": "You don't have permission to edit server config",
-
   "chatsphere.notif.new_messages": "%d new messages",
-
   "chatsphere.quick_phrases.add_hint": "Add phrase...",
-
   "screen.chatsphere.explore.title": "Explore Public Servers",
   "screen.chatsphere.explore.loading": "Loading...",
   "screen.chatsphere.explore.empty": "No public servers available",
@@ -416,7 +385,6 @@
   "screen.chatsphere.explore.join": "Join",
   "screen.chatsphere.explore.joined": "Joined",
   "screen.chatsphere.explore.back": "Back",
-
   "config.chatsphere.explore": "Explore",
   "config.chatsphere.explore_enabled": "Enable Explore",
   "config.chatsphere.explore_min_members": "Min Members for Explore",
@@ -429,7 +397,6 @@
   "screen.chatsphere.channel_config.tip_main_chat": "When disabled, messages go to the default chat sub-channel",
   "chatsphere.chat_disabled.feedback": "Main channel chat is disabled, speak in a sub-channel",
   "screen.chatsphere.create_channel.tip_toggle_chat": "Main channel chat toggle (a default chat sub-channel is required when disabled)",
-
   "screen.chatsphere.tip.emoji": "Toggle emoji panel",
   "screen.chatsphere.tip.quick_phrases": "Toggle quick phrases panel",
   "screen.chatsphere.tip.search": "Search messages",
@@ -466,13 +433,11 @@
   "screen.chatsphere.server_config.tip_back": "Go back",
   "screen.chatsphere.config.tip_toggle": "Toggle this option on/off",
   "screen.chatsphere.channel_member.tip_back": "Go back to channel config",
-
   "ncr.chatsphere.not_installed": "Not Installed",
   "ncr.chatsphere.safe": "Secure",
   "ncr.chatsphere.unsafe": "Insecure",
   "ncr.chatsphere.singleplayer": "Singleplayer",
   "ncr.chatsphere.unknown": "Unknown",
-
   "config.chatsphere.ncr": "NCR Compat",
   "config.chatsphere.ncr_compat": "NCR Compat Features",
   "config.chatsphere.ncr_safety": "Server Safety Status",
@@ -486,14 +451,11 @@
   "config.chatsphere.allow_vanilla_connection": "Allow Vanilla Connection",
   "config.chatsphere.compat": "Compatibility",
   "config.chatsphere.compat_vanilla_chat": "Plain Text via Vanilla Chat",
-
   "chatsphere.banned_word.feedback": "Your message was blocked by a server filter",
   "config.chatsphere.banned_words": "Banned Words (one per line, supports regex)",
   "config.chatsphere.banned_words_cat": "Banned Words",
-
   "pv.activation.chatsphere_room": "ChatSphere Voice Room",
   "pv.source_line.chatsphere_room": "ChatSphere Room Audio",
-
   "screen.chatsphere.blocklist.title": "Blocked Players",
   "screen.chatsphere.blocklist.empty": "No blocked players. Right-click a message and select \"Block Messages\" to block a player.",
   "screen.chatsphere.blocklist.unblock": "Unblock",
@@ -505,7 +467,6 @@
   "screen.chatsphere.tip.pick_item": "Pick an item from inventory to share",
   "screen.chatsphere.tip.voice_message": "Voice Message",
   "chatsphere.voice.received": "Voice Message",
-
   "config.chatsphere.voice_cache": "Voice Cache",
   "config.chatsphere.voice_cache_enabled": "Enable Voice Cache",
   "config.chatsphere.voice_cache_max_age": "Voice Cache Max Age (hours)",
@@ -537,7 +498,6 @@
   "config.chatsphere.link_preview_cache_mb": "Preview cache (MB)",
   "config.chatsphere.link_preview_ttl": "Preview cache lifetime (hours)",
   "config.chatsphere.link_preview_max": "Cards per message",
-  "config.chatsphere.links_cat": "Links",
   "config.chatsphere.link_preview_enabled": "Allow link previews",
   "config.chatsphere.link_preview_domains": "Preview host allowlist (one regex per line, empty = any)",
   "config.chatsphere.image_group": "Chat images",
@@ -562,11 +522,34 @@
   "chatsphere.image.err_op": "Operator permission required",
   "chatsphere.image.err_cooldown": "Uploading too fast, try again later",
   "chatsphere.image.err_limit": "Upload limit reached",
+  "chatsphere.image.missing": "Image unavailable",
+  "chatsphere.image.missing_hint": "Click anywhere or press ESC to go back",
   "screen.chatsphere.item_ref": "[Item]",
   "screen.chatsphere.cmd_input": "Input",
   "screen.chatsphere.cmd_output": "Output",
   "screen.chatsphere.unknown_player": "Unknown",
   "screen.chatsphere.channel_config.invite_code_na": "N/A",
   "chatsphere.bridge.version_warning": "Server chat bridge protocol mismatch (bridge %s vs mod %s, bridge version %s), some chat features may not work",
-  "chatsphere.system_name": "System"
+  "chatsphere.system_name": "System",
+  "config.chatsphere.chat_cat": "Chat",
+  "config.chatsphere.voice_cat": "Voice",
+  "config.chatsphere.general_cat": "General",
+  "config.chatsphere.group_chat": "Chat",
+  "config.chatsphere.group_sync": "Sync",
+  "config.chatsphere.group_voice": "Voice",
+  "config.chatsphere.group_emoji": "Emoji",
+  "config.chatsphere.media_cat": "Chat media",
+  "config.chatsphere.backups_cat": "Backups",
+  "screen.chatsphere.channel_config.icon_label": "Channel icon",
+  "screen.chatsphere.channel_config.icon_hint": "Shows the channel initial until an icon is set",
+  "screen.chatsphere.channel_config.icon_admin_only": "Only admins can set the icon",
+  "screen.chatsphere.channel_config.tip_icon_apply": "Downloads the link and centre-crops it to a square icon",
+  "screen.chatsphere.channel_config.tip_icon_clear": "Clears the icon and shows the initial again",
+  "config.chatsphere.group_explore": "Explore",
+  "config.chatsphere.group_safety": "Banned Words",
+  "config.chatsphere.group_links": "Link Previews",
+  "config.chatsphere.group_images": "Chat Images",
+  "config.chatsphere.group_backup": "Backups",
+  "screen.chatsphere.channel_config.icon_drop": "Drop an image to use as icon",
+  "screen.chatsphere.channel_config.icon_not_image": "Drop a png or jpg image"
 }

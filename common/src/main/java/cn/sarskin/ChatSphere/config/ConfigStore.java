@@ -30,10 +30,17 @@ public class ConfigStore {
     private final Path file;
     private final Map<String, Object> values = new HashMap<>();
     private final Map<String, Object> defaults = new HashMap<>();
+    /** Keys that came off disk, so callers can tell a fresh install from a stored choice. */
+    private final java.util.Set<String> storedKeys = new java.util.HashSet<>();
 
     public ConfigStore(String fileName) {
         this.file = PlatformPaths.configDir().resolve(fileName);
         load();
+    }
+
+    /** Every key is written on the first save, so "value equals default" cannot tell a fresh install from a stored choice. */
+    public synchronized boolean hasStoredKey(String key) {
+        return storedKeys.contains(key);
     }
 
     /** Default kept so every key is written on save. */
@@ -123,7 +130,10 @@ public class ConfigStore {
         if (existed) {
             try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
                 Map<String, Object> loaded = GSON.fromJson(r, MAP_TYPE);
-                if (loaded != null) values.putAll(loaded);
+                if (loaded != null) {
+                    values.putAll(loaded);
+                    storedKeys.addAll(loaded.keySet());
+                }
             } catch (IOException e) {
                 LOGGER.warn("Failed to read config {}: {}", file, e.toString());
             } catch (RuntimeException e) {
@@ -171,7 +181,10 @@ public class ConfigStore {
                 String key = m.group(1);
                 String raw = m.group(2);
                 Object v = parseTomlValue(raw);
-                if (v != null) values.put(key, v);
+                if (v != null) {
+                    values.put(key, v);
+                    storedKeys.add(key);
+                }
             }
             Files.move(old, old.resolveSibling(old.getFileName() + ".migrated"),
                     java.nio.file.StandardCopyOption.REPLACE_EXISTING);

@@ -29,7 +29,10 @@ import cn.sarskin.ChatSphere.client.widget.CopyToast;
 import cn.sarskin.ChatSphere.client.widget.ItemPickerPanel;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
 import cn.sarskin.ChatSphere.client.ModVoiceMessagesIntegration;
+import cn.sarskin.ChatSphere.client.voice.VoiceIntegration;
+import cn.sarskin.ChatSphere.client.voice.VoiceRoom;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
+import cn.sarskin.ChatSphere.client.ui.ChannelIcons;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.ThemeAnim;
 import cn.sarskin.ChatSphere.client.ui.Ui;
@@ -64,6 +67,8 @@ import java.util.regex.Pattern;
 
 public class ModChatScreen extends Screen {
     private static final String COMMAND_CONVERSATION_ID = "__commands__";
+    /** Sidebar prefix for voice room rows; they are entry points, not conversations. */
+    private static final String VOICE_ROOM_PREFIX = "__voice__:";
     private static final int MAX_MESSAGE_LENGTH = 256;
     private int sidebarWidth() {
         return Math.min(Theme.sidebarWidth(), compactMode() ? 160 : 240);
@@ -153,8 +158,12 @@ public class ModChatScreen extends Screen {
             ModInfo.MODID, "textures/gui/block.png");
     private static final ResourceLocation ITEM_ICON = new ResourceLocation(
             ModInfo.MODID, "textures/gui/item_chest.png");
+    /** Voice room rows in the sidebar; the microphone is separate, see VOICE_MESSAGE_ICON. */
     private static final ResourceLocation VOICE_ICON = new ResourceLocation(
             ModInfo.MODID, "textures/gui/voice.png");
+    /** Toolbar button that records a voice message; a mic reads better there than a speaker. */
+    private static final ResourceLocation VOICE_MESSAGE_ICON = new ResourceLocation(
+            ModInfo.MODID, "textures/gui/voice_message.png");
 
     private EditBox input;
     private String initial;
@@ -392,6 +401,7 @@ public class ModChatScreen extends Screen {
         activeScreen = this;
         ChatImageClient.setTokenSink(this::insertImageToken);
         ChatImageClient.setMessageSink(this::showImageMessage);
+        ChatImageClient.setUrlSink(this::replaceImageUrl);
     }
 
     /** Messages already loaded are pre-existing and never animate. */
@@ -832,6 +842,13 @@ public class ModChatScreen extends Screen {
                     rowBottom = yOffset + 2 + (SIDEBAR_ITEM_HEIGHT - 4);
                 }
                 if (mouseY >= rowTop && mouseY < rowBottom) {
+                    // Voice captions and occupant rows are labels, not targets
+                    if (entry.voiceGroup || entry.voiceMember) return true;
+                    // Must run before the channel branch, or the gear opens a bad card.
+                    if (entry.conversationId != null && entry.conversationId.startsWith(VOICE_ROOM_PREFIX)) {
+                        handleVoiceRoomClick(entry.conversationId);
+                        return true;
+                    }
                     if (entry.type == ChatMessageData.ConversationType.CHANNEL && entry.conversationId != null) {
                         int gearX = chatLeft() - 6 - CONFIG_ICON_SIZE;
                         if (mouseX >= gearX && mouseX <= gearX + CONFIG_ICON_SIZE) {
@@ -1001,7 +1018,8 @@ public class ModChatScreen extends Screen {
             return true;
         }
         if (keyCode == 257 || keyCode == 335) {
-            sendMessage(this.input.getValue());
+            // a bare image URL stays in the box until the download succeeds
+            if (!sendMessage(this.input.getValue())) this.input.setValue("");
             return true;
         }
         if (keyCode == 265) {
@@ -1036,14 +1054,12 @@ public class ModChatScreen extends Screen {
         return !cfg.mainChatEnabled && cfg.defaultSubChannel.isEmpty();
     }
 
-    private void sendMessage(String text) {
+    /** Returns true when the text went to the image downloader instead of the chat, so the input stays put. */
+    private boolean sendMessage(String text) {
         text = cn.sarskin.ChatSphere.client.emoji.EmojiRegistry.shortcodesToUnicode(text);
         text = text.trim();
-        if (text.isEmpty()) return;
-        if (IMAGE_URL.matcher(text).matches() && ChatImageClient.uploadFromUrl(text)) {
-            this.input.setValue("");
-            return;
-        }
+        if (text.isEmpty()) return false;
+        if (IMAGE_URL.matcher(text).matches() && ChatImageClient.uploadFromUrl(text)) return true;
 
         if (text.startsWith("#") && text.length() > 1 && ModServerConfig.CONFIG.enableChannels.get()) {
             String newChannel = text.substring(1).trim();
@@ -1065,7 +1081,7 @@ public class ModChatScreen extends Screen {
                 }
             }
             this.input.setValue("");
-            return;
+            return false;
         }
 
         String stripped = text.startsWith("/") ? text.substring(1) : text;
@@ -1101,8 +1117,8 @@ public class ModChatScreen extends Screen {
                             true);
                     this.input.setValue("");
                     this.scrollOffset = 0;
-        this.consoleTabIndex = lastConsoleTabIndex;
-                    return;
+                    this.consoleTabIndex = lastConsoleTabIndex;
+                    return false;
                 }
             }
         }
@@ -1162,13 +1178,13 @@ public class ModChatScreen extends Screen {
                     this.minecraft.player.displayClientMessage(
                         Component.translatable("chatsphere.mute.feedback"), false);
                     this.input.setValue("");
-                    return;
+                    return false;
                 }
                 if (isMainChatLocked(currentConversation)) {
                     this.minecraft.player.displayClientMessage(
                         Component.translatable("screen.chatsphere.mod_chat.main_chat_disabled"), false);
                     this.input.setValue("");
-                    return;
+                    return false;
                 }
                 // Local countdown mirror; the server re-checks authoritatively
                 if (cfg.slowModeSeconds > 0) {
@@ -1180,7 +1196,7 @@ public class ModChatScreen extends Screen {
                         this.minecraft.player.displayClientMessage(
                             Component.translatable("chatsphere.slowmode.feedback", (smRemain + 999) / 1000), false);
                         this.input.setValue("");
-                        return;
+                        return false;
                     }
                     slowModeLastSent.put(smKey, System.currentTimeMillis());
                 }
@@ -1208,6 +1224,7 @@ public class ModChatScreen extends Screen {
         this.input.setValue("");
         this.scrollOffset = 0;
         this.consoleTabIndex = lastConsoleTabIndex;
+        return false;
     }
 
     private void moveInHistory(int direction) {
@@ -1445,7 +1462,7 @@ public class ModChatScreen extends Screen {
             btnX += iconSize + 2;
             boolean vmHover = mouseX >= btnX && mouseX <= btnX + iconSize && mouseY >= btnY && mouseY <= btnY + iconSize;
             Ui.fillRoundedRect(g, btnX, btnY, iconSize, iconSize, 3, vmHover ? hc : nc);
-            g.blit(VOICE_ICON, btnX + 1, btnY + 1, 0, 0, iconSize - 2, iconSize - 2, iconSize - 2, iconSize - 2);
+            g.blit(VOICE_MESSAGE_ICON, btnX + 1, btnY + 1, 0, 0, iconSize - 2, iconSize - 2, iconSize - 2, iconSize - 2);
         }
     }
 
@@ -1553,7 +1570,10 @@ public class ModChatScreen extends Screen {
                     headerIdx++;
                     y += SIDEBAR_HEADER_HEIGHT;
                 } else {
-                    if (entry.type == ChatMessageData.ConversationType.CHANNEL && entry.conversationId != null) {
+                    // Voice rows carry no gear, so the settings tooltip must not fire for them
+                    if (entry.type == ChatMessageData.ConversationType.CHANNEL && entry.conversationId != null
+                            && !entry.conversationId.startsWith(VOICE_ROOM_PREFIX)
+                            && !entry.voiceGroup && !entry.voiceMember) {
                         int gearX = chatLeft() - 6 - CONFIG_ICON_SIZE;
                         int gearY = y + (SIDEBAR_ITEM_HEIGHT - CONFIG_ICON_SIZE) / 2;
                         if (mouseX >= gearX && mouseX <= gearX + CONFIG_ICON_SIZE && mouseY >= gearY && mouseY <= gearY + CONFIG_ICON_SIZE) {
@@ -1974,6 +1994,20 @@ public class ModChatScreen extends Screen {
         setFocused(input);
     }
 
+    /** Puts the token where the URL was; appending it would leave the URL to be sent as text as well. */
+    private void replaceImageUrl(String url, String token) {
+        if (input == null) return;
+        String value = input.getValue();
+        int at = value.indexOf(url);
+        if (at < 0) {
+            insertImageToken(token);
+            return;
+        }
+        input.setValue(value.substring(0, at) + token + value.substring(at + url.length()));
+        input.setCursorPosition(at + token.length());
+        setFocused(input);
+    }
+
     @Override
     public void onFilesDrop(List<Path> paths) {
         if (paths == null || paths.isEmpty()) return;
@@ -2064,6 +2098,94 @@ public class ModChatScreen extends Screen {
         }
     }
 
+    /** Rooms are flat, so listing them inside the tree read as if they were children of one channel. */
+    private void appendVoiceSection(ChatHistoryManager history, List<String> visibleChannels) {
+        if (visibleChannels.isEmpty()) return;
+        if (!VoiceIntegration.isAnyVoiceModPresent()) return;
+        if (minecraft == null || minecraft.player == null) return;
+
+        List<String> withRooms = new ArrayList<>();
+        for (String channelId : visibleChannels) {
+            if (channelId == null || channelId.isEmpty()) continue;
+            ChatDataStore.ChannelConfig cfg = history.getChannelConfig(channelId);
+            if (cfg != null && !cfg.voiceRooms.isEmpty()) withRooms.add(channelId);
+        }
+        if (withRooms.isEmpty()) return;
+
+        String myUuid = minecraft.player.getUUID().toString();
+        // Only worth a row when several channels have rooms; one channel just repeats the tree row above
+        boolean captions = withRooms.size() > 1;
+
+        List<SidebarEntry> section = new ArrayList<>();
+        for (String channelId : withRooms) {
+            ChatDataStore.ChannelConfig cfg = history.getChannelConfig(channelId);
+            if (captions) {
+                Component name = history.getConversationDisplayName(channelId);
+                if (name == null) {
+                    name = Component.literal(ChatHistoryManager.isSubChannel(channelId)
+                            ? ChatHistoryManager.subNameOf(channelId) : channelId);
+                }
+                section.add(SidebarEntry.voiceCaption(name));
+            }
+            for (VoiceRoom vr : cfg.voiceRooms) {
+                boolean joined = vr.members.contains(myUuid);
+                Component label = Component.literal(vr.name);
+                if (!vr.members.isEmpty()) {
+                    label = label.copy().append(Component.literal("  " + vr.members.size())
+                            .withStyle(ChatFormatting.GRAY));
+                }
+                section.add(SidebarEntry.voiceRoom(VOICE_ROOM_PREFIX + channelId + "|" + vr.name, label, joined));
+                for (String member : vr.members) {
+                    section.add(SidebarEntry.voiceMember(member, voiceMemberName(member)));
+                }
+            }
+        }
+        if (section.isEmpty()) return;
+
+        sidebarEntries.add(new SidebarEntry(null,
+                Component.translatable("screen.chatsphere.mod_chat.voice_header"), null, true, null));
+        sidebarEntries.addAll(section);
+    }
+
+    /** Member name from the online profile; a short uuid stands in for someone already offline. */
+    private Component voiceMemberName(String uuidStr) {
+        PlayerInfo info = onlinePlayers.get(uuidStr);
+        if (info != null) return Component.literal(info.getProfile().getName());
+        return Component.literal(uuidStr.length() > 8 ? uuidStr.substring(0, 8) : uuidStr);
+    }
+
+    /** Join a room from the sidebar, or leave it when already in. */
+    private void handleVoiceRoomClick(String conversationId) {
+        String rest = conversationId.substring(VOICE_ROOM_PREFIX.length());
+        int bar = rest.indexOf('|');
+        if (bar < 0) return;
+        String channelId = rest.substring(0, bar);
+        String roomName = rest.substring(bar + 1);
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        ChatDataStore.ChannelConfig cfg = history.getChannelConfig(channelId);
+        if (cfg == null) return;
+        String myUuid = minecraft.player.getUUID().toString();
+
+        VoiceRoom target = null;
+        for (VoiceRoom vr : cfg.voiceRooms) {
+            if (vr.name.equals(roomName)) { target = vr; break; }
+        }
+        if (target == null) return;
+
+        boolean joined = target.members.contains(myUuid);
+        if (joined) {
+            target.members.remove(myUuid);
+            history.sendVoiceRoomAction(
+                    ServerboundChannelActionPayload.Action.LEAVE_VOICE_ROOM, channelId, roomName);
+        } else {
+            // One room per player, across every channel, matching the server's own rule
+            history.detachFromOtherVoiceRooms(myUuid, channelId, roomName);
+            target.members.add(myUuid);
+            history.sendVoiceRoomAction(
+                    ServerboundChannelActionPayload.Action.JOIN_VOICE_ROOM, channelId, roomName);
+        }
+    }
+
     private void buildSidebarEntries() {
         sidebarEntries.clear();
         ChatHistoryManager history = ChatHistoryManager.getInstance();
@@ -2109,17 +2231,20 @@ public class ModChatScreen extends Screen {
             shownSubs.addAll(subIds);
         }
 
-        if (!(streamMode && (sidebarPrivateMode || commandConv))) {
+        boolean showChannelTree = !(streamMode && (sidebarPrivateMode || commandConv));
+        if (showChannelTree) {
             sidebarEntries.add(new SidebarEntry(null,
                     Component.translatable("screen.chatsphere.mod_chat.channels_header"),
                     null, true, null));
         }
 
+        List<String> visibleChannels = new ArrayList<>();
         for (String id : shownTop) {
             Component display = history.getConversationDisplayName(id);
             if (display == null) display = Component.literal(id);
             sidebarEntries.add(new SidebarEntry(id, display,
                     ChatMessageData.ConversationType.CHANNEL, false, null, 0));
+            visibleChannels.add(id);
         }
         for (String id : shownSubs) {
             Component display = history.getConversationDisplayName(id);
@@ -2130,12 +2255,16 @@ public class ModChatScreen extends Screen {
             }
             sidebarEntries.add(new SidebarEntry(id, display,
                     ChatMessageData.ConversationType.CHANNEL, false, null, depth));
+            visibleChannels.add(id);
         }
-        if (shownTop.isEmpty() && shownSubs.isEmpty()
-                && !(streamMode && (sidebarPrivateMode || commandConv))) {
+        if (shownTop.isEmpty() && shownSubs.isEmpty() && showChannelTree) {
             sidebarEntries.add(new SidebarEntry(ChatHistoryManager.DEFAULT_CHANNEL_ID,
                     Component.translatable("screen.chatsphere.mod_chat.general_channel"),
                     ChatMessageData.ConversationType.CHANNEL, false, null, 0));
+            visibleChannels.add(ChatHistoryManager.DEFAULT_CHANNEL_ID);
+        }
+        if (showChannelTree) {
+            appendVoiceSection(history, visibleChannels);
         }
 
         boolean showPrivate = !Theme.stream() || sidebarPrivateMode;
@@ -2241,16 +2370,11 @@ public class ModChatScreen extends Screen {
             int bg = over ? Theme.accent() : Theme.railIconBg();
             Ui.fillRoundedRectStyle(g, 1, iconX, drawY, icon, icon, r, bg);
 
-            if (active) {
-                g.fill(2, drawY + 8, 4, drawY + icon - 8, 0xFFFFFFFF);
-            }
-
             int iconColor = over ? 0xFFFFFFFF : Theme.textDim();
             switch (item.kind) {
                 case RK_GROUP -> {
                     if (item.channelId != null) {
-                        String label = channelIconLabel(history, item.channelId);
-                        g.drawString(font, label, iconX + (icon - font.width(label)) / 2, drawY + (icon - 8) / 2, iconColor, false);
+                        ChannelIcons.draw(g, item.channelId, iconX, drawY, icon, iconColor);
                         int unread = groupUnread(history, item.channelId);
                         if (unread > 0 && !active) {
                             g.fill(iconX + icon - 8, drawY + 2, iconX + icon - 4, drawY + 6, 0xFFFF3F42);
@@ -2269,14 +2393,11 @@ public class ModChatScreen extends Screen {
                 case RK_CREATE -> g.blit(CREATE_CHANNEL_ICON, iconX + (icon - 16) / 2, drawY + (icon - 16) / 2, 0, 0, 16, 16, 16, 16);
                 default -> { }
             }
+            // After the icon, so an uploaded picture cannot cover the active marker
+            if (active) {
+                g.fill(2, drawY + 8, 4, drawY + icon - 8, 0xFFFFFFFF);
+            }
         }
-    }
-
-    private static String channelIconLabel(ChatHistoryManager history, String channelId) {
-        Component name = history.getConversationDisplayName(channelId);
-        String str = name != null ? name.getString() : "";
-        if (str.isEmpty()) str = channelId.startsWith("#") ? channelId.substring(1) : channelId;
-        return str.substring(0, 1).toUpperCase(java.util.Locale.ROOT);
     }
 
     private static int groupUnread(ChatHistoryManager history, String groupId) {
@@ -2404,7 +2525,13 @@ public class ModChatScreen extends Screen {
                     int dotColor = online ? 0xFF44FF44 : 0xFF666666;
                     guiGraphics.fill(sidebarWidth() - 8, y + SIDEBAR_ITEM_HEIGHT - 6, sidebarWidth() - 4, y + SIDEBAR_ITEM_HEIGHT - 2, dotColor);
                 } else {
-                    if (entry.indent > 0) {
+                    if (entry.voiceMember) {
+                        renderVoiceMemberEntry(guiGraphics, entry, y);
+                    } else if (entry.voiceGroup) {
+                        renderVoiceGroupEntry(guiGraphics, entry, y);
+                    } else if (entry.conversationId != null && entry.conversationId.startsWith(VOICE_ROOM_PREFIX)) {
+                        renderVoiceRoomEntry(guiGraphics, entry, y, hovered);
+                    } else if (entry.indent > 0) {
                         renderSubSidebarEntry(guiGraphics, entry, y, mouseX, mouseY, active, hovered);
                     } else {
                         int textX = 8 + entry.indent * 10;
@@ -2434,6 +2561,49 @@ public class ModChatScreen extends Screen {
         // A shorter list after switching conversations must keep the offset in range
         sidebarScroll = Math.max(0, Math.min(sidebarScroll, sidebarMaxScroll()));
         if (shifted) guiGraphics.pose().popPose();
+    }
+
+    /** Joins or leaves the room on click, so no gear; occupants render under it via {@link #renderVoiceMemberEntry}. */
+    private void renderVoiceRoomEntry(GuiGraphics guiGraphics, SidebarEntry entry, int y, boolean hovered) {
+        int subH = SIDEBAR_ITEM_HEIGHT - 4;
+        if (hovered) {
+            Ui.fillRoundedRect(guiGraphics, 8, y + 2, sidebarWidth() - 8, subH, 3, Theme.hoverRow());
+        }
+        if (entry.voiceJoined) {
+            Ui.fillRoundedRect(guiGraphics, 8, y + 4, 2, subH - 4, 1, Theme.accent());
+        }
+        int iconSize = 8;
+        int iconX = 14;
+        int iconY = y + (SIDEBAR_ITEM_HEIGHT - iconSize) / 2;
+        float alpha = entry.voiceJoined ? 1f : 0.6f;
+        guiGraphics.setColor(1f, 1f, 1f, alpha);
+        guiGraphics.blit(VOICE_ICON, iconX, iconY, 0, 0, iconSize, iconSize, iconSize, iconSize);
+        guiGraphics.setColor(1f, 1f, 1f, 1f);
+        guiGraphics.drawString(font, entry.displayName, iconX + iconSize + 4, y + 5,
+                entry.voiceJoined ? Theme.text() : Theme.textInactive(), false);
+    }
+
+    /** Occupant row: face plus name, smaller and dimmer so it reads as nested inside the room. */
+    private void renderVoiceMemberEntry(GuiGraphics guiGraphics, SidebarEntry entry, int y) {
+        int face = 10;
+        int faceX = 26;
+        int faceY = y + (SIDEBAR_ITEM_HEIGHT - face) / 2;
+        drawPlayerFace(guiGraphics, entry.targetUuid, faceX, faceY, face, Theme.sidebarBg());
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(faceX + face + 4, y + 5, 0);
+        guiGraphics.pose().scale(0.8f, 0.8f, 1f);
+        guiGraphics.drawString(font, entry.displayName, 0, 0, Theme.textDim(), false);
+        guiGraphics.pose().popPose();
+    }
+
+    /** Channel caption inside the voice section; dim and smaller, so it reads as a group label. */
+    private void renderVoiceGroupEntry(GuiGraphics guiGraphics, SidebarEntry entry, int y) {
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(12, y + 6, 0);
+        guiGraphics.pose().scale(0.72f, 0.72f, 1f);
+        guiGraphics.drawString(font, Component.literal("# ").append(entry.displayName),
+                0, 0, Theme.textFaint(), false);
+        guiGraphics.pose().popPose();
     }
 
     private void renderSubSidebarEntry(GuiGraphics guiGraphics, SidebarEntry entry, int y,
@@ -3606,6 +3776,12 @@ public class ModChatScreen extends Screen {
         final boolean isHeader;
         final UUID targetUuid;
         final int indent;
+        /** Channel caption inside the voice section; a caption, so it is not clickable. */
+        final boolean voiceGroup;
+        /** The local player is in this room, which the row shows as its active colour. */
+        final boolean voiceJoined;
+        /** Occupant row under a voice room; display only. */
+        final boolean voiceMember;
 
         SidebarEntry(String conversationId, Component displayName,
                      ChatMessageData.ConversationType type, boolean isHeader, UUID targetUuid) {
@@ -3614,12 +3790,43 @@ public class ModChatScreen extends Screen {
 
         SidebarEntry(String conversationId, Component displayName,
                      ChatMessageData.ConversationType type, boolean isHeader, UUID targetUuid, int indent) {
+            this(conversationId, displayName, type, isHeader, targetUuid, indent, false, false, false);
+        }
+
+        SidebarEntry(String conversationId, Component displayName,
+                     ChatMessageData.ConversationType type, boolean isHeader, UUID targetUuid, int indent,
+                     boolean voiceGroup, boolean voiceJoined, boolean voiceMember) {
             this.conversationId = conversationId;
             this.displayName = displayName;
             this.type = type;
             this.isHeader = isHeader;
             this.targetUuid = targetUuid;
             this.indent = indent;
+            this.voiceGroup = voiceGroup;
+            this.voiceJoined = voiceJoined;
+            this.voiceMember = voiceMember;
+        }
+
+        /** Channel caption above a group of rooms. */
+        static SidebarEntry voiceCaption(Component name) {
+            return new SidebarEntry(null, name, null, false, null, 0, true, false, false);
+        }
+
+        /** A room row; clicking joins or leaves it. */
+        static SidebarEntry voiceRoom(String conversationId, Component name, boolean joined) {
+            return new SidebarEntry(conversationId, name, ChatMessageData.ConversationType.CHANNEL,
+                    false, null, 1, false, joined, false);
+        }
+
+        /** One occupant under a room. */
+        static SidebarEntry voiceMember(String uuid, Component name) {
+            UUID id = null;
+            try {
+                id = UUID.fromString(uuid);
+            } catch (IllegalArgumentException ignored) {
+                // a malformed uuid just loses the face, the name still shows
+            }
+            return new SidebarEntry(null, name, null, false, id, 2, false, false, true);
         }
     }
 }

@@ -45,6 +45,7 @@ public record ClientboundChannelSyncPayload(List<ModServerChannels.ChannelEntry>
             buf.writeBoolean(e.mainChatEnabled());
             writeUtf(buf, e.defaultSubChannel() != null ? e.defaultSubChannel() : "");
             buf.writeInt(e.slowModeSeconds());
+            writeUtf(buf, e.iconId() != null ? e.iconId() : "");
         }
         Map<String, String> kp = p.knownPlayers != null ? p.knownPlayers : Map.of();
         buf.writeInt(kp.size());
@@ -81,7 +82,8 @@ public record ClientboundChannelSyncPayload(List<ModServerChannels.ChannelEntry>
             boolean mainChatEnabled = buf.readBoolean();
             String defaultSubChannel = PayloadLimits.readUtf(buf);
             int slowModeSeconds = buf.readInt();
-            list.add(new ModServerChannels.ChannelEntry(id, owner, isPublic, description, displayName, admins, muted, invited, members, inviteCode, showInExplore, rooms, parentId, sortOrder, mainChatEnabled, defaultSubChannel, slowModeSeconds));
+            String iconId = PayloadLimits.readUtf(buf);
+            list.add(new ModServerChannels.ChannelEntry(id, owner, isPublic, description, displayName, admins, muted, invited, members, inviteCode, showInExplore, rooms, parentId, sortOrder, mainChatEnabled, defaultSubChannel, slowModeSeconds, iconId));
         }
         int kpSize = PayloadLimits.readCount(buf, PayloadLimits.MAX_PLAYERS);
         Map<String, String> knownPlayers = new HashMap<>(kpSize);

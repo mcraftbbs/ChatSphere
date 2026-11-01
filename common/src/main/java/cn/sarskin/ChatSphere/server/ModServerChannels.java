@@ -48,6 +48,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class ModServerChannels {
+    /** Sent as the iconId to clear it; an empty iconId already means "leave it alone". */
+    public static final String ICON_CLEAR = "#clear";
     private static final Logger LOGGER = LoggerFactory.getLogger("ModServerChannels");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Map<MinecraftServer, ModServerChannels> INSTANCES = new ConcurrentHashMap<>();
@@ -318,7 +320,7 @@ public class ModServerChannels {
                                                   List<String> admins, List<String> mutedPlayers,
                                                   List<String> invitedPlayers, String inviteCode, UUID requester,
                                                   boolean showInExplore, boolean mainChatEnabled, String defaultSubChannel,
-                                                  int slowModeSeconds) {
+                                                  int slowModeSeconds, String iconId) {
         ChannelEntry entry = channels.get(channelId);
         if (entry == null) return;
         if (defaultSubChannel != null && defaultSubChannel.contains("/")) return;
@@ -330,10 +332,17 @@ public class ModServerChannels {
                 ? new ArrayList<>(entry.members())
                 : effectiveMembers(channelId);
         String newDefault = defaultSubChannel != null ? defaultSubChannel : entry.defaultSubChannel();
+        // Empty iconId already means "unchanged", so clearing needs a marker of its own
+        String newIcon;
+        if (ICON_CLEAR.equals(iconId)) {
+            newIcon = "";
+        } else {
+            newIcon = (iconId == null || iconId.isEmpty()) ? entry.iconId() : iconId;
+        }
         ChannelEntry updated = new ChannelEntry(channelId, entry.owner(), isPublic, description, displayName,
                 new ArrayList<>(admins), new ArrayList<>(mutedPlayers), new ArrayList<>(invitedPlayers),
                 membersToStore, newCode, showInExplore, entry.voiceRooms(), entry.parentId(), entry.sortOrder(),
-                mainChatEnabled, newDefault, Math.max(0, Math.min(3600, slowModeSeconds)));
+                mainChatEnabled, newDefault, Math.max(0, Math.min(3600, slowModeSeconds)), newIcon);
         channels.put(channelId, updated);
         markChannelsDirty();
         broadcastSync();
@@ -513,6 +522,58 @@ public class ModServerChannels {
         if (ModServerConfig.CONFIG.syncDefaultChannel.get()) {
             addMemberToChannel(DEFAULT_CHANNEL_ID, sp.getUUID().toString());
         }
+        scheduleVoiceRebuild(sp);
+    }
+
+    /** Groups die with the server while member lists persist, and voice is not connected yet at login, so this waits. */
+    private void scheduleVoiceRebuild(ServerPlayer sp) {
+        java.util.UUID uuid = sp.getUUID();
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            for (int attempt = 0; attempt < 10; attempt++) {
+                try { Thread.sleep(2000L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                if (rebuildVoiceRoomsFor(uuid)) return;
+            }
+            LOGGER.warn("Voice rebuild gave up for {}: no voice connection after 20s", uuid);
+        });
+    }
+
+    /** Re-creates the groups a returning player was in. Returns false while voice is not up yet. */
+    private boolean rebuildVoiceRoomsFor(java.util.UUID uuid) {
+        String puid = uuid.toString();
+        List<String[]> pending = new ArrayList<>();
+        boolean healed = false;
+        synchronized (this) {
+            for (ChannelEntry entry : channels.values()) {
+                for (VoiceRoom vr : entry.voiceRooms()) {
+                    if (vr.members.contains(puid)) pending.add(new String[] { entry.id(), vr.name });
+                }
+            }
+            // Saves from before the one-room rule can list a player in several rooms; SVC holds one group, so keep the last
+            if (pending.size() > 1) {
+                String[] keep = pending.get(pending.size() - 1);
+                detachFromOtherVoiceRooms(puid, keep[0], keep[1]);
+                pending.clear();
+                pending.add(keep);
+                healed = true;
+                LOGGER.warn("Voice rebuild: {} was recorded in several rooms, kept {}/{}", puid, keep[0], keep[1]);
+            }
+        }
+        if (healed) {
+            markChannelsDirty();
+            broadcastSync();
+        }
+        if (pending.isEmpty()) return true;
+        boolean anyConnected = false;
+        for (String[] p : pending) {
+            if (cn.sarskin.ChatSphere.client.voice.VoiceIntegration.isVoiceConnected(uuid)) {
+                anyConnected = true;
+                if (!cn.sarskin.ChatSphere.client.voice.VoiceIntegration.isInSvcGroup(p[0], p[1], uuid)) {
+                    LOGGER.info("Voice rebuild: re-creating group for {} in {}/{}", puid, p[0], p[1]);
+                    cn.sarskin.ChatSphere.client.voice.VoiceIntegration.joinVoiceRoom(p[0], p[1], uuid);
+                }
+            }
+        }
+        return anyConnected;
     }
 
     public void sendToPlayer(ServerPlayer player) {
@@ -753,22 +814,23 @@ public class ModServerChannels {
         ChannelEntry entry = resolveTarget(channelId);
         if (entry == null) return;
         String reqStr = requester.toString();
-        if (!isOwnerOrAdmin(channelId, reqStr)) return;
+        // Any member may open a room; only deleting someone else's stays an admin action
+        if (!effectiveMembers(channelId).contains(reqStr)) return;
         String finalName = roomName.trim();
         if (finalName.isEmpty() || finalName.length() > 32) return;
         List<VoiceRoom> rooms = new ArrayList<>(entry.voiceRooms());
         for (VoiceRoom vr : rooms) {
             if (vr.name.equals(finalName)) return;
         }
-        rooms.add(new VoiceRoom(finalName, new ArrayList<>()));
-        ChannelEntry updated = new ChannelEntry(entry.id(), entry.owner(), entry.isPublic(),
-                entry.description(), entry.displayName(),
-                new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
-                new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
-                entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
-        channels.put(entry.id(), updated);
+        // Creator lands in the new room, so drop them from any previous one first
+        detachFromOtherVoiceRooms(reqStr, channelId, finalName);
+        List<String> firstMembers = new ArrayList<>();
+        firstMembers.add(reqStr);
+        rooms.add(new VoiceRoom(finalName, firstMembers));
+        channels.put(entry.id(), withRooms(entry, rooms));
         markChannelsDirty();
         broadcastSync();
+        cn.sarskin.ChatSphere.client.voice.VoiceIntegration.joinVoiceRoom(channelId, finalName, requester);
     }
 
     public synchronized void deleteVoiceRoom(String channelId, String roomName, UUID requester) {
@@ -777,6 +839,10 @@ public class ModServerChannels {
         String reqStr = requester.toString();
         if (!isOwnerOrAdmin(channelId, reqStr)) return;
         List<VoiceRoom> rooms = new ArrayList<>(entry.voiceRooms());
+        VoiceRoom removed = null;
+        for (VoiceRoom vr : rooms) {
+            if (vr.name.equals(roomName)) { removed = vr; break; }
+        }
         rooms.removeIf(vr -> vr.name.equals(roomName));
         ChannelEntry updated = new ChannelEntry(entry.id(), entry.owner(), entry.isPublic(),
                 entry.description(), entry.displayName(),
@@ -786,6 +852,17 @@ public class ModServerChannels {
         channels.put(entry.id(), updated);
         markChannelsDirty();
         broadcastSync();
+        // Deleting the room only dropped the config, so everyone still sat in the voice group
+        if (removed != null) {
+            for (String member : new ArrayList<>(removed.members)) {
+                try {
+                    cn.sarskin.ChatSphere.client.voice.VoiceIntegration.leaveVoiceRoom(
+                            entry.id(), roomName, UUID.fromString(member));
+                } catch (IllegalArgumentException ignored) {
+                    // a malformed uuid in the member list is not a reason to skip the others
+                }
+            }
+        }
     }
 
     public synchronized void joinVoiceRoom(String channelId, String roomName, UUID playerUuid) {
@@ -794,18 +871,23 @@ public class ModServerChannels {
         String puid = playerUuid.toString();
         if (!effectiveMembers(channelId).contains(puid)) return;
         List<VoiceRoom> rooms = new ArrayList<>(entry.voiceRooms());
+        boolean found = false;
         for (int i = 0; i < rooms.size(); i++) {
             VoiceRoom vr = rooms.get(i);
+            boolean target = vr.name.equals(roomName);
+            if (target) found = true;
+            // Target gains the player, every other room loses it; one pass also fixes a player already listed twice
             List<String> newMembers = new ArrayList<>(vr.members);
-            if (vr.name.equals(roomName)) {
-                if (newMembers.contains(puid)) return;
-                newMembers.add(puid);
-                rooms.set(i, new VoiceRoom(vr.name, newMembers));
-            } else {
-                newMembers.remove(puid);
-                rooms.set(i, new VoiceRoom(vr.name, newMembers));
-            }
+            newMembers.remove(puid);
+            if (target) newMembers.add(puid);
+            if (!newMembers.equals(vr.members)) rooms.set(i, new VoiceRoom(vr.name, newMembers));
         }
+        if (!found) {
+            LOGGER.warn("Voice join: room {} does not exist in channel {}", roomName, channelId);
+            return;
+        }
+        // Across channels too: a second room would replace the first group while both lists claimed the player
+        detachFromOtherVoiceRooms(puid, channelId, roomName);
         ChannelEntry updated = new ChannelEntry(entry.id(), entry.owner(), entry.isPublic(),
                 entry.description(), entry.displayName(),
                 new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
@@ -817,29 +899,59 @@ public class ModServerChannels {
         cn.sarskin.ChatSphere.client.voice.VoiceIntegration.joinVoiceRoom(channelId, roomName, playerUuid);
     }
 
+    /** Copies an entry with a replaced voice-room list, so callers skip the long constructor. */
+    private static ChannelEntry withRooms(ChannelEntry e, List<VoiceRoom> rooms) {
+        return new ChannelEntry(e.id(), e.owner(), e.isPublic(), e.description(), e.displayName(),
+                new ArrayList<>(e.admins()), new ArrayList<>(e.mutedPlayers()), new ArrayList<>(e.invitedPlayers()),
+                new ArrayList<>(e.members()), e.inviteCode(), e.showInExplore(), rooms, e.parentId(),
+                e.sortOrder(), e.mainChatEnabled(), e.defaultSubChannel(), e.slowModeSeconds());
+    }
+
+    /** SVC holds one group per connection, so two memberships meant a double listing and one leave silenced the other. */
+    private void detachFromOtherVoiceRooms(String puid, String keepChannelId, String keepRoomName) {
+        for (ChannelEntry e : new ArrayList<>(channels.values())) {
+            List<VoiceRoom> rooms = new ArrayList<>(e.voiceRooms());
+            boolean changed = false;
+            for (int i = 0; i < rooms.size(); i++) {
+                VoiceRoom vr = rooms.get(i);
+                if (!vr.members().contains(puid)) continue;
+                if (e.id().equals(keepChannelId) && vr.name().equals(keepRoomName)) continue;
+                List<String> left = new ArrayList<>(vr.members());
+                left.remove(puid);
+                rooms.set(i, new VoiceRoom(vr.name(), left));
+                changed = true;
+            }
+            if (changed) channels.put(e.id(), withRooms(e, rooms));
+        }
+    }
+
     public synchronized void leaveVoiceRoom(String channelId, String roomName, UUID playerUuid) {
         ChannelEntry entry = resolveTarget(channelId);
         if (entry == null || playerUuid == null) return;
         String puid = playerUuid.toString();
         List<VoiceRoom> rooms = new ArrayList<>(entry.voiceRooms());
+        boolean wasMember = false;
         for (int i = 0; i < rooms.size(); i++) {
             VoiceRoom vr = rooms.get(i);
             if (vr.name.equals(roomName) && vr.members.contains(puid)) {
+                wasMember = true;
                 List<String> newMembers = new ArrayList<>(vr.members);
                 newMembers.remove(puid);
                 rooms.set(i, new VoiceRoom(vr.name, newMembers));
-                ChannelEntry updated = new ChannelEntry(entry.id(), entry.owner(), entry.isPublic(),
-                        entry.description(), entry.displayName(),
-                        new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
-                        new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
-                        entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
-                channels.put(entry.id(), updated);
-                markChannelsDirty();
-                broadcastSync();
-                cn.sarskin.ChatSphere.client.voice.VoiceIntegration.leaveVoiceRoom(channelId, roomName, playerUuid);
-                return;
             }
         }
+        if (wasMember) {
+            ChannelEntry updated = new ChannelEntry(entry.id(), entry.owner(), entry.isPublic(),
+                    entry.description(), entry.displayName(),
+                    new ArrayList<>(entry.admins()), new ArrayList<>(entry.mutedPlayers()),
+                    new ArrayList<>(entry.invitedPlayers()), new ArrayList<>(entry.members()),
+                    entry.inviteCode(), entry.showInExplore(), rooms, entry.parentId(), entry.sortOrder(), entry.mainChatEnabled(), entry.defaultSubChannel(), entry.slowModeSeconds());
+            channels.put(entry.id(), updated);
+            markChannelsDirty();
+            broadcastSync();
+        }
+        // SVC group is keyed by room name, so leave it even when the member list is out of sync
+        cn.sarskin.ChatSphere.client.voice.VoiceIntegration.leaveVoiceRoom(channelId, roomName, playerUuid);
     }
 
     public synchronized void toggleMute(String channelId, String targetSpec, UUID requester) {
@@ -1504,8 +1616,19 @@ public class ModServerChannels {
             List<String> admins, List<String> mutedPlayers, List<String> invitedPlayers,
             List<String> members, String inviteCode, boolean showInExplore,
             List<VoiceRoom> voiceRooms, String parentId, int sortOrder,
-            boolean mainChatEnabled, String defaultSubChannel, int slowModeSeconds
+            boolean mainChatEnabled, String defaultSubChannel, int slowModeSeconds,
+            String iconId
     ) {
+        public ChannelEntry(String id, String owner, boolean isPublic, String description, String displayName,
+                            List<String> admins, List<String> mutedPlayers, List<String> invitedPlayers,
+                            List<String> members, String inviteCode, boolean showInExplore,
+                            List<VoiceRoom> voiceRooms, String parentId, int sortOrder,
+                            boolean mainChatEnabled, String defaultSubChannel, int slowModeSeconds) {
+            this(id, owner, isPublic, description, displayName, admins, mutedPlayers, invitedPlayers,
+                    members, inviteCode, showInExplore, voiceRooms, parentId, sortOrder,
+                    mainChatEnabled, defaultSubChannel, slowModeSeconds, "");
+        }
+
         public ChannelEntry {
             if (inviteCode == null || inviteCode.isEmpty()) {
                 inviteCode = generateInviteCode();
@@ -1521,6 +1644,9 @@ public class ModServerChannels {
             }
             if (slowModeSeconds < 0) {
                 slowModeSeconds = 0;
+            }
+            if (iconId == null) {
+                iconId = "";
             }
         }
     }

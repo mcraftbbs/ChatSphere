@@ -102,7 +102,7 @@ public final class ModServerImages {
         }
     }
 
-    /** Drops files past the server lifetime; called on an interval from the server tick hooks. */
+    /** Drops files past the server lifetime. Channel icons are referenced by a channel config and are kept. */
     public synchronized void sweep() {
         if (!Files.isDirectory(dir)) return;
         long ttl = Math.max(1, ModServerConfig.CONFIG.chatImageServerTtlMinutes.get()) * 60_000L;
@@ -110,11 +110,26 @@ public final class ModServerImages {
         try (Stream<Path> stream = Files.list(dir)) {
             for (Path path : (Iterable<Path>) stream::iterator) {
                 try {
-                    if (now - Files.getLastModifiedTime(path).toMillis() > ttl) Files.deleteIfExists(path);
+                    if (now - Files.getLastModifiedTime(path).toMillis() <= ttl) continue;
+                    if (isChannelIcon(path)) continue;
+                    Files.deleteIfExists(path);
                 } catch (Exception ignored) {
                 }
             }
         } catch (Exception ignored) {
+        }
+    }
+
+    /** True for both files of an id that was uploaded as a channel icon, told apart by its meta marker. */
+    private boolean isChannelIcon(Path path) {
+        String name = path.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        String id = dot > 0 ? name.substring(0, dot) : name;
+        try {
+            Path meta = dir.resolve(id + ".meta");
+            return Files.isRegularFile(meta) && "icon".equals(Files.readString(meta).trim());
+        } catch (Exception e) {
+            return false;
         }
     }
 

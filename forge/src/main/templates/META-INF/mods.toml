@@ -9,7 +9,7 @@ displayName="${mod_name}"
 logoFile="logo.png"
 authors="xwwsdd"
 description='''
-A sleek social chat mod for Minecraft with channels, private messaging, and a modern UI.
+A sleek social chat mod for Minecraft that replaces vanilla chat with channels, private messaging, and a modern GUI.
 '''
 
 [[dependencies.${mod_id}]]

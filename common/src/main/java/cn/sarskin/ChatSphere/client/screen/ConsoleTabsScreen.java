@@ -104,8 +104,9 @@ public class ConsoleTabsScreen extends Screen {
                     setTab(index, new ConsoleTabs.Tab(tabs.get(index).name(), patterns.get(index), value)));
             hide.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
                     Component.translatable("screen.chatsphere.console_tabs.hide_tip")));
-            StyledButton del = StyledButton.styledBuilder(Component.literal("\u00d7"), b -> removeTab(index))
+            StyledButton del = StyledButton.styledBuilder(Component.translatable("screen.chatsphere.console_tabs.delete_tip"), b -> removeTab(index))
                     .bounds(0, 0, DEL_W, 18).style(StyledButton.Style.DANGER)
+                    .icon(Ui.closeIcon(), 10)
                     .tooltip(Component.translatable("screen.chatsphere.console_tabs.delete_tip")).build();
             rowWidgets.add(addRenderableWidget(up));
             rowWidgets.add(addRenderableWidget(down));

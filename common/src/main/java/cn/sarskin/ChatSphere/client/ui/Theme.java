@@ -129,6 +129,9 @@ public final class Theme {
         DERIVE.put("toggleOn", new DeriveSpec(45, 60, 0.40f, 0xFF, 0xFF));
         DERIVE.put("toggleOff", new DeriveSpec(30, 82, 0.08f, 0xFF, 0xFF));
         DERIVE.put("toggleKnob", new DeriveSpec(96, 96, 0.02f, 0xFF, 0xFF));
+        // Button roles. danger stays off this list on purpose: its red must survive any seed hue.
+        DERIVE.put("buttonBg", new DeriveSpec(24, 90, 0.10f, 0xFF, 0xFF));
+        DERIVE.put("buttonPrimaryBg", new DeriveSpec(45, 48, 0.85f, 0xFF, 0xFF));
     }
 
     /** Derived color for a key, or null when no seed / not derivable; cached per theme revision. */
@@ -361,6 +364,13 @@ public final class Theme {
         public final int toggleOff;
         public final int toggleKnob;
 
+        public final int buttonBg;
+        public final int buttonText;
+        public final int buttonPrimaryBg;
+        public final int buttonPrimaryText;
+        public final int buttonDangerBg;
+        public final int buttonDangerText;
+
         private ThemeSnapshot() {
             this.dark = rawDark();
             this.cornerStyle = rawCornerStyle();
@@ -446,6 +456,16 @@ public final class Theme {
             this.toggleOn = ov(dark, "toggleOn", 0xFF2E7D4F, 0xFF3BA55D);
             this.toggleOff = ov(dark, "toggleOff", 0xFF3A3A4A, 0xFFB8B8C4);
             this.toggleKnob = ov(dark, "toggleKnob", 0xFFF0F0F0, 0xFFFFFFFF);
+
+            // Button roles: one surface per intent, text auto-contrasted so any theme stays legible
+            this.buttonBg = ov(dark, "buttonBg", 0xFF3A3A5A, 0xFFE4E4EE);
+            this.buttonText = ov(dark, "buttonText", contrastText(buttonBg), contrastText(buttonBg));
+            this.buttonPrimaryBg = ov(dark, "buttonPrimaryBg", 0xFF5C5CD6, 0xFF5A5AD0);
+            this.buttonPrimaryText = ov(dark, "buttonPrimaryText",
+                    contrastText(buttonPrimaryBg), contrastText(buttonPrimaryBg));
+            this.buttonDangerBg = ov(dark, "buttonDangerBg", 0xFF9E3034, 0xFFB93A3A);
+            this.buttonDangerText = ov(dark, "buttonDangerText",
+                    contrastText(buttonDangerBg), contrastText(buttonDangerBg));
         }
 
         private int styleOr(String key, int def) {
@@ -736,6 +756,66 @@ public final class Theme {
 
     public static int toggleKnob() {
         return snapshot().toggleKnob;
+    }
+
+    /** Neutral button surface: most actions, cancel, and the "off" state. */
+    public static int buttonBg() {
+        return snapshot().buttonBg;
+    }
+
+    public static int buttonText() {
+        return snapshot().buttonText;
+    }
+
+    /** Primary action surface: the one confirming button of a screen. */
+    public static int buttonPrimaryBg() {
+        return snapshot().buttonPrimaryBg;
+    }
+
+    public static int buttonPrimaryText() {
+        return snapshot().buttonPrimaryText;
+    }
+
+    /** Destructive action surface; reserved for irreversible operations. */
+    public static int buttonDangerBg() {
+        return snapshot().buttonDangerBg;
+    }
+
+    public static int buttonDangerText() {
+        return snapshot().buttonDangerText;
+    }
+
+    /** Derived from the surface itself, so every button shifts by one rule instead of its own hover constant. */
+    public static int buttonHover(int bg) {
+        return mix(bg, isDark() ? 0xFFFFFFFF : 0xFF000000, isDark() ? 0.12f : 0.10f);
+    }
+
+    /** Border shade for a button surface, same derivation rule as the hover shade. */
+    public static int buttonBorder(int bg) {
+        return mix(bg, isDark() ? 0xFFFFFFFF : 0xFF000000, isDark() ? 0.22f : 0.18f);
+    }
+
+    /** Disabled surface: the role colour faded out, so it reads as "same button, not usable". */
+    public static int buttonDisabledBg(int bg) {
+        return Ui.withOpacity(mix(bg, isDark() ? 0xFF1A1A22 : 0xFFFFFFFF, 0.45f), 0.55f);
+    }
+
+    /** Perceived-brightness pick between near-white and near-black text. */
+    private static int contrastText(int bg) {
+        float r = ((bg >> 16) & 0xFF) / 255f;
+        float g = ((bg >> 8) & 0xFF) / 255f;
+        float b = (bg & 0xFF) / 255f;
+        float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+        return lum > 0.55f ? 0xFF1A1A1A : 0xFFF5F5F5;
+    }
+
+    /** Linear blend toward {@code target}, keeping the base alpha. */
+    private static int mix(int base, int target, float t) {
+        t = Math.max(0f, Math.min(1f, t));
+        int r = Math.round((((base >> 16) & 0xFF) * (1 - t)) + (((target >> 16) & 0xFF) * t));
+        int g = Math.round((((base >> 8) & 0xFF) * (1 - t)) + (((target >> 8) & 0xFF) * t));
+        int b = Math.round(((base & 0xFF) * (1 - t)) + ((target & 0xFF) * t));
+        return ((base >>> 24) << 24) | (r << 16) | (g << 8) | b;
     }
 
     /** Bubble corner radius; theme-file only (styles.bubble-corner-radius), 4px default. */

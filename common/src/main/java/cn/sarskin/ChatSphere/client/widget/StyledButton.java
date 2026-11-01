@@ -10,6 +10,9 @@ import net.minecraft.network.chat.Component;
 
 public class StyledButton extends Button {
     private Style style;
+    /** Icon drawn instead of the label, tinted from the role colour; null means text only. */
+    private net.minecraft.resources.ResourceLocation icon;
+    private int iconSize = 10;
 
     public StyledButton(int x, int y, int width, int height, Component message, OnPress onPress) {
         super(x, y, width, height, message, onPress, DEFAULT_NARRATION);
@@ -29,19 +32,26 @@ public class StyledButton extends Button {
         this.style = style;
     }
 
+    /** Draws the icon centred instead of the label; the message still feeds narration and tooltips. */
+    public void setIcon(net.minecraft.resources.ResourceLocation icon, int size) {
+        this.icon = icon;
+        this.iconSize = size;
+    }
+
     @Override
     protected void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        int bgColor = style.bgColor;
-        int hoverColor = style.hoverColor;
-        int borderColor = style.borderColor;
-        int textColor = style.textColor;
+        int bgColor;
+        int borderColor;
+        int textColor;
 
         if (!this.active) {
-            bgColor = style.disabledBgColor;
-            borderColor = style.disabledBorderColor;
-            textColor = style.disabledTextColor;
-        } else if (this.isHoveredOrFocused()) {
-            bgColor = hoverColor;
+            bgColor = style.getDisabledBgColor();
+            borderColor = style.getDisabledBorderColor();
+            textColor = style.getDisabledTextColor();
+        } else {
+            bgColor = this.isHoveredOrFocused() ? style.getHoverColor() : style.getBgColor();
+            borderColor = style.getBorderColor();
+            textColor = style.getTextColor();
         }
 
         int radius = Theme.buttonRadius();
@@ -49,51 +59,73 @@ public class StyledButton extends Button {
         Ui.renderRoundedOutline(guiGraphics, this.getX(), this.getY(), this.width, this.height, radius, borderColor);
 
         var mcFont = Minecraft.getInstance().font;
-        Component msg = this.getMessage();
-        int tx = this.getX() + (this.width - mcFont.width(msg)) / 2;
-        int ty = this.getY() + (this.height - 8) / 2;
         guiGraphics.enableScissor(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height);
-        guiGraphics.drawString(mcFont, msg, tx, ty, textColor, false);
+        if (icon != null) {
+            int ix = this.getX() + (this.width - iconSize) / 2;
+            int iy = this.getY() + (this.height - iconSize) / 2;
+            tint(guiGraphics, textColor);
+            guiGraphics.blit(icon, ix, iy, 0, 0, iconSize, iconSize, iconSize, iconSize);
+            tint(guiGraphics, 0xFFFFFFFF);
+        } else {
+            Component msg = this.getMessage();
+            int tx = this.getX() + (this.width - mcFont.width(msg)) / 2;
+            int ty = this.getY() + (this.height - 8) / 2;
+            guiGraphics.drawString(mcFont, msg, tx, ty, textColor, false);
+        }
         guiGraphics.disableScissor();
     }
 
+    /** Applies a packed ARGB colour to the next blit; the atlas glyph itself is white. */
+    private static void tint(GuiGraphics g, int argb) {
+        g.setColor(((argb >> 16) & 0xFF) / 255f, ((argb >> 8) & 0xFF) / 255f,
+                (argb & 0xFF) / 255f, ((argb >>> 24) & 0xFF) / 255f);
+    }
+
+    /** Colours come from {@link Theme} at draw time, so light mode and custom themes stay coherent. */
     public enum Style {
-        DEFAULT(0xFF2A1A3E, 0xFF4A3A5E, 0xFF5A4A7E, 0xFFCCCCCC,
-                0xFF3A3A3A, 0xFF555555, 0xFF666666),
-        CONFIRM(0xFF1E5A32, 0xFF2E7A42, 0xFF3E9A52, 0xFFFFFFFF,
-                0xFF2A3A2A, 0xFF3A5A3A, 0xFF666666),
-        CANCEL(0xFF322A1E, 0xFF524A3E, 0xFF6A5A4E, 0xFFCCCCCC,
-               0xFF3A3A3A, 0xFF555555, 0xFF666666),
-        DANGER(0xFF5A1E1E, 0xFF7A3E3E, 0xFF9A4E4E, 0xFFFFFFFF,
-               0xFF3A2A2A, 0xFF5A3A3A, 0xFF666666),
-        TOGGLE_ON(0xFF285A28, 0xFF387A38, 0xFF489A48, 0xFFFFFFFF,
-                0xFF2A3A2A, 0xFF3A5A3A, 0xFF666666),
-        TOGGLE_OFF(0xFF5A2828, 0xFF7A3838, 0xFF9A4848, 0xFFFFFFFF,
-                0xFF3A2A2A, 0xFF5A3A3A, 0xFF666666);
+        DEFAULT(Role.NEUTRAL),
+        CANCEL(Role.NEUTRAL),
+        CONFIRM(Role.PRIMARY),
+        DANGER(Role.DANGER),
+        TOGGLE_ON(Role.PRIMARY),
+        /** "Off" is a state, not a warning; a red one made whole member lists glow. */
+        TOGGLE_OFF(Role.NEUTRAL);
 
-        final int bgColor;
-        final int hoverColor;
-        final int borderColor;
-        final int textColor;
-        final int disabledBgColor;
-        final int disabledBorderColor;
-        final int disabledTextColor;
+        private enum Role { NEUTRAL, PRIMARY, DANGER }
 
-        public int getBgColor() { return bgColor; }
-        public int getHoverColor() { return hoverColor; }
-        public int getBorderColor() { return borderColor; }
-        public int getTextColor() { return textColor; }
+        private final Role role;
 
-        Style(int bg, int hover, int border, int text,
-              int disabledBg, int disabledBorder, int disabledText) {
-            this.bgColor = bg;
-            this.hoverColor = hover;
-            this.borderColor = border;
-            this.textColor = text;
-            this.disabledBgColor = disabledBg;
-            this.disabledBorderColor = disabledBorder;
-            this.disabledTextColor = disabledText;
+        Style(Role role) {
+            this.role = role;
         }
+
+        private int baseBg() {
+            return switch (role) {
+                case PRIMARY -> Theme.buttonPrimaryBg();
+                case DANGER -> Theme.buttonDangerBg();
+                default -> Theme.buttonBg();
+            };
+        }
+
+        public int getBgColor() { return baseBg(); }
+
+        public int getHoverColor() { return Theme.buttonHover(baseBg()); }
+
+        public int getBorderColor() { return Theme.buttonBorder(baseBg()); }
+
+        public int getTextColor() {
+            return switch (role) {
+                case PRIMARY -> Theme.buttonPrimaryText();
+                case DANGER -> Theme.buttonDangerText();
+                default -> Theme.buttonText();
+            };
+        }
+
+        public int getDisabledBgColor() { return Theme.buttonDisabledBg(baseBg()); }
+
+        public int getDisabledBorderColor() { return Theme.buttonBorder(Theme.buttonDisabledBg(baseBg())); }
+
+        public int getDisabledTextColor() { return Theme.textFaint(); }
     }
 
     public static class Builder {
@@ -106,6 +138,8 @@ public class StyledButton extends Button {
         private Style style = Style.DEFAULT;
         private boolean active = true;
         private Component tooltip;
+        private net.minecraft.resources.ResourceLocation icon;
+        private int iconSize = 10;
 
         Builder(Component message, OnPress onPress) {
             this.message = message;
@@ -136,9 +170,19 @@ public class StyledButton extends Button {
             return this;
         }
 
+        /** Replaces the label with a centred icon; the message still feeds narration. */
+        public Builder icon(net.minecraft.resources.ResourceLocation icon, int size) {
+            this.icon = icon;
+            this.iconSize = size;
+            return this;
+        }
+
         public StyledButton build() {
             StyledButton btn = new StyledButton(x, y, width, height, message, onPress, style);
             btn.active = this.active;
+            if (icon != null) {
+                btn.setIcon(icon, iconSize);
+            }
             if (tooltip != null) {
                 btn.setTooltip(Tooltip.create(tooltip));
             }

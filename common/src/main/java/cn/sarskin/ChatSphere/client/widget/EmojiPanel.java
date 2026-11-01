@@ -64,11 +64,6 @@ public class EmojiPanel {
         return GROUP_H + CATEGORY_HEIGHT + SEARCH_HEIGHT + gridH() + HINT_HEIGHT;
     }
 
-    /** Line count the grid can show; custom group = 1 header + N emoji rows. */
-    private int visibleLines() {
-        return selectedGroup == GROUP_CUSTOM ? 1 + CUSTOM_VISIBLE_ROWS : ROWS_VISIBLE;
-    }
-
     /** Real vertical size of one line; custom emoji rows are 48px tall. */
     private static int lineHeight(LineEntry line) {
         return line.isCategory() ? CELL : (isCustomRow(line) ? CUSTOM_ROW_H : CELL);
@@ -79,13 +74,30 @@ public class EmojiPanel {
                 && CustomEmojiRegistry.isCustom(line.emojis[0].shortcode());
     }
 
-    /** Y offset of line i from the first drawn line, summing real line heights. */
-    private static int lineYAt(List<LineEntry> lines, int start, int i) {
-        int y = 0;
-        for (int j = start; j < i; j++) {
-            y += lineHeight(lines.get(j));
+    /** Total height of every line, category captions included. */
+    private static int contentHeight(List<LineEntry> lines) {
+        int h = 0;
+        for (LineEntry line : lines) h += lineHeight(line);
+        return h;
+    }
+
+    /** Height of the lines above {@code index}. */
+    private static int heightBefore(List<LineEntry> lines, int index) {
+        int h = 0;
+        for (int i = 0; i < index && i < lines.size(); i++) h += lineHeight(lines.get(i));
+        return h;
+    }
+
+    /** Counting lines was wrong: a caption is 20px and a custom row 48px, so "lines minus visible" clipped the last row. */
+    private int maxScrollFor(List<LineEntry> lines) {
+        int budget = gridH();
+        int remaining = contentHeight(lines);
+        int start = 0;
+        while (start < lines.size() && remaining > budget) {
+            remaining -= lineHeight(lines.get(start));
+            start++;
         }
-        return y;
+        return Math.min(start, Math.max(0, lines.size() - 1));
     }
 
     public void render(GuiGraphics g, int panelX, int panelY, int mouseX, int mouseY) {
@@ -134,13 +146,17 @@ public class EmojiPanel {
 
         List<LineEntry> lines = buildLines();
 
+        int startLine = Mth.clamp(scrollOffset, 0, maxScrollFor(lines));
+        scrollOffset = startLine;
         int lineY = gridY + 2;
-        int startLine = scrollOffset;
-        int endLine = Math.min(lines.size(), startLine + visibleLines() + 2);
+        int used = 0;
 
-        for (int i = startLine; i < endLine; i++) {
-            int ly = lineY + lineYAt(lines, startLine, i);
+        for (int i = startLine; i < lines.size(); i++) {
             LineEntry line = lines.get(i);
+            int lh = lineHeight(line);
+            if (used + lh > gridHeight) break;
+            int ly = lineY + used;
+            used += lh;
             if (line.isCategory()) {
                 g.drawString(font, line.categoryName, panelX + 6, ly + 4, Theme.textInactive(), false);
             } else {
@@ -162,13 +178,14 @@ public class EmojiPanel {
                         CustomEmoji ce = CustomEmojiRegistry.byShortcode(
                                 e.shortcode().substring(1, e.shortcode().length() - 1));
                         if (ce != null) {
-                            // Keep the emoji's own aspect ratio inside the cell.
+                            // Scale down only when it would overflow, and never clamp to a minimum or the ratio distorts
                             int max = cell - 4;
-                            int ew = ce.width(), eh = ce.height();
+                            int ew = Math.max(1, ce.width());
+                            int eh = Math.max(1, ce.height());
                             double s = Math.min(1.0, Math.min((double) max / ew, (double) max / eh));
-                            int pw = Math.max(12, (int) Math.round(ew * s));
-                            int ph = Math.max(12, (int) Math.round(eh * s));
-                            ce.blit(g, ex + 2, ey + (cell - ph) / 2, pw, ph);
+                            int pw = Math.max(1, (int) Math.round(ew * s));
+                            int ph = Math.max(1, (int) Math.round(eh * s));
+                            ce.blit(g, ex + (cell - pw) / 2, ey + (cell - ph) / 2, pw, ph);
                             continue;
                         }
                     }
@@ -203,11 +220,12 @@ public class EmojiPanel {
         }
         g.disableScissor();
 
-        int totalLineHeight = lines.size();
-        int visLineCount = visibleLines();
-        if (totalLineHeight > visLineCount) {
-            int barH = Math.max(8, (visLineCount * gridHeight) / totalLineHeight);
-            int barY = gridY + (scrollOffset * (gridHeight - barH)) / (totalLineHeight - visLineCount);
+        // Same pixel budget the grid uses, so the thumb bottoms out exactly when the last line does
+        int contentH = contentHeight(lines);
+        if (contentH > gridHeight) {
+            int barH = Math.max(8, gridHeight * gridHeight / contentH);
+            int scrolledPx = heightBefore(lines, scrollOffset);
+            int barY = gridY + (gridHeight - barH) * scrolledPx / (contentH - gridHeight);
             g.fill(panelX + PANEL_W - 3, barY, panelX + PANEL_W - 1, barY + barH, Theme.scrollThumb());
         }
     }
@@ -487,8 +505,8 @@ public class EmojiPanel {
             }
         }
 
-        int lineCount = buildLines().size();
-        int maxScroll = Math.max(0, lineCount - visibleLines());
+        List<LineEntry> lines = buildLines();
+        int maxScroll = maxScrollFor(lines);
         int step = scrollY > 0 ? -1 : 1;
         scrollOffset = Mth.clamp(scrollOffset + step, 0, maxScroll);
         return true;
@@ -530,7 +548,7 @@ public class EmojiPanel {
         List<LineEntry> lines = buildLines();
         for (int i = 0; i < lines.size(); i++) {
             if (lines.get(i).isCategory() && lines.get(i).categoryName.equals(display)) {
-                scrollOffset = Math.max(0, i);
+                scrollOffset = Mth.clamp(i, 0, maxScrollFor(lines));
                 break;
             }
         }
