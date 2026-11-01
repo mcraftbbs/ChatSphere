@@ -262,8 +262,12 @@ public class CustomEmojiScreen extends Screen {
             String sizeStr = emoji.width() + "x" + emoji.height();
             g.drawString(font, sizeStr, listX + listW - font.width(sizeStr) - 18, ry + 6, Theme.textDim(), false);
             boolean delHover = mouseX >= listX + listW - 14 && mouseX < listX + listW && mouseY >= ry && mouseY < ry + ROW_H;
-            g.drawString(font, "×", listX + listW - 10, ry + (ROW_H - 8) / 2,
-                delHover ? 0xFFFF6666 : Theme.textFaint(), false);
+            int closeTint = delHover ? 0xFFFF6666 : Theme.textFaint();
+            g.setColor(((closeTint >> 16) & 0xFF) / 255f, ((closeTint >> 8) & 0xFF) / 255f,
+                    (closeTint & 0xFF) / 255f, ((closeTint >>> 24) & 0xFF) / 255f);
+            g.blit(Ui.closeIcon(), listX + listW - 14, ry + (ROW_H - 10) / 2,
+                    10, 10, 0f, 0f, 10, 10, 10, 10);
+            g.setColor(1f, 1f, 1f, 1f);
         }
         g.disableScissor();
 

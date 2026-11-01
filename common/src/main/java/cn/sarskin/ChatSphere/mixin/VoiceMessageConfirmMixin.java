@@ -1,6 +1,8 @@
 package cn.sarskin.ChatSphere.mixin;
 
 import cn.sarskin.ChatSphere.client.ModVoiceMessagesIntegration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -12,6 +14,7 @@ import java.util.List;
 
 @Mixin(targets = "ru.dimaskama.voicemessages.client.screen.VoiceMessageConfirmScreen")
 public class VoiceMessageConfirmMixin {
+    private static final Logger LOGGER = LoggerFactory.getLogger("ChatSphere-VM");
 
     @Inject(method = "send", at = @At("HEAD"), cancellable = true, remap = false)
     private void onSend(CallbackInfo ci) {
@@ -31,7 +34,7 @@ public class VoiceMessageConfirmMixin {
             Class<?> pmCls = Class.forName("ru.dimaskama.voicemessages.client.PlaybackManager");
             Object pm = pmCls.getField("MAIN").get(null);
             Method addFromChat = pmCls.getMethod("addFromChat", List.class);
-            // Marks this addFromChat as our own send (see the playbacks hook).
+            // Marks this addFromChat as a local send (see the playbacks hook).
             ModVoiceMessagesIntegration.setLocalSendInProgress(true);
             try {
                 addFromChat.invoke(pm, audio);
@@ -40,6 +43,9 @@ public class VoiceMessageConfirmMixin {
             }
 
             ci.cancel();
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // cancelling the screen without relaying would lose the recording, so at least leave a trace
+            LOGGER.error("Voice relay mixin failed, VoiceMessages sends this one itself", e);
+        }
     }
 }

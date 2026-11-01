@@ -22,9 +22,13 @@ import net.minecraft.util.Mth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Member list (member management). */
 public class ChannelMemberScreen extends Screen {
+    private static final Logger LOGGER = LoggerFactory.getLogger("ChannelMemberScreen");
+
     private static final int PAD = 12;
     private static final int HEADER_H = 36;
     private static final int GROUP_H = 18;
@@ -447,7 +451,9 @@ public class ChannelMemberScreen extends Screen {
     private void drawPlayerHead(GuiGraphics g, String uuidStr, int x, int y, int size) {
         try {
             PlayerFaceRenderer.draw(g, PlayerSkinCache.getSkin(UUID.fromString(uuidStr)), x, y, size);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            LOGGER.debug("No head for {}", uuidStr, e);
+        }
     }
 
     private String resolvePlayerName(String uuid) {

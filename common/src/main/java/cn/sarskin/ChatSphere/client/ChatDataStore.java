@@ -512,6 +512,8 @@ public class ChatDataStore {
         public String defaultSubChannel = "";
         /** Slow mode: minimum seconds between messages in this channel; 0 = off. */
         public int slowModeSeconds = 0;
+        /** Uploaded channel icon id; empty means fall back to the name initial. */
+        public String iconId = "";
         public final List<cn.sarskin.ChatSphere.client.voice.VoiceRoom> voiceRooms = new ArrayList<>();
     }
 }

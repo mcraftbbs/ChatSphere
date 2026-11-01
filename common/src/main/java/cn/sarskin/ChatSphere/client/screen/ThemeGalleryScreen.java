@@ -3,13 +3,13 @@ package cn.sarskin.ChatSphere.client.screen;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.Ui;
+import cn.sarskin.ChatSphere.client.widget.StyledButton;
 import cn.sarskin.ChatSphere.config.ModClientConfig;
 import cn.sarskin.ChatSphere.style.CustomTheme;
 import cn.sarskin.ChatSphere.style.ThemeFileParser;
 import cn.sarskin.ChatSphere.style.ThemeSpec;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -82,9 +82,10 @@ public class ThemeGalleryScreen extends Screen {
     protected void init() {
         errorPrefix = Component.translatable("screen.chatsphere.theme_gallery.load_error").getString();
         refresh();
-        addRenderableWidget(Button.builder(
+        addRenderableWidget(StyledButton.styledBuilder(
                 Component.translatable("screen.chatsphere.theme_gallery.close"), b -> onClose())
-                .bounds(width / 2 - 60, height - 30, 120, 18).build());
+                .bounds(width / 2 - 60, height - 30, 120, 18)
+                .style(StyledButton.Style.CANCEL).build());
     }
 
     @Override

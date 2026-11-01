@@ -117,7 +117,7 @@ public class ModVoiceMessagesIntegration {
                 @Override
                 public Object put(UUID key, Object value) {
                     SEEN_UUIDS.add(key);
-                    // Only our own send consumes the pending conversation (a stale one would hijack received voices).
+                    // Only a local send consumes the pending conversation (a stale one would hijack received voices).
                     PendingVoice pv = localSendInProgress ? pollPendingVoice() : null;
                     if (pv != null) {
                         Minecraft mc = Minecraft.getInstance();
@@ -154,7 +154,10 @@ public class ModVoiceMessagesIntegration {
                                 cn.sarskin.ChatSphere.client.ModVoiceCache.save(pv.conversationId(),
                                         pv.conversationType(), mc.player.getUUID(), voiceMessageId, serialized, audio.size());
                                 // voiceMessageId == key, so the super.put(key, value) below registers it
-                            } catch (Exception ignored) {}
+                            } catch (Exception e) {
+                                // the row and the upload are what players see, so a failure here must not be silent
+                                LOGGER.error("Failed to relay own voice message", e);
+                            }
                         }
                     }
                     return super.put(key, value);
@@ -181,7 +184,7 @@ public class ModVoiceMessagesIntegration {
         if (!vmAvailable) checkPresence();
     }
 
-    /** Ask the server to re-send audio for a voice message we have no cached playback for. */
+    /** Ask the server to re-send audio for a voice message with no cached playback. */
     private static void requestVoiceAudio(UUID voiceMessageId) {
         if (voiceMessageId == null) return;
         if (!voiceFetchRequested.add(voiceMessageId)) return;
@@ -199,7 +202,7 @@ public class ModVoiceMessagesIntegration {
         voiceFetchRequested.remove(voiceMessageId);
     }
 
-    /** SVC client API ready check — VM Playback ctor NPEs on a null api, so defer creation until ready. */
+    /** SVC API ready check: VM Playback ctor NPEs on a null api, so defer creation until ready. */
     private static boolean isVoicechatApiReady() {
         try {
             Class<?> pluginCls = Class.forName("ru.dimaskama.voicemessages.VoiceMessagesPlugin");
@@ -255,14 +258,20 @@ public class ModVoiceMessagesIntegration {
         if (player == null || playbackPlayerSetRect == null) return;
         try {
             playbackPlayerSetRect.invoke(player, x, y, w, h);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // the bar keeps its original size instead
+            LOGGER.debug("VoiceMessagePlayer.setRect failed", e);
+        }
     }
 
     public static void renderPlaybackPlayer(Object player, Object guiGraphics) {
         if (player == null || playbackPlayerRender == null) return;
         try {
             playbackPlayerRender.invoke(player, guiGraphics);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // one bad frame is better than a crash in the chat screen
+            LOGGER.debug("VoiceMessagePlayer.render failed", e);
+        }
     }
 
     public static boolean handlePlaybackClick(Object player, int mouseX, int mouseY, int button) {
@@ -349,7 +358,7 @@ public class ModVoiceMessagesIntegration {
         // Only the sender uploads audio; relaying another player's voice would mis-attribute the sender
         if (isOwn) {
             uploadVoiceAudio(playbackUuid, convId, convType);
-            // Native VM sends get no relay back; add our row unless the hook did.
+            // Native VM sends get no relay back; add the local row unless the hook did.
             if (!ChatHistoryManager.getInstance().hasVoiceMessage(playbackUuid)) {
                 ChatHistoryManager.getInstance().addMessage(
                         name, mc.player.getUUID(),
@@ -380,7 +389,7 @@ public class ModVoiceMessagesIntegration {
                     voiceMessageId, convId, convType.name(), mc.player.getUUID(), typed.size(), serialized);
             mc.getConnection().getConnection().send(
                     new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(pkt));
-            // Cache our audio so the row stays playable without a re-fetch.
+            // Cache the local audio so the row stays playable without a re-fetch.
             ModVoiceCache.save(convId, convType.name(), mc.player.getUUID(), voiceMessageId, serialized, typed.size());
         } catch (Exception ignored) {
         }
@@ -486,7 +495,9 @@ public class ModVoiceMessagesIntegration {
             for (Map.Entry<UUID, Object> e : map.entrySet()) {
                 if (e.getValue() == playback) return e.getKey();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            LOGGER.warn("Could not read the VoiceMessages playback id, falling back to a new one", e);
+        }
         return UUID.randomUUID();
     }
 

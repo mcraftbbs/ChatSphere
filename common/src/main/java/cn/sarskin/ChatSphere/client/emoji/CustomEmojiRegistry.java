@@ -49,7 +49,7 @@ public final class CustomEmojiRegistry {
     /** Channel the chat screen is showing; visibility filters on this. */
     private static String currentChannel = "";
 
-    /** Inline render height — QQ-style big, ~5x the ~10px text line. */
+    /** Inline render height: QQ-style big, ~5x the ~10px text line. */
     public static final int RENDER_H = 48;
     /** Wide images are clamped so a single emoji never swallows a whole line. */
     public static final int MAX_RENDER_W = 96;

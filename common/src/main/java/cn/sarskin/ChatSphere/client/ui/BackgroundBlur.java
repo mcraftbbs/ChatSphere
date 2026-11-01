@@ -7,9 +7,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Panel blur via GL blit downscale/upscale (no shaders, Iris-friendly). */
 public final class BackgroundBlur {
+    private static final Logger LOGGER = LoggerFactory.getLogger("ChatSphere-Blur");
+    private static boolean reported;
+
     private BackgroundBlur() {}
 
     private static int fbo0 = -1, tex0 = -1; // 1:1 copy
@@ -25,7 +30,14 @@ public final class BackgroundBlur {
         try {
             g.flush();
             blurRegion();
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // a broken driver should cost the blur, not the screen behind it
+            destroy();
+            if (!reported) {
+                reported = true;
+                LOGGER.warn("Background blur is disabled after a GL error", e);
+            }
+        }
     }
 
     private static void blurRegion() {

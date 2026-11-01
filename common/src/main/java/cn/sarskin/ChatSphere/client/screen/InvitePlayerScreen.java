@@ -24,9 +24,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Invite list: header, online player rows with skin head, member badge, invite button. */
 public class InvitePlayerScreen extends Screen {
+    private static final Logger LOGGER = LoggerFactory.getLogger("InvitePlayerScreen");
+
     private static final int PAD = 12;
     private static final int HEADER_H = 36;
     private static final int ROW_H = 36;
@@ -240,7 +244,9 @@ public class InvitePlayerScreen extends Screen {
     private void drawPlayerHead(GuiGraphics g, String uuidStr, int x, int y, int size) {
         try {
             PlayerFaceRenderer.draw(g, PlayerSkinCache.getSkin(UUID.fromString(uuidStr)), x, y, size);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            LOGGER.debug("No head for {}", uuidStr, e);
+        }
     }
 
     @Override

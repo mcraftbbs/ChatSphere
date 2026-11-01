@@ -4,6 +4,7 @@ import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.PlayerSkinCache;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
+import cn.sarskin.ChatSphere.client.ui.ChannelIcons;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.client.widget.CopyToast;
@@ -19,9 +20,13 @@ import net.minecraft.util.Mth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Channel detail popout card. */
 public class ChannelInfoScreen extends Screen {
+    private static final Logger LOGGER = LoggerFactory.getLogger("ChannelInfoScreen");
+
     private static final int PAD = 12;
     private static final int HEADER_H = 36;
     private static final int FOOTER_H = 44;
@@ -288,8 +293,8 @@ public class ChannelInfoScreen extends Screen {
     private void drawHeader(GuiGraphics g, int mouseX, int mouseY) {
         int iconX = cardX + PAD;
         int iconY = cardY + (HEADER_H - 18) / 2;
-        Ui.fillRoundedRect(g, iconX, iconY, 18, 18, 5, Theme.iconBtnBg());
-        g.drawString(font, "#", iconX + (18 - font.width("#")) / 2, iconY + 5, Theme.accent(), false);
+        // Same badge as the config preview: a plate under the initial, not a bare glyph on one screen and a box on the other
+        ChannelIcons.drawPlated(g, channelId, iconX, iconY, 18, 5);
 
         String headerName = !config.displayName.isEmpty() ? config.displayName : channelId.substring(1);
         g.drawString(font, Component.literal(headerName), iconX + 26, cardY + (HEADER_H - 8) / 2, Theme.text(), false);
@@ -531,7 +536,9 @@ public class ChannelInfoScreen extends Screen {
     private void drawPlayerHead(GuiGraphics g, String uuidStr, int x, int y, int size) {
         try {
             PlayerFaceRenderer.draw(g, PlayerSkinCache.getSkin(UUID.fromString(uuidStr)), x, y, size);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            LOGGER.debug("No head for {}", uuidStr, e);
+        }
     }
 
     private String resolvePlayerName(String uuid) {

@@ -5,11 +5,15 @@ import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.voice.VoiceIntegration;
 import cn.sarskin.ChatSphere.client.voice.VoiceRoom;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
+import cn.sarskin.ChatSphere.client.ui.ChannelIcons;
+import cn.sarskin.ChatSphere.client.ui.ChannelIconMaker;
+import cn.sarskin.ChatSphere.client.image.ChatImageClient;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.Ui;
 import cn.sarskin.ChatSphere.client.ui.UiToggle;
 import cn.sarskin.ChatSphere.client.widget.CopyToast;
 import cn.sarskin.ChatSphere.client.widget.StyledButton;
+import cn.sarskin.ChatSphere.config.ModServerConfig;
 import cn.sarskin.ChatSphere.mixin.ScreenAccessor;
 import cn.sarskin.ChatSphere.network.ServerboundChannelActionPayload;
 import net.minecraft.client.Minecraft;
@@ -25,6 +29,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -33,12 +39,22 @@ import java.util.UUID;
 public class ChannelConfigScreen extends Screen {
     private static final int ROW_H = 28;
     private static final int INPUT_H = 40;
+    /** Height of the small controls (input boxes, inline buttons) that share a row. */
+    private static final int EDIT_H = 16;
+    /** Drop target for the channel icon; taller than a text field so the preview fits. */
+    private static final int ICON_ROW_H = 34;
     private static final int TAB_Y = 38;
     private static final int TAB_H = 24;
     private static final int TAB_X_PAD = 8;
     private static final int TAB_GAP = 4;
     private static final int CONTENT_Y = 68;
+    /** Default field width; boxes keep this width and line up on the right edge. */
     private static final int FIELD_W = 220;
+    /** Voice rows carry a name line and a member line under a button, so they need more than ROW_H. */
+    private static final int VOICE_ROW_H = 30;
+    /** Smallest label column, and the gap between the longest label and the control column. */
+    private static final int LABEL_MIN_W = 110;
+    private static final int LABEL_GAP = 16;
     private static final int TOGGLE_W = 44;
     private static final int BTN_GAP = 14;
     private static final int NOTIFY_BTN_W = 120;
@@ -51,6 +67,8 @@ public class ChannelConfigScreen extends Screen {
     private int selectedCat;
     private int scrollOffset;
     private final List<AbstractWidget> scrollWidgets = new ArrayList<>();
+    /** Fixed distance from its row top to each control, so scrolling never loses it. */
+    private final List<Integer> scrollInRow = new ArrayList<>();
     private final CopyToast copyToast = new CopyToast();
     private StyledButton inviteCodeBtn;
     private StyledButton regenBtn;
@@ -94,6 +112,8 @@ public class ChannelConfigScreen extends Screen {
         boolean isSub = ChatHistoryManager.isSubChannel(channelId);
 
         List<Opt> general = new ArrayList<>();
+        // Icon preview leads the page but takes INPUT_H, not ROW_H: a 24px square does not fit 28
+        general.add(new Opt("screen.chatsphere.channel_config.icon_label", (y, k) -> iconRow(y), ICON_ROW_H));
         if (!isSub) {
             general.add(new Opt("screen.chatsphere.channel_config.public_label", (y, k) -> mkPublicToggle(y)));
             general.add(new Opt("screen.chatsphere.channel_config.show_in_explore", (y, k) -> mkExploreToggle(y)));
@@ -131,10 +151,11 @@ public class ChannelConfigScreen extends Screen {
                         scheduleChannelUpdate();
                     }
                 }), INPUT_H));
-        general.add(new Opt("screen.chatsphere.channel_config.notify_level", (y, k) -> mkNotifyLevel(y)));
+        // Empty key: the button is self-labelled, so a row label would collide with it.
+        general.add(new Opt("", (y, k) -> mkNotifyLevel(y)));
         if (!isSub) {
             general.add(new Opt("screen.chatsphere.channel_config.invite_code", (y, k) -> {
-                int x = optLabelX + font.width(Component.translatable(k)) + BTN_GAP;
+                int x = fieldX;
                 String code = config.inviteCode.isEmpty()
                     ? Component.translatable("screen.chatsphere.channel_config.invite_code_na").getString()
                     : config.inviteCode;
@@ -232,16 +253,29 @@ public class ChannelConfigScreen extends Screen {
                 @Override protected void updateWidgetNarration(NarrationElementOutput n) {}
                 @Override public boolean mouseClicked(double mx, double my, int btn) { return false; }
             };
-        }));
+        }, VOICE_ROW_H));
         String myUuid = minecraft != null && minecraft.player != null ? minecraft.player.getUUID().toString() : null;
         for (VoiceRoom vr : config.voiceRooms) {
             boolean admin = myUuid != null && (ChatHistoryManager.getInstance().isOwner(channelId, UUID.fromString(myUuid))
                 || ChatHistoryManager.getInstance().isAdmin(channelId, UUID.fromString(myUuid)));
-            voiceOpts.add(new Opt("", (y, k) -> new VoiceRoomWidget(y, width, channelId, vr, myUuid, admin)));
+            voiceOpts.add(new Opt("", (y, k) -> new VoiceRoomWidget(y, width, channelId, vr, myUuid, admin), VOICE_ROW_H));
         }
         if (isAdmin()) {
+            // A gap before the create row so the list and the new-room box do not read as one block
+            voiceOpts.add(new Opt("", (y, k) -> new AbstractWidget(0, y, 0, 0, Component.empty()) {
+                @Override public void renderWidget(GuiGraphics g, int mx, int my, float pt) {}
+                @Override public boolean mouseClicked(double mx, double my, int button) { return false; }
+                @Override protected void updateWidgetNarration(NarrationElementOutput n) {}
+            }, 8));
             voiceOpts.add(new Opt("", (y, k) -> {
-                EditBox input = new EditBox(font, fieldX, y + 12, fieldW - 60, 16,
+                int createBtnH = 18;
+                int createBtnW = 56;
+                int createBoxY = y + (INPUT_H - EDIT_H) / 2;
+                int createBtnY = y + (INPUT_H - createBtnH) / 2;
+                // Box and button as one group from the field column's left edge, not one stretched and one pinned right
+                int createBoxW = Math.max(60, fieldW - createBtnW - 6);
+                int createBoxX = fieldX;
+                EditBox input = new EditBox(font, createBoxX, createBoxY, createBoxW, EDIT_H,
                     Component.translatable("screen.chatsphere.channel_config.voice_room_name_hint"));
                 input.setMaxLength(32);
                 input.setBordered(true);
@@ -250,13 +284,17 @@ public class ChannelConfigScreen extends Screen {
                     unused -> {
                         String name = input.getValue().trim();
                         if (name.isEmpty()) return;
-                        config.voiceRooms.add(new VoiceRoom(name, new ArrayList<>()));
+                        // Mirror the server: the creator lands in the room, and only in that one
+                        ArrayList<String> mine = new ArrayList<>();
+                        if (myUuid != null) mine.add(myUuid);
+                        ChatHistoryManager.getInstance().detachFromOtherVoiceRooms(myUuid, channelId, name);
+                        config.voiceRooms.add(new VoiceRoom(name, mine));
                         ChatHistoryManager.getInstance().sendVoiceRoomAction(
                             ServerboundChannelActionPayload.Action.CREATE_VOICE_ROOM, channelId, name);
                         input.setValue("");
                         clearWidgets(); init();
                     }
-                ).bounds(fieldX + fieldW - 56, y + 10, 56, 18).style(StyledButton.Style.CONFIRM)
+                ).bounds(createBoxX + createBoxW + 6, createBtnY, createBtnW, createBtnH).style(StyledButton.Style.CONFIRM)
                 .tooltip(Component.translatable("screen.chatsphere.channel_config.tip_create_voice")).build();
                 addRenderableWidget(input);
                 addRenderableWidget(btn);
@@ -264,8 +302,8 @@ public class ChannelConfigScreen extends Screen {
                     @Override
                     public void setY(int yy) {
                         super.setY(yy);
-                        input.setY(yy + 12);
-                        btn.setY(yy + 10);
+                        input.setY(yy + (INPUT_H - EDIT_H) / 2);
+                        btn.setY(yy + (INPUT_H - createBtnH) / 2);
                     }
                     @Override
                     public void renderWidget(GuiGraphics g, int mx, int my, float pt) {}
@@ -325,11 +363,20 @@ public class ChannelConfigScreen extends Screen {
         tabX = (width - totalTabW) / 2;
 
         optLabelX = 30;
-        fieldX = optLabelX;
-        fieldW = Math.min(FIELD_W, width - optLabelX - 40);
         toggleX = width - TOGGLE_W - 40;
+        // Measured from this page's labels so the longest one cannot run under a box; box and switches share a right edge
+        int labelCol = LABEL_MIN_W;
+        for (Opt opt : cats.get(selectedCat).opts()) {
+            if (opt.key().isEmpty()) continue;
+            labelCol = Math.max(labelCol, font.width(Component.translatable(opt.key())) + LABEL_GAP);
+        }
+        int labelRight = optLabelX + labelCol;
+        int toggleRight = toggleX + TOGGLE_W;
+        fieldW = Math.max(80, Math.min(FIELD_W, toggleRight - labelRight));
+        fieldX = toggleRight - fieldW;
 
         scrollWidgets.clear();
+        scrollInRow.clear();
         scrollOffset = Mth.clamp(scrollOffset, 0, calcMaxScroll());
 
         if (selectedCat == subChannelTabIdx) {
@@ -347,7 +394,10 @@ public class ChannelConfigScreen extends Screen {
 
         int y = CONTENT_Y - scrollOffset;
         for (Opt opt : cats.get(selectedCat).opts()) {
-            scrollWidgets.add(addRenderableWidget(opt.factory().create(y, opt.key())));
+            AbstractWidget widget = opt.factory().create(y, opt.key());
+            scrollWidgets.add(addRenderableWidget(widget));
+            // Store the control's distance from its row top once; it never changes afterwards.
+            scrollInRow.add(widget.getY() - y);
             y += opt.height();
         }
 
@@ -370,6 +420,134 @@ public class ChannelConfigScreen extends Screen {
             || ChatHistoryManager.getInstance().isAdmin(channelId, playerUuid));
     }
 
+    /** Icon row: a drop target for an image file plus a clear button. */
+    private AbstractWidget iconRow(int y) {
+        Component hint = Component.translatable(isAdmin()
+                ? "screen.chatsphere.channel_config.icon_drop"
+                : "screen.chatsphere.channel_config.icon_admin_only");
+        // Sits in the field column like every other control, so it never covers the row label
+        int dropX = fieldX;
+        int clearW = 18;
+        // Pinned to the field's right edge: stacked after the drop target, a long hint pushed it past the panel
+        int clearX = dropX + fieldW - clearW;
+        int maxDropW = Math.max(60, fieldW - clearW - 6);
+        // Icon, gap, then the hinted plate
+        int dropW = Math.min(24 + 8 + font.width(hint) + 12, maxDropW);
+        int dropH = ICON_ROW_H - 4;
+
+        AbstractWidget drop = new AbstractWidget(dropX, y + 2, dropW, dropH, Component.empty()) {
+            @Override public void renderWidget(GuiGraphics g, int mx, int my, float pt) {
+                boolean hover = isAdmin() && mx >= getX() && mx < getX() + getWidth()
+                        && my >= getY() && my < getY() + getHeight();
+                // Icon sits on its own; the plate and outline belong to the hint area only
+                int iconSize = 24;
+                int iconY = getY() + (getHeight() - iconSize) / 2;
+                ChannelIcons.drawPlated(g, channelId, getX(), iconY, iconSize, 6);
+                int plateX = getX() + iconSize + 8;
+                int plateW = getWidth() - iconSize - 8;
+                Ui.fillRoundedRect(g, plateX, getY(), plateW, getHeight(), 5,
+                        hover ? Theme.iconBtnHover() : Theme.iconBtnBg());
+                Ui.renderRoundedOutline(g, plateX, getY(), plateW, getHeight(), 5, Theme.divider());
+                g.drawString(font, hint, plateX + 6, getY() + (getHeight() - 8) / 2,
+                        isAdmin() ? Theme.textDim() : Theme.textInactive(), false);
+            }
+            @Override protected void updateWidgetNarration(NarrationElementOutput n) {}
+            @Override public boolean mouseClicked(double mx, double my, int btn) { return false; }
+        };
+
+        if (!isAdmin()) {
+            return new AbstractWidget(0, y, 0, 0, Component.empty()) {
+                @Override public void setY(int yy) { super.setY(yy); drop.setY(yy + 2); }
+                @Override public void renderWidget(GuiGraphics g, int mx, int my, float pt) {
+                    drop.render(g, mx, my, pt);
+                }
+                @Override public boolean mouseClicked(double mx, double my, int btn) { return false; }
+                @Override protected void updateWidgetNarration(NarrationElementOutput n) {}
+            };
+        }
+
+        StyledButton clear = StyledButton.styledBuilder(
+                Component.translatable("screen.chatsphere.channel_config.tip_icon_clear"),
+                unused -> {
+                    // Not the debounced update: an empty iconId already means "unchanged", which is why this did nothing
+                    ChatHistoryManager.getInstance().clearChannelIcon(channelId);
+                    clearWidgets();
+                    init();
+                }
+        ).bounds(clearX, y + (ICON_ROW_H - 20) / 2, clearW, 20).style(StyledButton.Style.CANCEL)
+                .icon(Ui.closeIcon(), 10)
+                .tooltip(Component.translatable("screen.chatsphere.channel_config.tip_icon_clear")).build();
+        clear.active = !config.iconId.isEmpty();
+
+        addRenderableWidget(clear);
+
+        return new AbstractWidget(0, y, 0, 0, Component.empty()) {
+            @Override
+            public void setY(int yy) {
+                super.setY(yy);
+                drop.setY(yy + 2);
+                clear.setY(yy + (ICON_ROW_H - 20) / 2);
+            }
+            @Override
+            public void renderWidget(GuiGraphics g, int mx, int my, float pt) {
+                drop.render(g, mx, my, pt);
+            }
+            @Override
+            public boolean mouseClicked(double mx, double my, int button) { return false; }
+            @Override
+            protected void updateWidgetNarration(NarrationElementOutput n) {}
+        };
+    }
+
+    /** Takes a dropped image file as the channel icon, shrinking it only when it exceeds the cap. */
+    private void acceptIconFile(Path path) {
+        if (path == null || path.getFileName() == null) return;
+        String name = path.getFileName().toString().toLowerCase();
+        if (!name.endsWith(".png") && !name.endsWith(".jpg") && !name.endsWith(".jpeg")) {
+            notifyPlayer("screen.chatsphere.channel_config.icon_not_image");
+            return;
+        }
+        try {
+            byte[] png = ChannelIconMaker.toIconPng(Files.readAllBytes(path), ModServerConfig.CONFIG.chatImageMaxDim.get());
+            if (png == null) {
+                notifyPlayer("screen.chatsphere.channel_config.icon_not_image");
+                return;
+            }
+            String err = ChatImageClient.uploadIcon(png, storedId -> {
+                config.iconId = storedId;
+                // Sent at once: this is a one-shot change, and a debounced one is lost if the screen closes
+                ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
+                clearWidgets();
+                init();
+            });
+            if (err != null) notifyPlayer(err);
+        } catch (Exception e) {
+            notifyPlayer("screen.chatsphere.channel_config.icon_not_image");
+        }
+    }
+
+    private void notifyPlayer(String key) {
+        if (minecraft != null && minecraft.player != null) {
+            minecraft.player.displayClientMessage(Component.translatable(key), false);
+        }
+    }
+
+    @Override
+    public void onFilesDrop(List<Path> paths) {
+        if (!isAdmin() || paths == null || paths.isEmpty()) return;
+        acceptIconFile(paths.get(0));
+    }
+
+    /** Top edge that centres a control of {@code h} inside one row. */
+    private int rowWidgetY(int rowY, int h) {
+        return rowY + (ROW_H - h) / 2;
+    }
+
+    /** Draws text centred on its row, so labels line up with the controls beside them. */
+    private void drawRowText(GuiGraphics g, Component text, int x, int rowY, int color) {
+        g.drawString(font, text, x, rowY + (ROW_H - 8) / 2, color, false);
+    }
+
     /** Read-only info row (label text, no fake button). */
     private AbstractWidget infoRow(Component text, int y) {
         return new AbstractWidget(optLabelX, y, width - optLabelX - 20, ROW_H, Component.empty()) {
@@ -382,8 +560,9 @@ public class ChannelConfigScreen extends Screen {
     }
 
     /** Labeled input: small label on top, box below. */
+    /** Row is INPUT_H, so a 16px box sits 12 below the top edge and centres under its label. */
     private EditBox mkField(int y, String hintKey, int maxLen, String value, java.util.function.Consumer<String> onEdit) {
-        EditBox box = new EditBox(font, fieldX, y + 12, fieldW, 16, Component.translatable(hintKey));
+        EditBox box = new EditBox(font, fieldX, y + (INPUT_H - 16) / 2, fieldW, 16, Component.translatable(hintKey));
         box.setMaxLength(maxLen);
         box.setBordered(true);
         box.setValue(value);
@@ -468,6 +647,14 @@ public class ChannelConfigScreen extends Screen {
         scheduledChannelUpdateAt = System.currentTimeMillis() + 400;
     }
 
+    /** Sends a pending change right away; tick() only runs while this screen is open. */
+    private void flushChannelUpdate() {
+        if (scheduledChannelUpdateAt > 0) {
+            scheduledChannelUpdateAt = -1;
+            ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
+        }
+    }
+
     @Override
     public void tick() {
         copyToast.tick();
@@ -478,8 +665,7 @@ public class ChannelConfigScreen extends Screen {
             return;
         }
         if (scheduledChannelUpdateAt > 0 && System.currentTimeMillis() >= scheduledChannelUpdateAt) {
-            scheduledChannelUpdateAt = -1;
-            ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
+            flushChannelUpdate();
         }
         // Re-read sub-channels only on version bump, never poll.
         if (selectedCat == subChannelTabIdx && renamingId == null) {
@@ -494,10 +680,15 @@ public class ChannelConfigScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        Theme.beginFrame();
         int contentBottom = height - 48;
-        for (AbstractWidget w : scrollWidgets) {
-            int wy = w.getY();
-            w.visible = wy >= CONTENT_Y && wy + ROW_H <= contentBottom;
+        // Fully in or fully out, like the mod config screen: intersecting let half-rows render over the tab bar
+        for (int i = 0; i < scrollWidgets.size(); i++) {
+            AbstractWidget w = scrollWidgets.get(i);
+            // Live every frame: a cached row base went stale on scroll and hid every control while labels kept drawing
+            int inRow = i < scrollInRow.size() ? scrollInRow.get(i) : 0;
+            int rowTop = w.getY() - inRow;
+            w.visible = rowTop >= CONTENT_Y && rowTop + widgetRowHeight(i, w) <= contentBottom;
         }
 
         renderBackground(g, mouseX, mouseY, partialTick);
@@ -529,26 +720,32 @@ public class ChannelConfigScreen extends Screen {
 
         g.fill(10, CONTENT_Y - 6, width - 10, CONTENT_Y - 5, Theme.divider());
 
-        int y = CONTENT_Y - scrollOffset;
-        for (Opt opt : cats.get(selectedCat).opts()) {
-            if (y >= CONTENT_Y && y + opt.height() <= contentBottom) {
-                if (!opt.key().isEmpty()) {
-                    if (opt.height() == INPUT_H) {
-                        g.drawString(font, Component.translatable(opt.key()), optLabelX, y, Theme.textDim(), false);
-                    } else {
-                        g.drawString(font, Component.translatable(opt.key()), optLabelX, y + 6, Theme.text(), false);
+        // Clip the content band: visible flags only hide a row's wrapper, separately registered fields kept drawing over the tab bar
+        g.enableScissor(10, CONTENT_Y, width - 10, contentBottom);
+        try {
+            int y = CONTENT_Y - scrollOffset;
+            for (Opt opt : cats.get(selectedCat).opts()) {
+                if (y >= CONTENT_Y && y + opt.height() <= contentBottom) {
+                    if (!opt.key().isEmpty()) {
+                        // Tall rows hold a box 12 below the top, so their label sits at y+16 to share the centre line
+                        boolean field = opt.height() == INPUT_H;
+                        g.drawString(font, Component.translatable(opt.key()), optLabelX,
+                                field ? y + (opt.height() - 8) / 2 : y + 6,
+                                field ? Theme.textDim() : Theme.text(), false);
                     }
                 }
+                y += opt.height();
             }
-            y += opt.height();
-        }
 
-        if (selectedCat == subChannelTabIdx) {
-            renderSubChannelTab(g, mouseX, mouseY);
-        }
+            if (selectedCat == subChannelTabIdx) {
+                renderSubChannelTab(g, mouseX, mouseY);
+            }
 
-        for (var renderable : ((ScreenAccessor) this).chatsphere$getRenderables()) {
-            renderable.render(g, mouseX, mouseY, partialTick);
+            for (var renderable : ((ScreenAccessor) this).chatsphere$getRenderables()) {
+                renderable.render(g, mouseX, mouseY, partialTick);
+            }
+        } finally {
+            g.disableScissor();
         }
 
         int maxScroll = calcMaxScroll();
@@ -590,8 +787,8 @@ public class ChannelConfigScreen extends Screen {
 
         visible = ry >= CONTENT_Y && ry + ROW_H <= contentBottom;
         if (visible) {
-            g.drawString(font, Component.translatable("screen.chatsphere.channel_config.subchannels_title"),
-                    labelX, ry + 4, Theme.textDim(), false);
+            drawRowText(g, Component.translatable("screen.chatsphere.channel_config.subchannels_title"),
+                    labelX, ry, Theme.textDim());
         }
         ry += ROW_H;
 
@@ -599,9 +796,11 @@ public class ChannelConfigScreen extends Screen {
             visible = ry >= CONTENT_Y && ry + ROW_H <= contentBottom;
             subCreateInput.visible = visible;
             if (visible) {
-                subCreateInput.setY(ry + 6);
-                g.drawString(font, Component.translatable("screen.chatsphere.channel_config.subchannel_create"),
-                        labelX, ry + 8, Theme.text(), false);
+                // Everything on this row shares one centre line
+                int boxY = rowWidgetY(ry, EDIT_H);
+                subCreateInput.setY(boxY);
+                drawRowText(g, Component.translatable("screen.chatsphere.channel_config.subchannel_create"),
+                        labelX, ry, Theme.text());
                 int boxX = labelX + 110;
                 int boxW = Math.max(80, width - boxX - 90);
                 subCreateInput.setX(boxX);
@@ -610,11 +809,11 @@ public class ChannelConfigScreen extends Screen {
                 boolean hover = mouseX >= btnX && mouseX <= btnX + 64 && mouseY >= ry && mouseY <= ry + ROW_H;
                 StyledButton.Style addStyle = StyledButton.Style.CONFIRM;
                 int btnR = Theme.buttonRadius();
-                // Same height/center as the input box
-                Ui.fillRoundedRect(g, btnX, ry + 6, 64, 16, btnR, hover ? addStyle.getHoverColor() : addStyle.getBgColor());
-                Ui.renderRoundedOutline(g, btnX, ry + 6, 64, 16, btnR, addStyle.getBorderColor());
+                Ui.fillRoundedRect(g, btnX, boxY, 64, EDIT_H, btnR, hover ? addStyle.getHoverColor() : addStyle.getBgColor());
+                Ui.renderRoundedOutline(g, btnX, boxY, 64, EDIT_H, btnR, addStyle.getBorderColor());
                 Component txt = Component.translatable("screen.chatsphere.channel_config.subchannel_add");
-                g.drawString(font, txt, btnX + (64 - font.width(txt)) / 2, ry + 10, addStyle.getTextColor(), false);
+                g.drawString(font, txt, btnX + (64 - font.width(txt)) / 2,
+                        boxY + (EDIT_H - 8) / 2, addStyle.getTextColor(), false);
             }
             ry += ROW_H;
         }
@@ -622,8 +821,8 @@ public class ChannelConfigScreen extends Screen {
         if (subOrder.isEmpty()) {
             visible = ry >= CONTENT_Y && ry + ROW_H <= contentBottom;
             if (visible) {
-                g.drawString(font, Component.translatable("screen.chatsphere.channel_config.subchannel_empty"),
-                        labelX + 8, ry + 6, Theme.textDim(), false);
+                drawRowText(g, Component.translatable("screen.chatsphere.channel_config.subchannel_empty"),
+                        labelX + 8, ry, Theme.textDim());
             }
             ry += ROW_H;
         }
@@ -649,7 +848,7 @@ public class ChannelConfigScreen extends Screen {
         if (renamingId != null && renameBox != null) {
             if (renameRowY >= 0) {
                 renameBox.visible = true;
-                renameBox.setY(renameRowY + 1);
+                renameBox.setY(rowWidgetY(renameRowY, EDIT_H));
                 renameBox.setX(30 + 12);
                 renameBox.setWidth(Math.max(100, Math.min(fieldW, width - 30 - 12 - 60)));
             } else {
@@ -752,14 +951,15 @@ public class ChannelConfigScreen extends Screen {
         String nameStr = name != null ? name.getString() : id;
 
         boolean renamingThis = id.equals(renamingId);
+        int btnY = rowWidgetY(ry, EDIT_H);
 
         if (!renamingThis) {
             int handleW = 12;
-            g.drawString(font, Component.literal("\u2630"), rowX, ry + 7,
+            drawRowText(g, Component.literal("\u2630"), rowX, ry,
                     mouseY >= ry && mouseY < ry + ROW_H && mouseX >= rowX && mouseX < rowX + handleW + 8
-                            ? Theme.accent() : Theme.textDim(), false);
+                            ? Theme.accent() : Theme.textDim());
 
-            g.drawString(font, Component.literal(nameStr), rowX + 22, ry + 6, Theme.text(), false);
+            drawRowText(g, Component.literal(nameStr), rowX + 22, ry, Theme.text());
 
             int rightEdge = width - 16;
             int delW = 18;
@@ -772,27 +972,29 @@ public class ChannelConfigScreen extends Screen {
             boolean delHover = mouseX >= delX && mouseX < delX + delW && mouseY >= ry && mouseY < ry + ROW_H;
             StyledButton.Style delStyle = StyledButton.Style.DANGER;
             int btnR = Theme.buttonRadius();
-            Ui.fillRoundedRect(g, delX, ry + 3, delW, 16, btnR, delHover ? delStyle.getHoverColor() : delStyle.getBgColor());
-            Ui.renderRoundedOutline(g, delX, ry + 3, delW, 16, btnR, delStyle.getBorderColor());
-            g.drawString(font, Component.literal("×"), delX + (delW - font.width("×")) / 2, ry + 7, delStyle.getTextColor(), false);
+            Ui.fillRoundedRect(g, delX, btnY, delW, EDIT_H, btnR, delHover ? delStyle.getHoverColor() : delStyle.getBgColor());
+            Ui.renderRoundedOutline(g, delX, btnY, delW, EDIT_H, btnR, delStyle.getBorderColor());
+            Ui.drawCloseIcon(g, delX, btnY, delW, EDIT_H);
             if (delHover) {
                 g.renderTooltip(font, Component.translatable("screen.chatsphere.channel_config.subchannel_delete_tip"), mouseX, mouseY);
             }
 
             boolean renameHover = mouseX >= renameX && mouseX < renameX + renameW && mouseY >= ry && mouseY < ry + ROW_H;
-            Ui.fillRoundedRect(g, renameX, ry + 3, renameW, 16, btnR, renameHover ? Theme.iconBtnHover() : Theme.iconBtnBg());
-            Ui.renderRoundedOutline(g, renameX, ry + 3, renameW, 16, btnR, Theme.divider());
+            Ui.fillRoundedRect(g, renameX, btnY, renameW, EDIT_H, btnR, renameHover ? Theme.iconBtnHover() : Theme.iconBtnBg());
+            Ui.renderRoundedOutline(g, renameX, btnY, renameW, EDIT_H, btnR, Theme.divider());
             Component editTxt = Component.literal("✎");
-            g.drawString(font, editTxt, renameX + (renameW - font.width(editTxt)) / 2, ry + 7, Theme.text(), false);
+            g.drawString(font, editTxt, renameX + (renameW - font.width(editTxt)) / 2,
+                    btnY + (EDIT_H - 8) / 2, Theme.text(), false);
             if (renameHover) {
                 g.renderTooltip(font, Component.translatable("screen.chatsphere.channel_config.subchannel_rename_tip"), mouseX, mouseY);
             }
 
             boolean parentHover = mouseX >= parentX && mouseX < parentX + parentW && mouseY >= ry && mouseY < ry + ROW_H;
-            Ui.fillRoundedRect(g, parentX, ry + 3, parentW, 16, btnR, parentHover ? Theme.iconBtnHover() : Theme.iconBtnBg());
-            Ui.renderRoundedOutline(g, parentX, ry + 3, parentW, 16, btnR, Theme.divider());
+            Ui.fillRoundedRect(g, parentX, btnY, parentW, EDIT_H, btnR, parentHover ? Theme.iconBtnHover() : Theme.iconBtnBg());
+            Ui.renderRoundedOutline(g, parentX, btnY, parentW, EDIT_H, btnR, Theme.divider());
             Component parentTxt = Component.literal("⇄");
-            g.drawString(font, parentTxt, parentX + (parentW - font.width(parentTxt)) / 2, ry + 7, Theme.text(), false);
+            g.drawString(font, parentTxt, parentX + (parentW - font.width(parentTxt)) / 2,
+                    btnY + (EDIT_H - 8) / 2, Theme.text(), false);
             if (parentHover) {
                 g.renderTooltip(font, Component.translatable("screen.chatsphere.channel_config.subchannel_parent_tip"), mouseX, mouseY);
             }
@@ -1033,10 +1235,19 @@ public class ChannelConfigScreen extends Screen {
         int y = CONTENT_Y - scrollOffset;
         List<Opt> opts = cats.get(selectedCat).opts();
         for (int i = 0; i < opts.size() && i < scrollWidgets.size(); i++) {
-            scrollWidgets.get(i).setY(y);
+            // Row top plus the offset from creation: the widget's own y already includes the last offset and would compound
+            int inRow = i < scrollInRow.size() ? scrollInRow.get(i) : 0;
+            scrollWidgets.get(i).setY(y + inRow);
             y += opts.get(i).height();
         }
         return true;
+    }
+
+    /** Real height of the row a scroll widget belongs to, so tall rows are not clipped early. */
+    private int widgetRowHeight(int index, AbstractWidget fallback) {
+        List<Opt> opts = cats.get(selectedCat).opts();
+        if (index >= 0 && index < opts.size()) return opts.get(index).height();
+        return Math.max(ROW_H, fallback.getHeight());
     }
 
     private int calcMaxScroll() {
@@ -1056,12 +1267,16 @@ public class ChannelConfigScreen extends Screen {
 
     @Override
     public void onClose() {
+        // Leaving within the 400ms debounce would otherwise drop the edit, an icon set just before closing
+        flushChannelUpdate();
         ChatHistoryManager.getInstance().saveNow();
         if (minecraft != null) minecraft.setScreen(parent);
     }
 
     @Override
     public void removed() {
+        // Also covers a screen switched away without onClose
+        flushChannelUpdate();
         ChatHistoryManager.getInstance().removeChannelConfigChangeListener(configChangeListener);
     }
 
@@ -1082,7 +1297,7 @@ public class ChannelConfigScreen extends Screen {
         private final boolean isAdmin;
 
         VoiceRoomWidget(int y, int w, String channelId, VoiceRoom room, String myUuid, boolean isAdmin) {
-            super(0, y, w, ROW_H, Component.empty());
+            super(0, y, w, VOICE_ROW_H, Component.empty());
             this.channelId = channelId;
             this.roomName = room.name;
             this.myUuid = myUuid;
@@ -1108,16 +1323,24 @@ public class ChannelConfigScreen extends Screen {
             int delW = 22;
             int delX = rightEdge - delW;
             int btnW = 72;
-            int btnX = delX - 4 - btnW;
+            // Both buttons hug the right edge; the gap keeps them from touching
+            int btnX = delX - 6 - btnW;
 
-            boolean rowHover = mx >= leftX && mx < rightEdge && my >= ry && my < ry + ROW_H;
+            boolean rowHover = mx >= leftX && mx < rightEdge && my >= ry && my < ry + VOICE_ROW_H;
             if (rowHover) {
-                Ui.fillRoundedRect(g, leftX, ry + 1, rightEdge - leftX, ROW_H - 2, 6, Theme.hoverRow());
+                Ui.fillRoundedRect(g, leftX, ry + 1, rightEdge - leftX, VOICE_ROW_H - 2, 6, Theme.hoverRow());
             }
 
-            g.drawString(font, room.name + " (" + room.members.size() + ")", leftX, ry + 3, Theme.text(), false);
+            // One or two text lines; the block and the buttons share the row centre
+            boolean hasMembers = !room.members.isEmpty();
+            int textH = hasMembers ? 18 : 8;
+            int textY = ry + (VOICE_ROW_H - textH) / 2;
+            int btnH = 18;
+            int btnY = ry + (VOICE_ROW_H - btnH) / 2;
 
-            if (!room.members.isEmpty()) {
+            g.drawString(font, room.name + " (" + room.members.size() + ")", leftX, textY, Theme.text(), false);
+
+            if (hasMembers) {
                 StringBuilder sb = new StringBuilder();
                 for (String uuid : room.members) {
                     String name = resolvePlayerName(uuid);
@@ -1136,18 +1359,19 @@ public class ChannelConfigScreen extends Screen {
                     }
                     membersStr += "…";
                 }
-                g.drawString(font, membersStr, leftX + 2, ry + 14, Theme.textDim(), false);
+                g.drawString(font, membersStr, leftX + 2, textY + 10, Theme.textDim(), false);
             }
 
             StyledButton.Style btnStyle = isMember ? StyledButton.Style.DANGER : StyledButton.Style.CONFIRM;
-            boolean btnHover = mx >= btnX && mx < btnX + btnW && my >= ry + 1 && my < ry + 19;
+            boolean btnHover = mx >= btnX && mx < btnX + btnW && my >= btnY && my < btnY + btnH;
             int btnR = Theme.buttonRadius();
-            Ui.fillRoundedRect(g, btnX, ry + 1, btnW, 18, btnR, btnHover ? btnStyle.getHoverColor() : btnStyle.getBgColor());
-            Ui.renderRoundedOutline(g, btnX, ry + 1, btnW, 18, btnR, btnStyle.getBorderColor());
+            Ui.fillRoundedRect(g, btnX, btnY, btnW, btnH, btnR, btnHover ? btnStyle.getHoverColor() : btnStyle.getBgColor());
+            Ui.renderRoundedOutline(g, btnX, btnY, btnW, btnH, btnR, btnStyle.getBorderColor());
             Component btnText = Component.translatable(isMember
                 ? "screen.chatsphere.channel_config.voice_leave"
                 : "screen.chatsphere.channel_config.voice_join");
-            g.drawString(font, btnText, btnX + (btnW - font.width(btnText)) / 2, ry + 6, btnStyle.getTextColor(), false);
+            g.drawString(font, btnText, btnX + (btnW - font.width(btnText)) / 2,
+                    btnY + (btnH - 8) / 2, btnStyle.getTextColor(), false);
 
             if (btnHover) {
                 g.renderTooltip(font, Component.translatable(isMember
@@ -1156,11 +1380,11 @@ public class ChannelConfigScreen extends Screen {
             }
 
             if (isAdmin) {
-                boolean delHover = mx >= delX && mx < delX + delW && my >= ry + 1 && my < ry + 19;
+                boolean delHover = mx >= delX && mx < delX + delW && my >= btnY && my < btnY + btnH;
                 StyledButton.Style delStyle = StyledButton.Style.DANGER;
-                Ui.fillRoundedRect(g, delX, ry + 1, delW, 18, btnR, delHover ? delStyle.getHoverColor() : delStyle.getBgColor());
-                Ui.renderRoundedOutline(g, delX, ry + 1, delW, 18, btnR, delStyle.getBorderColor());
-                g.drawString(font, Component.literal("×"), delX + (delW - font.width("×")) / 2, ry + 6, delStyle.getTextColor(), false);
+                Ui.fillRoundedRect(g, delX, btnY, delW, btnH, btnR, delHover ? delStyle.getHoverColor() : delStyle.getBgColor());
+                Ui.renderRoundedOutline(g, delX, btnY, delW, btnH, btnR, delStyle.getBorderColor());
+                Ui.drawCloseIcon(g, delX, btnY, delW, btnH);
 
                 if (delHover) {
                     g.renderTooltip(font, Component.translatable("screen.chatsphere.channel_config.tip_kick_member"), mx, my);
@@ -1179,15 +1403,19 @@ public class ChannelConfigScreen extends Screen {
             int delW = 22;
             int delX = rightEdge - delW;
             int btnW = 72;
-            int btnX = delX - 4 - btnW;
+            int btnX = delX - 6 - btnW;
+            int btnH = 18;
+            int btnY = ry + (VOICE_ROW_H - btnH) / 2;
 
-            if (mx >= btnX && mx < btnX + btnW && my >= ry + 1 && my < ry + 19) {
+            if (mx >= btnX && mx < btnX + btnW && my >= btnY && my < btnY + btnH) {
                 ServerboundChannelActionPayload.Action act = isMember ? ServerboundChannelActionPayload.Action.LEAVE_VOICE_ROOM : ServerboundChannelActionPayload.Action.JOIN_VOICE_ROOM;
                 if (myUuid != null) {
                     if (isMember) {
                         room.members.remove(myUuid);
                     } else {
-                        for (VoiceRoom vr : config.voiceRooms) vr.members.remove(myUuid);
+                        // One room per player, across every channel, matching the server's rule
+                        ChatHistoryManager.getInstance()
+                                .detachFromOtherVoiceRooms(myUuid, channelId, roomName);
                         room.members.add(myUuid);
                     }
                 }
@@ -1196,7 +1424,10 @@ public class ChannelConfigScreen extends Screen {
                 return true;
             }
 
-            if (isAdmin && mx >= delX && mx < delX + delW && my >= ry + 1 && my < ry + 19) {
+            if (isAdmin && mx >= delX && mx < delX + delW && my >= btnY && my < btnY + btnH) {
+                // Leaving the group is local, so it does not have to wait for the server round trip
+                VoiceIntegration.leaveVoiceRoom(channelId, roomName,
+                        minecraft != null && minecraft.player != null ? minecraft.player.getUUID() : null);
                 config.voiceRooms.removeIf(vr -> vr.name.equals(roomName));
                 ChatHistoryManager.getInstance().sendVoiceRoomAction(
                     ServerboundChannelActionPayload.Action.DELETE_VOICE_ROOM, channelId, roomName);

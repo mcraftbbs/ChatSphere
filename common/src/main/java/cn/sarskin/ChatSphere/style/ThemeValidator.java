@@ -74,7 +74,9 @@ public final class ThemeValidator {
                 "railBg", "msgHover", "inputPillBg", "inputPillBorder",
                 "bubbleOwn", "bubbleOther", "bubbleInfoLine", "cmdBubbleOwn", "cmdBubbleOther",
                 "bubbleGradientTop", "bubbleGradientBottom",
-                "toggleOn", "toggleOff", "toggleKnob")) {
+                "toggleOn", "toggleOff", "toggleKnob",
+                "buttonBg", "buttonText", "buttonPrimaryBg", "buttonPrimaryText",
+                "buttonDangerBg", "buttonDangerText")) {
             COLOR_PROPS.put(key, PropDef.color());
         }
 

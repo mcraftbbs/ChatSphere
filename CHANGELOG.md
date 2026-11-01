@@ -1,3 +1,21 @@
+## 2.5.1
+
+### Added
+- Channel icons: the rail, sidebar, info header and explorer show the name initial until one is set
+- Channel icons: drop a png/jpg on the icon row or paste a link, and a non-square image is centre-cropped
+- Voice rooms get their own section under the channel tree, with the head count and each occupant listed under the room
+
+### Changed
+- Server config is split into General and Chat media, each page made of collapsible titled groups
+- General holds chat, sync, voice, emoji and backup; Chat media holds link previews and chat images
+- Sidebar channel rows keep their `#` prefix and show the icon once one is set
+- Redrawn toolbar and panel icons; voice room rows use a speaker, voice messages a microphone
+
+### Fixed
+- An image URL that fails to download stays in the chat box, so it can be retried
+- The viewer had no close button while the image was missing; that state now says how to leave
+- The UI border setting turned itself back on after every restart
+
 ## 2.5.0
 
 ### Added

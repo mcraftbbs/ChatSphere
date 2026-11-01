@@ -22,6 +22,9 @@ public final class ChatImageClient {
     private static final Set<String> URLs_IN_FLIGHT = ConcurrentHashMap.newKeySet();
     private static final Map<String, byte[][]> INCOMING = new ConcurrentHashMap<>();
     private static final Map<String, byte[]> PENDING_UPLOADS = new ConcurrentHashMap<>();
+    private static final Map<String, Consumer<String>> ICON_CALLBACKS = new ConcurrentHashMap<>();
+    /** Upload id to the link it came from, so the token can replace that URL in the box. */
+    private static final Map<String, String> SOURCE_URLS = new ConcurrentHashMap<>();
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2, runnable -> {
         Thread thread = new Thread(runnable, "ChatSphere-ChatImage");
         thread.setDaemon(true);
@@ -30,6 +33,8 @@ public final class ChatImageClient {
 
     private static volatile Consumer<String> tokenSink;
     private static volatile Consumer<String> messageSink;
+    /** Takes (url, token) and replaces the url with the token in the input box. */
+    private static volatile java.util.function.BiConsumer<String, String> urlSink;
 
     private ChatImageClient() {}
 
@@ -39,6 +44,39 @@ public final class ChatImageClient {
 
     public static void setMessageSink(Consumer<String> sink) {
         messageSink = sink;
+    }
+
+    public static void setUrlSink(java.util.function.BiConsumer<String, String> sink) {
+        urlSink = sink;
+    }
+
+    /** Icons share the chunked store but are not attachments, so the chat attachment switch must not gate them. */
+    public static String uploadIcon(byte[] data, Consumer<String> onStored) {
+        int[] size = new int[2];
+        String error = ChatImageGuard.validate(data, size);
+        if (error != null) return error;
+        int count = Math.max(1, (data.length + CHUNK - 1) / CHUNK);
+        if (count > ModServerImages.MAX_CHUNKS) return ChatImageGuard.ERR_SIZE;
+        String id = randomId();
+        PENDING_UPLOADS.put(id, data);
+        ChatImageCache.put(id, data);
+        ICON_CALLBACKS.put(id, onStored);
+        for (int i = 0; i < count; i++) {
+            int from = i * CHUNK;
+            int to = Math.min(data.length, from + CHUNK);
+            ServerboundChatImagePayload.sendToServer(new ServerboundChatImagePayload(
+                    ServerboundChatImagePayload.Action.UPLOAD, id, i, count, size[0], size[1],
+                    "icon", Arrays.copyOfRange(data, from, to)));
+        }
+        return null;
+    }
+
+    /** Called by the server ack; runs the icon callback instead of inserting a chat token. */
+    public static boolean completeIcon(String id) {
+        Consumer<String> cb = ICON_CALLBACKS.remove(id);
+        if (cb == null) return false;
+        cb.accept(id);
+        return true;
     }
 
     /** Validates then sends every chunk; returns a lang key on rejection, null when the chunks went out. */
@@ -51,6 +89,10 @@ public final class ChatImageClient {
         if (count > ModServerImages.MAX_CHUNKS) return ChatImageGuard.ERR_SIZE;
         String id = randomId();
         PENDING_UPLOADS.put(id, data);
+        // A link upload remembers its URL, so the token can replace it once the server accepts
+        if (sourceUrl != null && !sourceUrl.isEmpty() && !"icon".equals(sourceUrl)) {
+            SOURCE_URLS.put(id, sourceUrl);
+        }
         // show the sender its own image even when the server never answers
         ChatImageCache.put(id, data);
         for (int i = 0; i < count; i++) {
@@ -67,22 +109,25 @@ public final class ChatImageClient {
     public static boolean uploadFromUrl(String url) {
         if (!ModClientConfig.CONFIG.chatImagesEnabled.get()) return false;
         if (url == null || !url.matches("^https?://\\S+$")) return false;
-        if (!LinkPreviewService.allowed(url) || !URLs_IN_FLIGHT.add(url)) return false;
+        if (!LinkPreviewService.allowed(url)) return false;
+        if (!URLs_IN_FLIGHT.add(url)) {
+            // the same URL is already downloading, so leaving it in the box would replace the token later
+            notifyLater(ChatImageGuard.ERR_FORMAT);
+            return true;
+        }
         POOL.execute(() -> {
             try {
                 byte[] data = LinkPreviewService.downloadImage(url);
                 if (data == null) {
+                    // The URL is still in the box, so a retry needs no retyping and nothing is re-inserted
                     notifyLater(ChatImageGuard.ERR_FORMAT);
-                    insertLater(url);
                     return;
                 }
                 int[] dims = new int[2];
                 String error = ChatImageGuard.validate(data, dims);
                 if (error == null) error = upload(data, url, dims);
-                if (error != null) {
-                    notifyLater(error);
-                    insertLater(url);
-                }
+                if (error != null) notifyLater(error);
+                // On success handleAccepted puts the token where the URL was, not next to it
             } catch (Exception e) {
                 notifyLater(ChatImageGuard.ERR_FORMAT);
             } finally {
@@ -104,7 +149,16 @@ public final class ChatImageClient {
     public static void handleAccepted(String id, int width, int height) {
         byte[] local = PENDING_UPLOADS.remove(id);
         if (local != null) ChatImageCache.put(id, local);
-        insertLater(ChatImage.token(id, width, height));
+        // An icon upload must not turn into a chat token; it hands the id back instead
+        if (completeIcon(id)) return;
+        String token = ChatImage.token(id, width, height);
+        // A link upload replaces the URL it came from; a dropped file just inserts the token
+        String sourceUrl = SOURCE_URLS.remove(id);
+        if (sourceUrl != null) {
+            replaceLater(sourceUrl, token);
+        } else {
+            insertLater(token);
+        }
     }
 
     public static void handleData(String id, int partIndex, int partCount, byte[] bytes) {
@@ -146,6 +200,7 @@ public final class ChatImageClient {
         INCOMING.clear();
         PENDING_UPLOADS.clear();
         URLs_IN_FLIGHT.clear();
+        SOURCE_URLS.clear();
     }
 
     /** 16 hex chars, the shape the server validates. */
@@ -164,6 +219,13 @@ public final class ChatImageClient {
         Consumer<String> sink = tokenSink;
         if (sink == null) return;
         runOnClient(() -> sink.accept(token));
+    }
+
+    /** Swaps the URL a link upload came from for its token, leaving nothing behind in the box. */
+    private static void replaceLater(String url, String token) {
+        java.util.function.BiConsumer<String, String> sink = urlSink;
+        if (sink == null) return;
+        runOnClient(() -> sink.accept(url, token));
     }
 
     private static void notifyLater(String langKey) {

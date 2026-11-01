@@ -1,7 +1,6 @@
 package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.client.image.ChatImageCache;
-import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
 import cn.sarskin.ChatSphere.client.ui.Ui;
 import net.minecraft.client.gui.GuiGraphics;
@@ -12,6 +11,7 @@ import net.minecraft.resources.ResourceLocation;
 /** Full screen image view; click or ESC goes back to the chat. */
 public class ChatImageViewerScreen extends Screen {
     private static final int MARGIN = 24;
+    private static final int CLOSE_SIZE = 16;
     private final Screen parent;
     private final String imageId;
 
@@ -30,32 +30,45 @@ public class ChatImageViewerScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         g.fill(0, 0, this.width, this.height, 0xFF101018);
         super.render(g, mouseX, mouseY, partialTick);
+
         ResourceLocation texture = ChatImageCache.texture(imageId);
         int[] size = texture != null ? ChatImageCache.textureSize(imageId) : null;
         int maxW = Math.max(40, this.width - MARGIN * 2);
         int maxH = Math.max(40, this.height - MARGIN * 2 - 16);
+
         if (size == null || size[0] <= 0 || size[1] <= 0) {
-            int boxW = Math.min(maxW, 200);
-            int boxH = Math.min(maxH, 120);
-            int x = (this.width - boxW) / 2;
-            int y = (this.height - boxH) / 2;
-            Ui.fillRoundedRect(g, x, y, boxW, boxH, 6, Theme.popupBg());
-            if (Theme.popupBorderVisible()) {
-                Ui.renderRoundedOutline(g, x, y, boxW, boxH, 6, Theme.popupOutline());
-            }
-            g.drawString(font, title, x + (boxW - font.width(title)) / 2, y + boxH / 2 - 4, Theme.textDim(), false);
-            return;
+            drawMissing(g);
+        } else {
+            float scale = Math.min((float) maxW / size[0], (float) maxH / size[1]);
+            int drawW = Math.max(1, Math.round(size[0] * scale));
+            int drawH = Math.max(1, Math.round(size[1] * scale));
+            int x = (this.width - drawW) / 2;
+            int y = (this.height - drawH) / 2;
+            g.blit(texture, x, y, drawW, drawH, 0f, 0f, size[0], size[1], size[0], size[1]);
         }
+
+        // Outside the branches: the missing-image view used to return early and had no close button
         drawClose(g, mouseX, mouseY);
-        float scale = Math.min((float) maxW / size[0], (float) maxH / size[1]);
-        int drawW = Math.max(1, Math.round(size[0] * scale));
-        int drawH = Math.max(1, Math.round(size[1] * scale));
-        int x = (this.width - drawW) / 2;
-        int y = (this.height - drawH) / 2;
-        g.blit(texture, x, y, drawW, drawH, 0f, 0f, size[0], size[1], size[0], size[1]);
     }
 
-    private static final int CLOSE_SIZE = 16;
+    /** Placeholder for an image whose bytes are gone or never arrived. */
+    private void drawMissing(GuiGraphics g) {
+        int boxW = Math.min(Math.max(40, this.width - MARGIN * 2), 220);
+        int boxH = Math.min(Math.max(40, this.height - MARGIN * 2 - 16), 130);
+        int x = (this.width - boxW) / 2;
+        int y = (this.height - boxH) / 2;
+        Ui.fillRoundedRect(g, x, y, boxW, boxH, 6, Theme.popupBg());
+        if (Theme.popupBorderVisible()) {
+            Ui.renderRoundedOutline(g, x, y, boxW, boxH, 6, Theme.popupOutline());
+        }
+
+        Component headline = Component.translatable("chatsphere.image.missing");
+        Component hint = Component.translatable("chatsphere.image.missing_hint");
+        g.drawString(font, headline, x + (boxW - font.width(headline)) / 2, y + boxH / 2 - 12,
+                Theme.textDim(), false);
+        g.drawString(font, hint, x + (boxW - font.width(hint)) / 2, y + boxH / 2 + 4,
+                Theme.textFaint(), false);
+    }
 
     private int closeX() {
         return Math.max(4, this.width - CLOSE_SIZE - 12);
@@ -65,16 +78,19 @@ public class ChatImageViewerScreen extends Screen {
         return 12;
     }
 
+    /** Same close affordance as the popups: hover background only, shared glyph. */
     private void drawClose(GuiGraphics g, int mouseX, int mouseY) {
         int x = closeX();
         int y = closeY();
-        boolean hover = mouseX >= x && mouseX <= x + CLOSE_SIZE && mouseY >= y && mouseY <= y + CLOSE_SIZE;
-        Ui.fillRoundedRect(g, x, y, CLOSE_SIZE, CLOSE_SIZE, 4, hover ? 0x66FF5555 : 0x44000000);
+        if (mouseX >= x && mouseX < x + CLOSE_SIZE && mouseY >= y && mouseY < y + CLOSE_SIZE) {
+            Ui.fillRoundedRect(g, x, y, CLOSE_SIZE, CLOSE_SIZE, 4, Theme.hoverRow());
+        }
         Ui.drawCloseIcon(g, x, y, CLOSE_SIZE);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // The close glyph is the only control here, so any click still dismisses the view
         onClose();
         return true;
     }

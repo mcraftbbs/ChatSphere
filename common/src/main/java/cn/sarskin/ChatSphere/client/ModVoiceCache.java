@@ -108,7 +108,7 @@ public class ModVoiceCache {
             total -= e.getValue().audioData().length;
             CACHE.remove(e.getKey());
         }
-        LOGGER.info("Voice CACHE exceeded {} MB, evicted oldest entries", ModClientConfig.CONFIG.voiceCacheMaxMB.get());
+        LOGGER.info("Voice cache exceeded {} MB, evicted oldest entries", ModClientConfig.CONFIG.voiceCacheMaxMB.get());
     }
 
     private static void startCleaner() {
@@ -161,7 +161,7 @@ public class ModVoiceCache {
             Files.write(tmp, json.getBytes(StandardCharsets.UTF_8));
             Files.move(tmp, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception e) {
-            LOGGER.error("Failed to save voice CACHE", e);
+            LOGGER.error("Failed to save voice cache", e);
         }
     }
 
@@ -170,7 +170,7 @@ public class ModVoiceCache {
             Path path = getIndexPath();
             if (!Files.exists(path)) return;
             if (Files.size(path) > MAX_INDEX_BYTES) {
-                LOGGER.warn("Voice CACHE index too large ({} bytes), skipping load", Files.size(path));
+                LOGGER.warn("Voice cache index too large ({} bytes), skipping load", Files.size(path));
                 return;
             }
             String json = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
@@ -183,7 +183,7 @@ public class ModVoiceCache {
                 }
             }
         } catch (Exception e) {
-            LOGGER.error("Failed to load voice CACHE", e);
+            LOGGER.error("Failed to load voice cache", e);
         }
     }
 }
