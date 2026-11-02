@@ -264,13 +264,15 @@ public class ModServerChannels {
                     ? e.displayName() : e.id();
             result.add(new ClientboundPublicChannelListPayload.PublicChannelEntry(
                     e.id(), dn, e.description(),
-                    e.members().size(), onlineCount, e.inviteCode()));
+                    e.members().size(), onlineCount, e.inviteCode(),
+                    e.iconId() != null ? e.iconId() : ""));
         }
         return result;
     }
 
     public synchronized void createChannel(String id, UUID ownerUuid, boolean isPublic, boolean showInExplore,
-                                           boolean mainChatEnabled, String defaultSubChannel, int slowModeSeconds) {
+                                           String description, boolean mainChatEnabled, String defaultSubChannel,
+                                           int slowModeSeconds) {
         if (channels.containsKey(id)) return;
         if (id == null || id.isEmpty()) return;
         if (isSubChannel(id)) {
@@ -291,6 +293,10 @@ public class ModServerChannels {
                     generateInviteCode(), false, new ArrayList<>(), parentId, maxOrder + 1,
                     true, "", 0);
             channels.put(id, child);
+            // Main chat and subs cannot both be open, so the first sub becomes the default
+            if (parent.mainChatEnabled()) {
+                channels.put(parentId, withMainChatOff(parent, childName));
+            }
             markChannelsDirty();
             broadcastSync();
             return;
@@ -308,12 +314,24 @@ public class ModServerChannels {
                 .filter(e -> e.parentId() == null || e.parentId().isEmpty())
                 .mapToInt(ChannelEntry::sortOrder)
                 .max().orElse(-1);
-        ChannelEntry entry = new ChannelEntry(id, ownerStr, isPublic, "", "",
+        ChannelEntry entry = new ChannelEntry(id, ownerStr, isPublic,
+                description != null ? description : "", "",
                 admins, new ArrayList<>(), new ArrayList<>(), members, generateInviteCode(), showInExplore, new ArrayList<>(), "", maxOrder + 1,
                 mainChatEnabled, defaultSubChannel != null ? defaultSubChannel : "", slowModeSeconds);
         channels.put(id, entry);
         markChannelsDirty();
         broadcastSync();
+    }
+
+    /** Copy of a channel with main chat closed and its first sub as the default, if none is named. */
+    private static ChannelEntry withMainChatOff(ChannelEntry e, String firstSub) {
+        String defSub = e.defaultSubChannel() == null || e.defaultSubChannel().isEmpty()
+                ? firstSub : e.defaultSubChannel();
+        return new ChannelEntry(e.id(), e.owner(), e.isPublic(), e.description(), e.displayName(),
+                new ArrayList<>(e.admins()), new ArrayList<>(e.mutedPlayers()),
+                new ArrayList<>(e.invitedPlayers()), new ArrayList<>(e.members()), e.inviteCode(),
+                e.showInExplore(), e.voiceRooms(), e.parentId(), e.sortOrder(), false, defSub,
+                e.slowModeSeconds(), e.iconId());
     }
 
     public synchronized void updateChannelConfig(String channelId, boolean isPublic, String description, String displayName,
@@ -511,10 +529,25 @@ public class ModServerChannels {
             if (e.id().startsWith(prefix) || e.id().equals(channelId)) cascade.add(e.id());
         }
         for (String id : cascade) channels.remove(id);
+        // A deleted name is free again, so its history goes too or a new channel would reopen it
+        purgeConversations(cascade);
         compactSortOrders();
         markChannelsDirty();
         broadcastSync();
         return true;
+    }
+
+    /** Drops every stored message of the given conversations. */
+    private void purgeConversations(List<String> conversationIds) {
+        if (conversationIds.isEmpty()) return;
+        boolean changed = false;
+        synchronized (messageHistory) {
+            changed |= messageHistory.removeIf(m -> conversationIds.contains(m.conversationId()));
+        }
+        synchronized (commandHistory) {
+            changed |= commandHistory.removeIf(m -> conversationIds.contains(m.conversationId()));
+        }
+        if (changed) markMessagesDirty();
     }
 
     /** Auto-join the default channel on login so existing players see the newcomer. */

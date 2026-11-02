@@ -26,6 +26,7 @@ public record ClientboundPublicChannelListPayload(List<PublicChannelEntry> chann
             buf.writeInt(e.memberCount());
             buf.writeInt(e.onlineCount());
             writeUtf(buf, e.inviteCode());
+            writeUtf(buf, e.iconId());
         }
     }
 
@@ -39,7 +40,8 @@ public record ClientboundPublicChannelListPayload(List<PublicChannelEntry> chann
             int memberCount = buf.readInt();
             int onlineCount = buf.readInt();
             String inviteCode = PayloadLimits.readUtf(buf);
-            list.add(new PublicChannelEntry(channelId, displayName, description, memberCount, onlineCount, inviteCode));
+            String iconId = PayloadLimits.readUtf(buf);
+            list.add(new PublicChannelEntry(channelId, displayName, description, memberCount, onlineCount, inviteCode, iconId));
         }
         return new ClientboundPublicChannelListPayload(list);
     }
@@ -56,6 +58,8 @@ public record ClientboundPublicChannelListPayload(List<PublicChannelEntry> chann
 
 
     
+    /** iconId travels along, so a channel can be shown before the player joins it. */
     public record PublicChannelEntry(String channelId, String displayName, String description,
-                                     int memberCount, int onlineCount, String inviteCode) {}
+                                     int memberCount, int onlineCount, String inviteCode,
+                                     String iconId) {}
 }

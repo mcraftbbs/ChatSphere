@@ -347,8 +347,11 @@ public class ModChatScreen extends Screen {
         if (!history.getChannels().contains(currentConversation)
                 && !COMMAND_CONVERSATION_ID.equals(currentConversation)
                 && history.getConversationType(currentConversation) != ChatMessageData.ConversationType.PRIVATE) {
+            // A removed channel lands here first; the default channel is the expected resting place
             List<String> channels = history.getChannels();
-            currentConversation = channels.isEmpty() ? ChatHistoryManager.DEFAULT_CHANNEL_ID : channels.get(0);
+            currentConversation = channels.contains(ChatHistoryManager.DEFAULT_CHANNEL_ID)
+                    ? ChatHistoryManager.DEFAULT_CHANNEL_ID
+                    : (channels.isEmpty() ? ChatHistoryManager.DEFAULT_CHANNEL_ID : channels.get(0));
         }
 
         if (this.initial.startsWith("/")) {
@@ -474,6 +477,7 @@ public class ModChatScreen extends Screen {
             refreshTimerTicks = 0;
             refreshOnlinePlayers();
             ChatHistoryManager.getInstance().refreshPrivateConversationDisplayNames();
+            fallBackFromMissingChannel();
         }
         if (scrollOffset <= 1
                 && ChatHistoryManager.getInstance().getUnreadCount(currentConversation) > 0) {
@@ -483,6 +487,23 @@ public class ModChatScreen extends Screen {
             replyHighlightTarget = -1;
         }
         copyToast.tick();
+    }
+
+    /** Moves to #general when the open channel was deleted by its owner or left here. */
+    private void fallBackFromMissingChannel() {
+        if (COMMAND_CONVERSATION_ID.equals(currentConversation)) return;
+        // Private conversations are keyed by the two uuids, not by a channel id
+        if (currentConversation.contains(":")) return;
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        if (!history.isServerConnected() || history.hasChannel(currentConversation)) return;
+        // A server that hides #general still leaves the first readable channel as a resting place
+        List<String> channels = history.getChannels();
+        currentConversation = channels.contains(ChatHistoryManager.DEFAULT_CHANNEL_ID)
+                ? ChatHistoryManager.DEFAULT_CHANNEL_ID
+                : (channels.isEmpty() ? ChatHistoryManager.DEFAULT_CHANNEL_ID : channels.get(0));
+        sidebarPrivateMode = false;
+        voicePlayerCache.clear();
+        scrollOffset = 0;
     }
 
     @Override

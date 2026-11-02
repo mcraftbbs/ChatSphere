@@ -126,7 +126,13 @@ public class ChannelInfoScreen extends Screen {
 
     @Override
     protected void init() {
-        config = ChatHistoryManager.getInstance().getChannelConfig(channelId);
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        // Deleting or leaving returns to this screen, so a missing channel must not rebuild as empty
+        if (history.isServerConnected() && !history.hasChannel(channelId)) {
+            onClose();
+            return;
+        }
+        config = history.getChannelConfig(channelId);
         localPlayerUuid = minecraft != null && minecraft.player != null
             ? minecraft.player.getUUID().toString() : null;
         isSub = ChatHistoryManager.isSubChannel(channelId);

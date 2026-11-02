@@ -2,6 +2,7 @@ package cn.sarskin.ChatSphere.client.screen;
 
 import cn.sarskin.ChatSphere.platform.PacketSender;
 
+import cn.sarskin.ChatSphere.client.ChatDataStore;
 import cn.sarskin.ChatSphere.client.ChatHistoryManager;
 import cn.sarskin.ChatSphere.client.ui.BackgroundBlur;
 import cn.sarskin.ChatSphere.client.ui.Theme;
@@ -243,6 +244,7 @@ public class CreateChannelScreen extends Screen {
             subToggles.add(this.addRenderableWidget(new UiToggle(
                     contentRight - 60, y + 2, 60, 18, on, v -> {
                         if (index < subEnabled.size()) subEnabled.set(index, v);
+                        syncMainChatWithSubs();
                     })));
             y += subRow;
         }
@@ -298,6 +300,19 @@ public class CreateChannelScreen extends Screen {
         subEnabled = new ArrayList<>();
         for (int i = 0; i < templateSubs.size(); i++) subEnabled.add(true);
         if (mainChatEnabled) defaultSub = "";
+        syncMainChatWithSubs();
+    }
+
+    /** Sub-channels and main chat are alternatives, so picking subs closes main chat. */
+    private void syncMainChatWithSubs() {
+        List<String> subs = selectedSubs();
+        if (subs.isEmpty()) return;
+        mainChatEnabled = false;
+        if (defaultSub.isEmpty() || !subs.contains(defaultSub)) defaultSub = subs.get(0);
+        if (defaultSubInput != null) {
+            defaultSubInput.setVisible(true);
+            defaultSubInput.setValue(defaultSub);
+        }
     }
 
     /** Field text on the basics step, otherwise the value kept across steps. */
@@ -540,18 +555,28 @@ public class CreateChannelScreen extends Screen {
         UUID ownerUuid = this.minecraft != null && this.minecraft.player != null
                 ? this.minecraft.player.getUUID() : null;
         String channelId = "#" + plannedName();
-        String sub = mainChatEnabled ? "" : (defaultSubInput != null ? defaultSubInput.getValue().trim() : "");
-        if (sub.contains("/")) sub = "";
         List<String> children = selectedSubs();
+        // Subs replace main chat, so the channel opens on the first one unless a default was typed
+        boolean mainChat = mainChatEnabled && children.isEmpty();
+        String typedSub = defaultSubInput != null ? defaultSubInput.getValue().trim() : "";
+        if (typedSub.contains("/")) typedSub = "";
+        String sub = mainChat ? "" : (!typedSub.isEmpty() ? typedSub
+                : (children.isEmpty() ? "" : children.get(0)));
 
         if (ownerUuid != null && history.isServerConnected() && this.minecraft != null
                 && this.minecraft.getConnection() != null) {
-            PacketSender.toServer(ServerboundChannelActionPayload.ID, createPayload(channelId, ownerUuid, sub));
+            PacketSender.toServer(ServerboundChannelActionPayload.ID,
+                    createPayload(channelId, ownerUuid, description, mainChat, sub));
             for (String child : children) {
-                PacketSender.toServer(ServerboundChannelActionPayload.ID, createPayload(channelId + "/" + child, ownerUuid, ""));
+                PacketSender.toServer(ServerboundChannelActionPayload.ID,
+                        createPayload(channelId + "/" + child, ownerUuid, "", true, ""));
             }
         } else {
             history.addChannel(channelId, ownerUuid);
+            ChatDataStore.ChannelConfig cfg = history.getChannelConfig(channelId);
+            cfg.description = description;
+            cfg.mainChatEnabled = mainChat;
+            cfg.defaultSubChannel = sub;
             for (String child : children) {
                 history.addChannel(channelId + "/" + child, ownerUuid);
             }
@@ -568,12 +593,12 @@ public class CreateChannelScreen extends Screen {
     }
 
     private static net.minecraft.network.FriendlyByteBuf createPayload(
-            String channelId, UUID ownerUuid, String defaultSub) {
+            String channelId, UUID ownerUuid, String description, boolean mainChat, String defaultSub) {
         return new ServerboundChannelActionPayload(
                         ServerboundChannelActionPayload.Action.CREATE,
-                        channelId, ownerUuid, true, "", "",
+                        channelId, ownerUuid, true, description, "",
                         List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "",
-                        true, defaultSub).toBuf();
+                        mainChat, defaultSub).toBuf();
     }
 
     private void cancel() {

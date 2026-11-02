@@ -70,6 +70,8 @@ public class ChatHistoryManager {
     private final Map<String, Integer> notificationLevels = new HashMap<>();
     private final Map<String, Map<UUID, TypingEntry>> typingByConversation = new HashMap<>();
     private List<ClientboundPublicChannelListPayload.PublicChannelEntry> publicChannels;
+    /** Icons of listed public channels, so the explorer can draw them before the player joins. */
+    private final Map<String, String> publicChannelIcons = new HashMap<>();
     private boolean publicChannelsDirty;
     /** Cached online player uuids (event-driven; version bumps only on real changes). */
     private final Set<String> onlineUuids = new HashSet<>();
@@ -764,6 +766,14 @@ public class ChatHistoryManager {
         }
     }
 
+    /** False once the channel is deleted or left; screens must not treat a missing one as empty. */
+    public boolean hasChannel(String channelId) {
+        if (channelId == null) return false;
+        synchronized (knownChannels) {
+            return knownChannels.contains(channelId);
+        }
+    }
+
     public List<String> getConversationIds() {
         if (conversationIdsCache != null && conversationIdsCacheVersion == conversationIdsVersion) {
             return conversationIdsCache;
@@ -1313,6 +1323,31 @@ public class ChatHistoryManager {
         this.publicChannels = list;
         this.publicChannelsDirty = false;
         this.publicChannelsVersion++;
+        synchronized (publicChannelIcons) {
+            publicChannelIcons.clear();
+            for (ClientboundPublicChannelListPayload.PublicChannelEntry e : list) {
+                if (e.iconId() != null && !e.iconId().isEmpty()) {
+                    publicChannelIcons.put(e.channelId(), e.iconId());
+                }
+            }
+        }
+    }
+
+    /** Set by the public list, which is the only source for channels the player has not joined. */
+    public String publicChannelIcon(String channelId) {
+        if (channelId == null) return "";
+        synchronized (publicChannelIcons) {
+            String id = publicChannelIcons.get(channelId);
+            return id != null ? id : "";
+        }
+    }
+
+    /** Config of a channel that exists locally, or null; unlike getChannelConfig it creates nothing. */
+    public ChatDataStore.ChannelConfig findChannelConfig(String channelId) {
+        if (channelId == null) return null;
+        synchronized (channelConfigs) {
+            return channelConfigs.get(channelId);
+        }
     }
 
     /** Cached public-channel version; bump on every setPublicChannels. */

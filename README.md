@@ -8,13 +8,13 @@ A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**
 
 > **License:** GNU LGPLv3 — released jars carry the LGPLv3 text and a third-party notice (`LICENSE`, `THIRD-PARTY.md`)
 > **Mod ID:** `chatsphere`
-> **Version:** 2.5.1-1.20.1
+> **Version:** 2.5.2-1.20.1
 
 ---
 
 ## Features
 
-- Channels: public/private, invite codes, sub-channels, explore screen
+- Channels: public/private, invite codes, per-channel icons, sub-channels, explore screen
 - Private messaging, `/msg` and `/tell`
 - Custom emoji — local or server-shared, png/gif, animated
 - 349 built-in emoji with search and `:shortcode:` autocomplete
@@ -53,7 +53,8 @@ The mod works client-only in local storage mode. Install on both server and clie
 
 ## Usage
 
-- **Channels** — create with `+` or `#name`, join with `→` and an invite code, browse public ones from the explore screen (search icon). Gear icon opens per-channel settings (general, sub-channels, members, voice, delete)
+- **Channels** — create with `+` or `#name`. A template prefills the name, the description and the sub-channels; the same fields can be set by hand. Join with `→` and an invite code, or browse public ones from the explore screen (search icon), which lists each channel with its icon. Gear icon opens per-channel settings (general, sub-channels, members, voice, delete)
+- **Main chat vs sub-channels** — a channel that has sub-channels keeps main chat off and opens on its first sub-channel. Change the default one in the channel settings under general
 - **Private messaging** — click a player name (or right-click an avatar → Private Message), or use `/msg` / `/tell`
 - **Command console** — "Commands → Console" in the sidebar; up/down arrows recall history, ctrl+up/down walks the command suggestions
 - **Emoji** — click the emoji button in the input bar, or type `:smile:` for autocomplete. Custom png/gif can be uploaded locally or shared to the server (public or per-channel)
