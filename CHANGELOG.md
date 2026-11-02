@@ -1,3 +1,16 @@
+## 2.5.2
+
+### Changed
+- A channel with sub-channels now keeps main chat off and opens on its first sub-channel
+- The default sub-channel can be changed in the channel settings, or typed while creating the channel
+- The explore screen lists each public channel with its icon, before you join it
+
+### Fixed
+- The channel template's description, main chat switch and default sub-channel now reach the created channel
+- Deleting or leaving a channel no longer leaves an empty channel info panel behind
+- Deleting a channel now clears its history, so a channel created under the same name starts empty
+- Deleting or leaving the channel you are reading switches you back to the default channel
+
 ## 2.5.1
 
 ### Added

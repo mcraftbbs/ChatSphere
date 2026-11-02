@@ -36,7 +36,8 @@ public final class ServerPayloadHandlers {
         UUID realUuid = player.getUUID();
         ModServerChannels msc = ModServerChannels.getInstance(server);
         switch (p.action()) {
-            case CREATE -> msc.createChannel(p.channelId(), realUuid, p.isPublic(), p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds());
+            case CREATE -> msc.createChannel(p.channelId(), realUuid, p.isPublic(), p.showInExplore(),
+                    p.description(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds());
             case UPDATE_CONFIG -> msc.updateChannelConfig(p.channelId(), p.isPublic(), p.description(), p.displayName(),
                     p.admins(), p.mutedPlayers(), p.invitedPlayers(), p.inviteCode(), realUuid,
                     p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds(),

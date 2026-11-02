@@ -47,9 +47,10 @@ public final class ChannelIcons {
     /** Uploaded icon id, or empty when the channel only has a fallback. */
     public static String iconIdOf(String channelId) {
         if (channelId == null) return "";
-        ChatDataStore.ChannelConfig cfg = ChatHistoryManager.getInstance().getChannelConfig(channelId);
-        String id = cfg != null ? cfg.iconId : "";
-        return id != null ? id : "";
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        ChatDataStore.ChannelConfig cfg = history.findChannelConfig(channelId);
+        if (cfg != null && cfg.iconId != null && !cfg.iconId.isEmpty()) return cfg.iconId;
+        return history.publicChannelIcon(channelId);
     }
 
     /**
