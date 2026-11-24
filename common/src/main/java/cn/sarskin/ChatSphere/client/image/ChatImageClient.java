@@ -189,11 +189,10 @@ public final class ChatImageClient {
     }
 
     public static void handleFailed(String id, String reasonKey) {
-        if (id != null) {
-            PENDING_UPLOADS.remove(id);
-            ChatImageCache.markMissing(id);
-        }
-        notifyLater(reasonKey);
+        // Only an upload of ours deserves a toast; a historical image swept from the server stays quiet
+        boolean mine = id != null && PENDING_UPLOADS.remove(id) != null;
+        if (id != null) ChatImageCache.markMissing(id);
+        if (mine) notifyLater(reasonKey);
     }
 
     public static void reset() {

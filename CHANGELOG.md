@@ -1,3 +1,20 @@
+## 2.5.3
+
+### Added
+- Read-only channels, where only the owner and admins can post
+- Per-channel pinned message, shown above the list and clickable to jump there
+
+### Changed
+- Server config option to expire the client cache with the server
+- The read-only switch is available on main channels and sub-channels alike
+
+### Fixed
+- The oldest message no longer gets clipped when scrolling back
+- Expired chat images report that they are gone instead of a bad image format
+- Item names in death messages keep their hover text; message styling survives a restart
+- The default channel can be edited by operators and can no longer be left
+- The custom emoji screen no longer overflows a short window
+- Emoji and quick-phrase buttons use a proper plus icon instead of a font glyph
 ## 2.5.2
 
 ### Changed

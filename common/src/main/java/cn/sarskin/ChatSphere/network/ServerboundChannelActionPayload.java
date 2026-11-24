@@ -27,7 +27,9 @@ public record ServerboundChannelActionPayload(
         boolean mainChatEnabled,
         String defaultSubChannel,
         int slowModeSeconds,
-        String iconId
+        String iconId,
+        boolean readOnly,
+        String pinnedMessageId
 )  {
     /** Convenience ctor for send paths that don't configure slow mode (0 = off). */
     public ServerboundChannelActionPayload(Action action, String channelId, UUID ownerUuid,
@@ -37,7 +39,7 @@ public record ServerboundChannelActionPayload(
             String itemNbt, boolean mainChatEnabled, String defaultSubChannel) {
         this(action, channelId, ownerUuid, isPublic, description, displayName, admins,
                 mutedPlayers, invitedPlayers, inviteCode, showInExplore, replyContent,
-                replySender, itemNbt, mainChatEnabled, defaultSubChannel, 0, "");
+                replySender, itemNbt, mainChatEnabled, defaultSubChannel, 0, "", false, "");
     }
 
     /** Same, for the call sites that predate the channel icon. */
@@ -48,7 +50,19 @@ public record ServerboundChannelActionPayload(
             String itemNbt, boolean mainChatEnabled, String defaultSubChannel, int slowModeSeconds) {
         this(action, channelId, ownerUuid, isPublic, description, displayName, admins,
                 mutedPlayers, invitedPlayers, inviteCode, showInExplore, replyContent,
-                replySender, itemNbt, mainChatEnabled, defaultSubChannel, slowModeSeconds, "");
+                replySender, itemNbt, mainChatEnabled, defaultSubChannel, slowModeSeconds, "", false, "");
+    }
+
+    /** Same, for the call sites that predate the announcement flags. */
+    public ServerboundChannelActionPayload(Action action, String channelId, UUID ownerUuid,
+            boolean isPublic, String description, String displayName,
+            List<String> admins, List<String> mutedPlayers, List<String> invitedPlayers,
+            String inviteCode, boolean showInExplore, String replyContent, String replySender,
+            String itemNbt, boolean mainChatEnabled, String defaultSubChannel, int slowModeSeconds,
+            String iconId) {
+        this(action, channelId, ownerUuid, isPublic, description, displayName, admins, mutedPlayers,
+                invitedPlayers, inviteCode, showInExplore, replyContent, replySender, itemNbt,
+                mainChatEnabled, defaultSubChannel, slowModeSeconds, iconId, false, "");
     }
 
     public static final ResourceLocation ID = new ResourceLocation(ModInfo.MODID, "channel_action");
@@ -79,6 +93,8 @@ public record ServerboundChannelActionPayload(
         writeUtf(buf, p.defaultSubChannel);
         buf.writeInt(p.slowModeSeconds);
         writeUtf(buf, p.iconId);
+        buf.writeBoolean(p.readOnly);
+        writeUtf(buf, p.pinnedMessageId);
     }
 
     public static ServerboundChannelActionPayload read(FriendlyByteBuf buf) {
@@ -109,7 +125,9 @@ public record ServerboundChannelActionPayload(
         String defaultSubChannel = PayloadLimits.readUtf(buf);
         int slowModeSeconds = buf.readInt();
         String iconId = PayloadLimits.readUtf(buf);
-        return new ServerboundChannelActionPayload(action, channelId, owner, isPublic, description, displayName, admins, muted, invited, inviteCode, showInExplore, replyContent, replySender, itemNbt, mainChatEnabled, defaultSubChannel, slowModeSeconds, iconId);
+        boolean readOnly = buf.readBoolean();
+        String pinnedMessageId = PayloadLimits.readUtf(buf);
+        return new ServerboundChannelActionPayload(action, channelId, owner, isPublic, description, displayName, admins, muted, invited, inviteCode, showInExplore, replyContent, replySender, itemNbt, mainChatEnabled, defaultSubChannel, slowModeSeconds, iconId, readOnly, pinnedMessageId);
     }
 
     private static void writeUtf(FriendlyByteBuf buf, String s) {
@@ -140,5 +158,6 @@ public record ServerboundChannelActionPayload(
     public enum Action { CREATE, UPDATE_CONFIG, JOIN_MEMBER, JOIN_BY_CODE, SEND_CHAT, REMOVE_CHANNEL,
         TOGGLE_MUTE, TOGGLE_ADMIN, TOGGLE_INVITE, LEAVE_CHANNEL, LIST_PUBLIC,
         CREATE_VOICE_ROOM, DELETE_VOICE_ROOM, JOIN_VOICE_ROOM, LEAVE_VOICE_ROOM,
-        KICK_MEMBER, RENAME_SUBCHANNEL, REORDER_CHANNEL, MOVE_CHANNEL }
+        KICK_MEMBER, RENAME_SUBCHANNEL, REORDER_CHANNEL, MOVE_CHANNEL,
+        SET_READ_ONLY, PIN_MESSAGE }
 }

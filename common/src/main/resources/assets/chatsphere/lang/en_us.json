@@ -511,6 +511,7 @@
   "config.chatsphere.chat_image_max_pixels": "Max total pixels",
   "config.chatsphere.chat_image_server_ttl": "Server keep time (minutes)",
   "config.chatsphere.chat_image_client_ttl": "Client cache time (minutes)",
+  "config.chatsphere.chat_image_client_ttl_follows": "Expire client cache with the server",
   "config.chatsphere.chat_image_cooldown": "Upload cooldown (seconds)",
   "config.chatsphere.chat_image_max_per_player": "Uploads per player",
   "chatsphere.image.label": "[Image]",
@@ -519,6 +520,7 @@
   "chatsphere.image.err_format": "Only PNG / JPG images",
   "chatsphere.image.err_dims": "Image dimensions over the limit",
   "chatsphere.image.err_gif": "Send animated images as custom emoji",
+  "chatsphere.image.err_missing": "This image is no longer on the server",
   "chatsphere.image.err_op": "Operator permission required",
   "chatsphere.image.err_cooldown": "Uploading too fast, try again later",
   "chatsphere.image.err_limit": "Upload limit reached",
@@ -551,5 +553,14 @@
   "config.chatsphere.group_images": "Chat Images",
   "config.chatsphere.group_backup": "Backups",
   "screen.chatsphere.channel_config.icon_drop": "Drop an image to use as icon",
-  "screen.chatsphere.channel_config.icon_not_image": "Drop a png or jpg image"
+  "screen.chatsphere.channel_config.icon_not_image": "Drop a png or jpg image",
+  "chatsphere.read_only.feedback": "Only the owner and admins can post in this channel",
+  "screen.chatsphere.channel_config.read_only": "Read-only channel",
+  "screen.chatsphere.channel_config.read_only_hint": "Only owner and admins can post",
+  "screen.chatsphere.context.pin_message": "Pin message",
+  "screen.chatsphere.context.unpin_message": "Unpin message",
+  "screen.chatsphere.pinned.title": "Pinned message",
+  "screen.chatsphere.pinned.missing": "The pinned message is no longer in history",
+  "screen.chatsphere.pinned.clear": "Unpin",
+  "screen.chatsphere.mod_chat.read_only_placeholder": "Read-only channel, only admins can post"
 }

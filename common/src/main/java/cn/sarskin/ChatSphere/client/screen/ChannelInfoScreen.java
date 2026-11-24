@@ -73,6 +73,11 @@ public class ChannelInfoScreen extends Screen {
         return ChatHistoryManager.getInstance().isPlayerOnline(uuid);
     }
 
+    /** The default channel is permanent: it has no owner, cannot be left and cannot be deleted. */
+    private boolean isDefaultChannel() {
+        return ChatHistoryManager.DEFAULT_CHANNEL_ID.equals(channelId);
+    }
+
     private static class MemberRow {
         final String uuid;
         final String name;
@@ -138,7 +143,9 @@ public class ChannelInfoScreen extends Screen {
         isSub = ChatHistoryManager.isSubChannel(channelId);
         canEdit = minecraft != null && minecraft.player != null
             && (ChatHistoryManager.getInstance().isOwner(channelId, minecraft.player.getUUID())
-                || ChatHistoryManager.getInstance().isAdmin(channelId, minecraft.player.getUUID()));
+                || ChatHistoryManager.getInstance().isAdmin(channelId, minecraft.player.getUUID())
+                // The default channel has no owner, so operators maintain it
+                || (isDefaultChannel() && minecraft.player.hasPermissions(2)));
 
         hasOwner = !config.owner.isEmpty();
         inviteShown = !isSub && !config.inviteCode.isEmpty();
@@ -179,6 +186,10 @@ public class ChannelInfoScreen extends Screen {
 
         boolean isOwner = minecraft != null && minecraft.player != null
             && ChatHistoryManager.getInstance().isOwner(channelId, minecraft.player.getUUID());
+        // The default channel cannot be left or removed, so neither button belongs here
+        if (isDefaultChannel()) {
+            return;
+        }
         if (isOwner) {
             // Server rejects LEAVE_CHANNEL for the owner, so offer delete instead
             addRenderableWidget(StyledButton.styledBuilder(

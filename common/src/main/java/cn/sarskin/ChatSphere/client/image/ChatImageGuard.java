@@ -9,6 +9,8 @@ public final class ChatImageGuard {
     public static final String ERR_FORMAT = "chatsphere.image.err_format";
     public static final String ERR_DIMS = "chatsphere.image.err_dims";
     public static final String ERR_GIF = "chatsphere.image.err_gif";
+    /** The bytes are gone from the server: never uploaded, or swept by the lifetime policy. */
+    public static final String ERR_MISSING = "chatsphere.image.err_missing";
 
     private ChatImageGuard() {}
 

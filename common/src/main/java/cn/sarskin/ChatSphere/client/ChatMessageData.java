@@ -60,11 +60,25 @@ public class ChatMessageData {
                 && (RichTextParser.containsMarkup(body) || RichTextParser.containsUrl(body));
         if (richText) {
             this.renderedContent = RichTextParser.parse(body);
-        } else if (ModClientConfig.CONFIG.renderEmojiShortcodes.get()) {
+        } else if (ModClientConfig.CONFIG.renderEmojiShortcodes.get()
+                && EmojiRegistry.replaceShortcodes(body).length() != body.length()) {
             this.renderedContent = EmojiRegistry.toComponent(EmojiRegistry.replaceShortcodes(body));
         } else {
+            // Keep the component: getString() drops the hover events item names need
             this.renderedContent = hasImage ? Component.literal(body) : content;
         }
+    }
+
+    /** Same message with the server's id, so a later sync matches it instead of adding a copy. */
+    public ChatMessageData withMessageId(UUID id) {
+        if (id == null || id.equals(this.messageId)) return this;
+        ChatMessageData copy = new ChatMessageData(senderName, senderUuid, content,
+                timestamp, conversationId, conversationType, isOwn, id, isInput);
+        copy.duplicateCount = this.duplicateCount;
+        copy.replyContent = this.replyContent;
+        copy.replySender = this.replySender;
+        if (itemNbt != null) copy.setItemNbt(itemNbt);
+        return copy;
     }
 
     public ChatMessageData withReply(String replyContent, String replySender) {

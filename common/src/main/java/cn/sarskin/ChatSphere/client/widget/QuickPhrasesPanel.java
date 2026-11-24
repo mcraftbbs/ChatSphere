@@ -93,7 +93,7 @@ public class QuickPhrasesPanel {
             boolean hoverDel = mouseX >= delX && mouseX <= delX + 11
                     && mouseY >= rowY && mouseY <= rowY + ROW_H;
             g.fill(delX, rowY + 2, delX + 11, rowY + 13, hoverDel ? 0x66FF4444 : Theme.searchCloseBg());
-            g.drawString(font, "\u2715", delX + 3, rowY + 3, 0xFFFF6666, false);
+            Ui.drawCloseIcon(g, delX, rowY + 2, 11, 11);
         }
 
         int addY = panelY + ph - ADD_H - PAD;
@@ -109,8 +109,11 @@ public class QuickPhrasesPanel {
         int addBtnX = panelX + PANEL_W - PAD - 18;
         boolean hoverAdd = mouseX >= addBtnX && mouseX <= addBtnX + 16
                 && mouseY >= addY && mouseY <= addY + ADD_H;
-        g.fill(addBtnX, addY, addBtnX + 16, addY + ADD_H, hoverAdd ? 0x66448888 : Theme.searchCloseBg());
-        g.drawString(font, "+", addBtnX + 5, addY + 3, 0xFF88FF88, false);
+        // The button shares the input box surface, so only a hover highlight is drawn
+        if (hoverAdd) {
+            Ui.fillRoundedRect(g, addBtnX, addY, 16, ADD_H, 3, Theme.menuHover());
+        }
+        Ui.drawAddIcon(g, addBtnX, addY, 16, ADD_H, hoverAdd);
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button, int panelX, int panelY, EditBox mainInput) {

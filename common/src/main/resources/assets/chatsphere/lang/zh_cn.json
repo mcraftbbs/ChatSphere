@@ -509,6 +509,7 @@
   "config.chatsphere.chat_image_max_pixels": "最大总像素",
   "config.chatsphere.chat_image_server_ttl": "服务器保留时长（分钟）",
   "config.chatsphere.chat_image_client_ttl": "客户端缓存时长（分钟）",
+  "config.chatsphere.chat_image_client_ttl_follows": "客户端缓存跟随服务器一起过期",
   "config.chatsphere.chat_image_cooldown": "上传冷却（秒）",
   "config.chatsphere.chat_image_max_per_player": "每人上传上限",
   "chatsphere.image.label": "[图片]",
@@ -517,6 +518,7 @@
   "chatsphere.image.err_format": "仅支持 PNG / JPG 图片",
   "chatsphere.image.err_dims": "图片尺寸超出限制",
   "chatsphere.image.err_gif": "动图请用自定义表情发送",
+  "chatsphere.image.err_missing": "这张图片已不在服务器上",
   "chatsphere.image.err_op": "需要管理员权限",
   "chatsphere.image.err_cooldown": "上传太频繁，请稍后再试",
   "chatsphere.image.err_limit": "上传数量已达上限",
@@ -549,5 +551,14 @@
   "config.chatsphere.group_images": "聊天图片",
   "config.chatsphere.group_backup": "备份",
   "screen.chatsphere.channel_config.icon_drop": "拖入图片作为头像",
-  "screen.chatsphere.channel_config.icon_not_image": "请拖入 png 或 jpg 图片"
+  "screen.chatsphere.channel_config.icon_not_image": "请拖入 png 或 jpg 图片",
+  "chatsphere.read_only.feedback": "该频道为只读，仅服主和管理员可发言",
+  "screen.chatsphere.channel_config.read_only": "只读频道",
+  "screen.chatsphere.channel_config.read_only_hint": "仅服主和管理员可发言",
+  "screen.chatsphere.context.pin_message": "置顶消息",
+  "screen.chatsphere.context.unpin_message": "取消置顶",
+  "screen.chatsphere.pinned.title": "置顶消息",
+  "screen.chatsphere.pinned.missing": "置顶的消息已不在历史记录中",
+  "screen.chatsphere.pinned.clear": "取消置顶",
+  "screen.chatsphere.mod_chat.read_only_placeholder": "只读频道，仅管理员可发言"
 }

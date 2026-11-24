@@ -8,6 +8,9 @@ import java.util.Map;
 
 public final class Ui {
     private static final ResourceLocation CLOSE_ICON = new ResourceLocation("chatsphere", "textures/gui/close_icon.png");
+    private static final ResourceLocation ADD_ICON = new ResourceLocation("chatsphere", "textures/gui/add_icon.png");
+    /** Hover colour for the add glyph: bright and saturated so hover reads as more prominent. */
+    private static final int ADD_ICON_HOVER = 0xFF66CCFF;
 
     /** Shared close glyph, centred in a box of the given size. */
     public static void drawCloseIcon(GuiGraphics g, int x, int y, int size) {
@@ -25,6 +28,30 @@ public final class Ui {
     /** The close glyph texture, for callers that draw it into their own button surface. */
     public static ResourceLocation closeIcon() {
         return CLOSE_ICON;
+    }
+
+    /** Shared plus glyph, centred in a box of the given size, faint at rest and lit on hover. */
+    public static void drawAddIcon(GuiGraphics g, int x, int y, int size, boolean hover) {
+        drawAddIcon(g, x, y, size, size, hover);
+    }
+
+    /** Same glyph in an arbitrary rect, faint at rest and lit on hover. */
+    public static void drawAddIcon(GuiGraphics g, int x, int y, int w, int h, boolean hover) {
+        drawAddIconTinted(g, x, y, w, h, hover ? ADD_ICON_HOVER : Theme.textFaint());
+    }
+
+    /** Centred glyph multiplied by {@code color}; the texture is white. */
+    public static void drawAddIconTinted(GuiGraphics g, int x, int y, int w, int h, int color) {
+        int icon = 12;
+        g.setColor(((color >> 16) & 0xFF) / 255f, ((color >> 8) & 0xFF) / 255f,
+                (color & 0xFF) / 255f, ((color >>> 24) & 0xFF) / 255f);
+        g.blit(ADD_ICON, x + (w - icon) / 2, y + (h - icon) / 2, icon, icon, 0f, 0f, icon, icon, icon, icon);
+        g.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /** The add glyph texture, for callers that draw it into their own button surface or tint it. */
+    public static ResourceLocation addIcon() {
+        return ADD_ICON;
     }
 
     private Ui() {}

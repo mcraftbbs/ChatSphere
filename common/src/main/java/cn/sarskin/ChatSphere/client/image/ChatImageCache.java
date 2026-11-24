@@ -141,8 +141,16 @@ public final class ChatImageCache {
     }
 
     private static boolean expired(Path file) throws Exception {
-        long ttl = Math.max(1, ModServerConfig.CONFIG.chatImageClientTtlMinutes.get()) * 60_000L;
+        long ttl = effectiveTtlMinutes() * 60_000L;
         return System.currentTimeMillis() - Files.getLastModifiedTime(file).toMillis() > ttl;
+    }
+
+    /** Cache lifetime; the opt-in cap only ever shortens it, never extends staleness. */
+    private static long effectiveTtlMinutes() {
+        long client = Math.max(1, ModServerConfig.CONFIG.chatImageClientTtlMinutes.get());
+        if (!ModServerConfig.CONFIG.chatImageClientTtlFollowsServer.get()) return client;
+        long server = Math.max(1, ModServerConfig.CONFIG.chatImageServerTtlMinutes.get());
+        return Math.min(client, server);
     }
 
     /** MC decodes png only, so jpeg goes through ImageIO first; null when nothing here can read it. */
