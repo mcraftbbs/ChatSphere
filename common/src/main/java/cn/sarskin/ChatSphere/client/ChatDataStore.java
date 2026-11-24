@@ -167,6 +167,8 @@ public class ChatDataStore {
             if (sm.replySender != null) m.addProperty("replySender", sm.replySender);
             if (sm.itemNbt != null && !sm.itemNbt.isEmpty()) m.addProperty("itemNbt", sm.itemNbt);
             if (sm.messageId != null) m.addProperty("messageId", sm.messageId.toString());
+            if (sm.senderNameJson != null && !sm.senderNameJson.isEmpty()) m.addProperty("senderNameJson", sm.senderNameJson);
+            if (sm.contentJson != null && !sm.contentJson.isEmpty()) m.addProperty("contentJson", sm.contentJson);
             messagesArr.add(m);
         }
         root.add("messages", messagesArr);
@@ -186,6 +188,8 @@ public class ChatDataStore {
             if (sm.replySender != null) m.addProperty("replySender", sm.replySender);
             if (sm.itemNbt != null && !sm.itemNbt.isEmpty()) m.addProperty("itemNbt", sm.itemNbt);
             if (sm.messageId != null) m.addProperty("messageId", sm.messageId.toString());
+            if (sm.senderNameJson != null && !sm.senderNameJson.isEmpty()) m.addProperty("senderNameJson", sm.senderNameJson);
+            if (sm.contentJson != null && !sm.contentJson.isEmpty()) m.addProperty("contentJson", sm.contentJson);
             cmdMessagesArr.add(m);
         }
         root.add("commandMessages", cmdMessagesArr);
@@ -291,6 +295,8 @@ public class ChatDataStore {
                     String replySender = m.has("replySender") ? m.get("replySender").getAsString() : null;
                     String itemNbt = m.has("itemNbt") ? m.get("itemNbt").getAsString() : null;
                     String messageId = m.has("messageId") ? m.get("messageId").getAsString() : null;
+                    String senderNameJson = m.has("senderNameJson") ? m.get("senderNameJson").getAsString() : "";
+                    String contentJson = m.has("contentJson") ? m.get("contentJson").getAsString() : "";
                     SavedMessage sm = new SavedMessage(
                             m.get("senderName").getAsString(),
                             UUID.fromString(m.get("senderUuid").getAsString()),
@@ -300,7 +306,8 @@ public class ChatDataStore {
                             m.get("conversationType").getAsString(),
                             m.get("isOwn").getAsBoolean(),
                             dup, replyContent, replySender, itemNbt,
-                            messageId != null ? UUID.fromString(messageId) : null
+                            messageId != null ? UUID.fromString(messageId) : null,
+                            senderNameJson, contentJson
                     );
                     data.messages.add(sm);
                 } catch (Exception e) {
@@ -319,6 +326,8 @@ public class ChatDataStore {
                     String replySender = m.has("replySender") ? m.get("replySender").getAsString() : null;
                     String itemNbt = m.has("itemNbt") ? m.get("itemNbt").getAsString() : null;
                     String messageId = m.has("messageId") ? m.get("messageId").getAsString() : null;
+                    String senderNameJson = m.has("senderNameJson") ? m.get("senderNameJson").getAsString() : "";
+                    String contentJson = m.has("contentJson") ? m.get("contentJson").getAsString() : "";
                     data.commandMessages.add(new SavedMessage(
                             m.get("senderName").getAsString(),
                             UUID.fromString(m.get("senderUuid").getAsString()),
@@ -328,7 +337,8 @@ public class ChatDataStore {
                             m.get("conversationType").getAsString(),
                             m.get("isOwn").getAsBoolean(),
                             dup, replyContent, replySender, itemNbt,
-                            messageId != null ? UUID.fromString(messageId) : null
+                            messageId != null ? UUID.fromString(messageId) : null,
+                            senderNameJson, contentJson
                     ));
                 } catch (Exception e) {
                     LOGGER.warn("Skipping corrupt command message: {}", e.getMessage());
@@ -488,11 +498,22 @@ public class ChatDataStore {
             String senderName, UUID senderUuid, String content,
             long timestamp, String conversationId, String conversationType, boolean isOwn,
             int duplicateCount, String replyContent, String replySender,
-            String itemNbt, UUID messageId
+            String itemNbt, UUID messageId,
+            /** Full component JSON, so styles and hover events survive a restart; may be empty. */
+            String senderNameJson, String contentJson
     ) {
         public SavedMessage(String senderName, UUID senderUuid, String content,
+                            long timestamp, String conversationId, String conversationType, boolean isOwn,
+                            int duplicateCount, String replyContent, String replySender,
+                            String itemNbt, UUID messageId) {
+            this(senderName, senderUuid, content, timestamp, conversationId, conversationType, isOwn,
+                    duplicateCount, replyContent, replySender, itemNbt, messageId, "", "");
+        }
+
+        public SavedMessage(String senderName, UUID senderUuid, String content,
                             long timestamp, String conversationId, String conversationType, boolean isOwn) {
-            this(senderName, senderUuid, content, timestamp, conversationId, conversationType, isOwn, 1, null, null, null, null);
+            this(senderName, senderUuid, content, timestamp, conversationId, conversationType, isOwn,
+                    1, null, null, null, null, "", "");
         }
     }
 
@@ -514,6 +535,10 @@ public class ChatDataStore {
         public int slowModeSeconds = 0;
         /** Uploaded channel icon id; empty means fall back to the name initial. */
         public String iconId = "";
+        /** Announcement channel: everyone reads, only the owner and admins post. */
+        public boolean readOnly = false;
+        /** Message id shown in the banner at the top of the channel; empty means none. */
+        public String pinnedMessageId = "";
         public final List<cn.sarskin.ChatSphere.client.voice.VoiceRoom> voiceRooms = new ArrayList<>();
     }
 }

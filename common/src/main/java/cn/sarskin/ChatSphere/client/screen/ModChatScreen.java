@@ -131,6 +131,8 @@ public class ModChatScreen extends Screen {
     private long lastTypingSent;
     private static final int MUTE_BAR_H = 14;
     private static final int TAB_STRIP_H = 20;
+    /** Height of the pinned-message banner; the message list starts below it. */
+    private static final int PINNED_BAR_H = 18;
     private static final int AVATAR_SIZE = 10;
     private static final int SIDEBAR_AVATAR_SIZE = 12;
     private static final int BUBBLE_HPAD = 8;
@@ -175,6 +177,9 @@ public class ModChatScreen extends Screen {
     private String currentConversation = ChatHistoryManager.DEFAULT_CHANNEL_ID;
     private int scrollOffset;
     private boolean restoredConversation;
+    /** Set by the pinned banner each frame so a click on it can jump to the message. */
+    private boolean pinnedBannerHit;
+    private String pinnedBannerMsgId = "";
 
     /** Slow mode (client-side countdown): channelId|playerUuid -> last send time (ms). */
     private final Map<String, Long> slowModeLastSent = new HashMap<>();
@@ -237,6 +242,9 @@ public class ModChatScreen extends Screen {
     private final java.util.Map<Integer, Integer> frameRowHeights = new java.util.HashMap<>();
     private int lastContentX = -1;
     private int lastContentW = 0;
+    /** Bubble rect of the row being painted, so a right click can target only that box. */
+    private int lastBubbleX = -1;
+    private int lastBubbleW = 0;
     private static final int IMAGE_MAX_W = 200;
     private static final int IMAGE_MAX_H = 200;
     private static final int IMAGE_MIN_H = 36;
@@ -382,6 +390,11 @@ public class ModChatScreen extends Screen {
         this.input.setFormatter((text, cursor) -> EmojiRegistry.toFormattedCharSequence(text));
         this.addWidget(this.input);
         this.setInitialFocus(this.input);
+        // Announcement channels stay readable but reject posts from everyone below admin
+        if (readOnlyForMe()) {
+            this.input.setEditable(false);
+            this.input.setHint(Component.translatable("screen.chatsphere.mod_chat.read_only_placeholder"));
+        }
 
         this.commandSuggestions = new CommandSuggestions(this.minecraft, this, this.input, this.font,
                 true, false, 1, 10, true, -805306368);
@@ -510,6 +523,11 @@ public class ModChatScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
+            // The banner owns its band only, and never while a menu is open
+            if (pinnedBannerHit && contextType == CTX_NONE
+                    && mouseY >= chatAreaTop() - PINNED_BAR_H && mouseY < chatAreaTop()) {
+                if (jumpToPinnedMessage(pinnedBannerMsgId)) return true;
+            }
             if (consoleTabClicked(mouseX, mouseY)) return true;
             boolean popupOpen = emojiPanel.visible || itemPickerPanel.visible || quickPhrasesPanel.visible
                     || emojiAutoComplete.visible || mentionPopup.visible || contextType != CTX_NONE;
@@ -1076,6 +1094,16 @@ public class ModChatScreen extends Screen {
         return !cfg.mainChatEnabled && cfg.defaultSubChannel.isEmpty();
     }
 
+    /** True when this player may not post in the open channel because it is read-only. */
+    private boolean readOnlyForMe() {
+        if (COMMAND_CONVERSATION_ID.equals(currentConversation)) return false;
+        if (currentConversation.contains(":")) return false;
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        if (!history.isReadOnly(currentConversation)) return false;
+        if (minecraft == null || minecraft.player == null) return false;
+        return !history.isAdmin(currentConversation, minecraft.player.getUUID());
+    }
+
     /** Returns true when the text went to the image downloader instead of the chat, so the input stays put. */
     private boolean sendMessage(String text) {
         text = cn.sarskin.ChatSphere.client.emoji.EmojiRegistry.shortcodesToUnicode(text);
@@ -1349,9 +1377,13 @@ public class ModChatScreen extends Screen {
         drawHeaderBar(guiGraphics);
         renderConsoleTabs(guiGraphics, mouseX, mouseY);
         // rows scroll under the header, so keep them inside the message viewport
-        guiGraphics.enableScissor(chatLeft(), chatAreaTop(), screenWidth, screenHeight - 14 - TOOLBAR_HEIGHT);
+        int clipBottom = screenHeight - 14 - TOOLBAR_HEIGHT - MESSAGE_BOTTOM_PAD
+                - (replyBar.targetIndex >= 0 ? ReplyBarWidget.BAR_HEIGHT + 2 : 0);
+        guiGraphics.enableScissor(chatLeft(), chatAreaTop(), screenWidth, clipBottom);
         renderMessages(guiGraphics, mouseX, mouseY, screenWidth, screenHeight);
         guiGraphics.disableScissor();
+        // Outside the scissor on purpose: the banner lives in the band above the message viewport
+        renderPinnedBanner(guiGraphics, mouseX, mouseY, chatLeft() + 4, screenWidth - 4, chatAreaTop());
         renderNotificationBar(guiGraphics, screenHeight);
 
         guiGraphics.fill(chatLeft(), screenHeight - 14 - TOOLBAR_HEIGHT, screenWidth, screenHeight, Theme.toolbarBg());
@@ -1657,7 +1689,7 @@ public class ModChatScreen extends Screen {
             int closeX = areaRight - 18;
             boolean closeHover = mouseX >= closeX && mouseX <= closeX + 14 && mouseY >= barY + 3 && mouseY <= barY + 17;
             Ui.fillRoundedRect(g, closeX, barY + 3, 14, 14, 3, closeHover ? 0x44FF4444 : Theme.searchCloseBg());
-            g.drawString(font, "X", closeX + 5, barY + 5, 0xFFFF6666, false);
+            Ui.drawCloseIcon(g, closeX, barY + 3, 14, 14);
 
             if (!searchResults.isEmpty()) {
                 String counter = (searchResultIndex + 1) + "/" + searchResults.size();
@@ -1741,7 +1773,46 @@ public class ModChatScreen extends Screen {
                         history.blockPlayer(msg.senderUuid().toString());
                     }
                 }));
+        // Pinning is an admin write, so the row only shows for those who may use it
+        boolean canPin = msg != null && canPinHere();
+        if (canPin) {
+            String pinned = history.pinnedMessageId(currentConversation);
+            String thisId = msg.messageId().toString();
+            boolean alreadyPinned = thisId.equals(pinned);
+            rows.add(new MenuRow(Component.translatable(alreadyPinned
+                            ? "screen.chatsphere.context.unpin_message"
+                            : "screen.chatsphere.context.pin_message"),
+                    0xCCCCCC, Theme.menuHover(), true,
+                    () -> {
+                        if (minecraft != null && minecraft.player != null) {
+                            sendChannelPacket(ServerboundChannelActionPayload.Action.PIN_MESSAGE,
+                                    currentConversation, minecraft.player.getUUID(),
+                                    alreadyPinned ? "" : thisId);
+                        }
+                    }));
+        }
         return rows;
+    }
+
+    /** Scrolls to the pinned message and flashes it, or reports that it left the history. */
+    private boolean jumpToPinnedMessage(String messageId) {
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        ChatMessageData msg = history.messageById(messageId);
+        if (msg == null) return false;
+        int globalIdx = history.getMessageIndex(msg);
+        if (globalIdx < 0) return false;
+        scrollToMessageIndex(globalIdx);
+        replyHighlightTarget = globalIdx;
+        replyHighlightTicks = 60;
+        return true;
+    }
+
+    /** Only the owner and admins may pin, and only inside a channel conversation. */
+    private boolean canPinHere() {
+        if (COMMAND_CONVERSATION_ID.equals(currentConversation)) return false;
+        if (currentConversation.contains(":")) return false;
+        if (minecraft == null || minecraft.player == null) return false;
+        return ChatHistoryManager.getInstance().isAdmin(currentConversation, minecraft.player.getUUID());
     }
 
     private List<MenuRow> avatarMenuRows(String name, UUID uuid) {
@@ -1891,6 +1962,18 @@ public class ModChatScreen extends Screen {
         return cards == 0 ? 0 : cards * LINK_CARD_H + (cards - 1) * LINK_CARD_GAP;
     }
 
+    /** Card space a row reserves once previews exist; linkCardHeight reports zero before that. */
+    private int predictedLinkCardHeight(ChatMessageData msg) {
+        if (msg == null || msg.conversationType() == ChatMessageData.ConversationType.COMMAND) return 0;
+        if (LinkPreviewService.mode() == 0) return 0;
+        int max = Math.max(1, ModClientConfig.CONFIG.linkPreviewMaxPerMessage.get());
+        int cards = 0;
+        for (String url : cn.sarskin.ChatSphere.client.RichTextParser.findUrls(msg.plainText(), max)) {
+            if (LinkPreviewService.allowed(url)) cards++;
+        }
+        return cards == 0 ? 0 : cards * LINK_CARD_H + (cards - 1) * LINK_CARD_GAP;
+    }
+
     /** Text as drawn; card-only mode leaves the URL out because the card below shows it. */
     private static Component displayText(ChatMessageData msg) {
         if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) return msg.senderName().copy();
@@ -1985,8 +2068,12 @@ public class ModChatScreen extends Screen {
                 if (Theme.popupBorderVisible()) {
                     Ui.renderRoundedOutline(g, x, y, w, h, 6, Theme.popupOutline());
                 }
-                g.drawString(font, label, x + (w - font.width(label)) / 2, y + h / 2 - 4, Theme.textDim(), false);
-                ChatImageClient.request(token.id());
+                // A swept image is already known gone, so show that instead of retrying forever
+                String boxLabel = ChatImageCache.missing(token.id())
+                        ? Component.translatable("chatsphere.image.err_missing").getString()
+                        : label;
+                g.drawString(font, boxLabel, x + (w - font.width(boxLabel)) / 2, y + h / 2 - 4, Theme.textDim(), false);
+                if (!ChatImageCache.missing(token.id())) ChatImageClient.request(token.id());
             } else {
                 g.blit(texture, x, y, w, h, 0f, 0f, size[0], size[1], size[0], size[1]);
             }
@@ -2101,22 +2188,70 @@ public class ModChatScreen extends Screen {
         return false;
     }
 
+    /** Scroll count that puts the target row near the middle; newer rows stack below it. */
     private void scrollToMessageIndex(int targetIdx) {
         ChatHistoryManager history = ChatHistoryManager.getInstance();
         List<ChatMessageData> msgs = history.getMessagesByConversation(currentConversation);
+        List<Integer> view = COMMAND_CONVERSATION_ID.equals(currentConversation) ? consoleView(msgs) : null;
+        int total = rowCount(msgs);
         for (int i = 0; i < msgs.size(); i++) {
-            if (history.getMessageIndex(msgs.get(i)) == targetIdx) {
-                int row = i;
-                if (COMMAND_CONVERSATION_ID.equals(currentConversation)) {
-                    row = consoleView(msgs).indexOf(i);
-                    if (row < 0) return;
-                }
-                int visible = Math.max(1, (height - chatAreaTop() - 14 - TOOLBAR_HEIGHT - MESSAGE_BOTTOM_PAD) / 30);
-                scrollOffset = Math.max(0, rowCount(msgs) - 1 - row - visible / 2);
-                scrollOffset = Math.min(scrollOffset, maxScrollOffset());
-                break;
+            if (history.getMessageIndex(msgs.get(i)) != targetIdx) continue;
+            int row = view != null ? view.indexOf(i) : i;
+            if (row < 0) return;
+
+            int areaBottom = height - 14 - TOOLBAR_HEIGHT - MESSAGE_BOTTOM_PAD
+                    - (replyBar.targetIndex >= 0 ? ReplyBarWidget.BAR_HEIGHT + 2 : 0);
+            int space = areaBottom - chatAreaTop();
+            int half = space / 2;
+
+            // Add newer rows below the target until its centre reaches the viewport middle
+            int targetH = rowHeightForRow(msgs, view, row);
+            int below = 0;
+            int rowsBelow = 0;
+            while (row + rowsBelow + 1 < total && below + targetH / 2 < half) {
+                below += rowHeightForRow(msgs, view, row + rowsBelow + 1);
+                rowsBelow++;
             }
+            int idx = row + rowsBelow;
+            scrollOffset = Math.max(0, Math.min(total - 1 - idx, maxScrollOffset()));
+
+            // Warm the cards the landing view will show, so their height stops changing early
+            for (int r = Math.max(0, row - 1); r <= Math.min(total - 1, idx + 2); r++) {
+                prefetchCardsForRow(msgs, view, r);
+            }
+            return;
         }
+    }
+
+
+    /** Asks for the previews of one row without waiting on them. */
+    private void prefetchCardsForRow(List<ChatMessageData> msgs, List<Integer> view, int row) {
+        if (LinkPreviewService.mode() == 0) return;
+        int i = view != null ? view.get(row) : row;
+        if (i < 0 || i >= msgs.size()) return;
+        ChatMessageData msg = msgs.get(i);
+        if (msg.conversationType() == ChatMessageData.ConversationType.COMMAND) return;
+        int max = Math.max(1, ModClientConfig.CONFIG.linkPreviewMaxPerMessage.get());
+        for (String url : cn.sarskin.ChatSphere.client.RichTextParser.findUrls(msg.plainText(), max)) {
+            if (LinkPreviewService.allowed(url)) LinkPreviewService.request(url);
+        }
+    }
+
+    /** Height for a row that may never have been painted; card space is recomputed from URLs. */
+    private int rowHeightForRow(List<ChatMessageData> msgs, List<Integer> view, int row) {
+        int i = view != null ? view.get(row) : row;
+        ChatMessageData msg = msgs.get(i);
+        int prevI = view != null ? (row > 0 ? view.get(row - 1) : -1) : (row > 0 ? row - 1 : -1);
+        ChatMessageData prev = prevI >= 0 && prevI < msgs.size() ? msgs.get(prevI) : null;
+        int predictedCards = predictedLinkCardHeight(msg);
+        Integer rendered = frameRowHeights.get(i);
+        if (rendered != null) {
+            // Replace whatever card space the cached frame measured with the full prediction
+            int measuredCards = linkCardHeight(msg);
+            return Math.max(2, rendered - measuredCards + predictedCards);
+        }
+        return measureRowHeight(msg, prev, chatLeft() + 4, width - 4, Theme.stream())
+                - linkCardHeight(msg) + predictedCards + 2;
     }
 
     /** Rooms are flat, so listing them inside the tree read as if they were children of one channel. */
@@ -2801,7 +2936,15 @@ public class ModChatScreen extends Screen {
     }
 
     private int chatAreaTop() {
-        return HEADER_BAR_HEIGHT + 6 + (isCurrentChannelMuted() ? MUTE_BAR_H : 0) + (consoleTabsVisible() ? TAB_STRIP_H : 0);
+        return HEADER_BAR_HEIGHT + 6 + (isCurrentChannelMuted() ? MUTE_BAR_H : 0)
+                + (consoleTabsVisible() ? TAB_STRIP_H : 0) + (pinnedBannerVisible() ? PINNED_BAR_H : 0);
+    }
+
+    /** True when a banner is drawn above the message list, so the list has to start lower. */
+    private boolean pinnedBannerVisible() {
+        if (COMMAND_CONVERSATION_ID.equals(currentConversation)) return false;
+        if (currentConversation.contains(":")) return false;
+        return !ChatHistoryManager.getInstance().pinnedMessageId(currentConversation).isEmpty();
     }
 
     public static void invalidateConsoleTabs() {
@@ -2870,7 +3013,10 @@ public class ModChatScreen extends Screen {
         List<Integer> view = commandConv ? consoleView(messages) : null;
         int totalMessages = view != null ? view.size() : messages.size();
         if (totalMessages == 0) return;
-        scrollOffset = Math.max(0, Math.min(scrollOffset, maxScrollOffset()));
+        ScrollLimit limit = scrollLimit();
+        scrollOffset = Math.max(0, Math.min(scrollOffset, limit.rows()));
+        // Only at the limit is the content taller than the viewport, so only there does it shift
+        int topShift = limit.rows() > 0 && scrollOffset >= limit.rows() ? limit.overflow() : 0;
         synchronized (cmdHitBoxes) { cmdHitBoxes.clear(); }
         synchronized (voiceHitBoxes) { voiceHitBoxes.clear(); }
         synchronized (bubbleHitBoxes) { bubbleHitBoxes.clear(); }
@@ -2882,7 +3028,7 @@ public class ModChatScreen extends Screen {
         synchronized (richTextHitBoxes) { richTextHitBoxes.clear(); }
         synchronized (avatarHitBoxes) { avatarHitBoxes.clear(); }
 
-        int yOffset = chatAreaBottom;
+        int yOffset = chatAreaBottom + topShift;
         int idx = Math.max(0, totalMessages - 1 - scrollOffset);
         int sepInterval = ModClientConfig.CONFIG.timeSeparatorMinutes.get();
         String lastTimeKey = null;
@@ -2961,14 +3107,19 @@ public class ModChatScreen extends Screen {
                 paint = new RowPaint(renderMessageBubble(guiGraphics, msg, chatAreaLeft, chatAreaRight, rowY), false, 0, 0, 0, 0, false);
             }
             bubbleHeight = paint.height() + cardH + imgH;
-            frameRowHeights.put(globalIdx, bubbleHeight + 2);
+            // Conversation-local key: the scroll limit reads rows by this index, not the global one
+            frameRowHeights.put(i, bubbleHeight + 2);
             int rowTop = yOffset - bubbleHeight;
             int contentX = lastContentX > 0 ? lastContentX : chatAreaLeft + 10;
             int contentW = lastContentW > 0 ? lastContentW : Math.max(40, chatAreaRight - contentX - 10);
             if (cardH > 0) renderLinkCards(guiGraphics, msg, contentX, contentX + contentW, rowY, mouseX, mouseY);
             if (imgH > 0) renderImageBlocks(guiGraphics, msg, contentX, rowY + cardH, contentW);
             synchronized (bubbleHitBoxes) {
-                bubbleHitBoxes.add(new BubbleHit(chatAreaLeft, rowTop, chatAreaRight - chatAreaLeft, bubbleHeight, globalIdx));
+                // Only the bubble reacts to a right click, not cards, images or the row's empty tail
+                int hitX = lastBubbleX >= 0 ? lastBubbleX : chatAreaLeft;
+                int hitW = lastBubbleW > 0 ? lastBubbleW : chatAreaRight - chatAreaLeft;
+                int bubbleTop = rowY - paint.height();
+                bubbleHitBoxes.add(new BubbleHit(hitX, bubbleTop, hitW, paint.height() + 2, globalIdx));
             }
             if (showSearch && !searchQuery.isEmpty() && !searchResults.isEmpty()) {
                 if (searchSet.contains(globalIdx)) {
@@ -2996,11 +3147,39 @@ public class ModChatScreen extends Screen {
         }
     }
 
+    /** Banner across the top of the channel holding the pinned message; clicking it jumps there. */
+    private void renderPinnedBanner(GuiGraphics g, int mouseX, int mouseY, int left, int right, int top) {
+        pinnedBannerHit = false;
+        if (!pinnedBannerVisible()) return;
+        ChatHistoryManager history = ChatHistoryManager.getInstance();
+        String pinned = history.pinnedMessageId(currentConversation);
+        ChatMessageData msg = history.messageById(pinned);
+        // Sits in the band chatAreaTop reserved for it, above the message list
+        int h = PINNED_BAR_H;
+        int y = top - h;
+        boolean hovered = mouseX >= left && mouseX < right && mouseY >= y && mouseY < y + h;
+        g.fill(left, y, right, y + h, hovered ? Theme.menuHover() : Theme.popupBg3());
+        String label = Component.translatable("screen.chatsphere.pinned.title").getString() + "  ";
+        String body = msg != null ? msg.content().getString()
+                : Component.translatable("screen.chatsphere.pinned.missing").getString();
+        String text = label + body;
+        int maxW = right - left - 8;
+        while (font.width(text) > maxW && text.length() > 1) {
+            text = text.substring(0, text.length() - 1);
+        }
+        g.drawString(font, text, left + 4, y + 5, Theme.textDim(), false);
+        pinnedBannerHit = true;
+        pinnedBannerMsgId = pinned;
+    }
+
     private RowPaint renderMessageRow(GuiGraphics g, ChatMessageData msg, int areaLeft, int areaRight, int y,
                                       ChatMessageData prev, int globalIdx, int mouseX, int mouseY) {
         Minecraft mc = Minecraft.getInstance();
         boolean showName = ModClientConfig.CONFIG.showSenderName.get();
         boolean showAvatar = ModClientConfig.CONFIG.showAvatar.get();
+        // Reset per row: a row that bails out must not inherit the previous row's rect
+        lastBubbleX = -1;
+        lastBubbleW = 0;
 
         boolean merge = prev != null
                 && prev.senderUuid() != null && msg.senderUuid() != null
@@ -3047,6 +3226,19 @@ public class ModChatScreen extends Screen {
         int rowH = Math.max(contentPaintH, (merge ? 0 : rowAvatarSize()) + 4);
         int rowTop = y - rowH;
         if (rowTop < HEADER_BAR_HEIGHT + 6) return new RowPaint(rowH + 2, false, 0, 0, 0, 0, false);
+
+        // Stream rows have no bubble; the text column is what a right click may target
+        int textHitW = 0;
+        if (pureEmoji) {
+            textHitW = emojiBlockW;
+        } else {
+            for (Component line : displayLines) textHitW = Math.max(textHitW, mc.font.width(line));
+            if (msg.replyContent() != null) textHitW = Math.max(textHitW, mc.font.width(" \u2191 " + msg.replySender()));
+            if (msg.itemNbt() != null && !msg.itemNbt().isEmpty()) textHitW = Math.max(textHitW, 18);
+        }
+        if (dupW > 0) textHitW += dupW + 4;
+        lastBubbleX = textX;
+        lastBubbleW = Math.min(textAreaW, textHitW + 8);
 
         long spawnMs = msgSpawnMs.computeIfAbsent(msg, k -> System.currentTimeMillis());
         AnimSpec slideIn = CustomTheme.INSTANCE.anim("messageSlideIn");
@@ -3184,6 +3376,8 @@ public class ModChatScreen extends Screen {
     private int renderMessageBubble(GuiGraphics guiGraphics, ChatMessageData msg,
                                     int areaLeft, int areaRight, int y) {
         Minecraft mc = Minecraft.getInstance();
+        lastBubbleX = -1;
+        lastBubbleW = 0;
         boolean showName = ModClientConfig.CONFIG.showSenderName.get();
         boolean showTime = ModClientConfig.CONFIG.showTimestamp.get();
         boolean showAvatar = ModClientConfig.CONFIG.showAvatar.get();
@@ -3285,6 +3479,8 @@ public class ModChatScreen extends Screen {
         }
         int bubbleY = y - bubbleH;
         if (bubbleY < HEADER_BAR_HEIGHT + 6) return bubbleH + 2;
+        lastBubbleX = bubbleX;
+        lastBubbleW = bubbleW;
 
         if (animating) {
             guiGraphics.pose().pushPose();
@@ -3631,8 +3827,16 @@ public class ModChatScreen extends Screen {
         return bubbleH + 2;
     }
 
+    /** Scroll limit: how many rows back the oldest message sits, and the pixels left over there. */
+    private record ScrollLimit(int rows, int overflow) {}
+
     /** Largest scroll offset that still fills the chat area with the oldest messages. */
     private int maxScrollOffset() {
+        return scrollLimit().rows();
+    }
+
+    /** Leftover pixels above the viewport at the row limit; the content shifts down by this. */
+    private ScrollLimit scrollLimit() {
         // Never below the server's history size: those rows are already in memory
         int limit = Math.max(ModClientConfig.CONFIG.scrollHistoryLimit.get(),
                 ModServerConfig.CONFIG.maxChatHistory.get());
@@ -3641,7 +3845,7 @@ public class ModChatScreen extends Screen {
         List<Integer> view = COMMAND_CONVERSATION_ID.equals(currentConversation) ? consoleView(messages) : null;
         int total = rowCount(messages);
         int capped = Math.min(total, limit);
-        if (capped <= 1) return 0;
+        if (capped <= 1) return new ScrollLimit(0, 0);
         boolean stream = Theme.stream();
         int sepInterval = ModClientConfig.CONFIG.timeSeparatorMinutes.get();
         int unreadCount = stream ? history.getUnreadCount(currentConversation) : 0;
@@ -3651,7 +3855,7 @@ public class ModChatScreen extends Screen {
         int areaLeft = chatLeft() + 4;
         int areaRight = width - 4;
         int space = areaBottom - areaTop;
-        if (space <= 0) return 0;
+        if (space <= 0) return new ScrollLimit(0, 0);
         int accumulated = 0;
         int idx = 0;
         while (idx < capped) {
@@ -3688,7 +3892,7 @@ public class ModChatScreen extends Screen {
             idx++;
             if (accumulated >= space) break;
         }
-        return Math.max(0, capped - idx);
+        return new ScrollLimit(Math.max(0, capped - idx), Math.max(0, accumulated - space));
     }
 
     private void sendChannelChatPacket(String channelId, String text, String replyContent, String replySender) {
@@ -3705,11 +3909,18 @@ public class ModChatScreen extends Screen {
     }
 
     private void sendChannelPacket(ServerboundChannelActionPayload.Action action, String channelId, UUID ownerUuid) {
+        sendChannelPacket(action, channelId, ownerUuid, "");
+    }
+
+    /** Overload for the admin actions that carry their value in the description slot. */
+    private void sendChannelPacket(ServerboundChannelActionPayload.Action action, String channelId,
+                                   UUID ownerUuid, String description) {
         if (this.minecraft == null || this.minecraft.getConnection() == null) return;
         var conn = this.minecraft.getConnection().getConnection();
         conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
                 new ServerboundChannelActionPayload(action, channelId, ownerUuid,
-                        true, "", "", List.<String>of(), List.<String>of(), List.<String>of(), "", true, "", "", "", false, "")));
+                        true, description, "", List.<String>of(), List.<String>of(), List.<String>of(),
+                        "", true, "", "", "", false, "")));
     }
 
     private static List<Component> splitCommandLines(Component component) {

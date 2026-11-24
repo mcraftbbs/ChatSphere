@@ -78,6 +78,9 @@ public class ChatHistoryManager {
     private long publicChannelsVersion;
     private long subChannelsVersion;
     private boolean loaded;
+    /** Serialises the whole server-history merge; a fast reconnect used to interleave two of them. */
+    private final Object syncApplyLock = new Object();
+    private String activeDataDirKey = "";
     private boolean newMessageSinceLastCheck;
     private boolean serverConnected;
     private volatile boolean saveDirty;
@@ -228,6 +231,53 @@ public class ChatHistoryManager {
         markDirty();
     }
 
+    /** Component as JSON so styles and hover survive a save; empty when unstyled. */
+    private static String componentJson(Component component) {
+        if (component == null) return "";
+        try {
+            RegistryAccess access = Minecraft.getInstance().level != null
+                    ? Minecraft.getInstance().level.registryAccess()
+                    : RegistryAccess.EMPTY;
+            return Component.Serializer.toJson(component, access);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** Reads the stored JSON back, falling back to plain text for entries saved before it existed. */
+    private static Component componentOf(String json, String plain) {
+        if (json != null && !json.isEmpty()) {
+            try {
+                RegistryAccess access = Minecraft.getInstance().level != null
+                        ? Minecraft.getInstance().level.registryAccess()
+                        : RegistryAccess.EMPTY;
+                Component parsed = Component.Serializer.fromJson(json, access);
+                if (parsed != null) return parsed;
+            } catch (Exception e) {
+                // fall through to the plain text the old format stored
+            }
+        }
+        return Component.literal(plain != null ? plain : "");
+    }
+
+    /** Points the local echo at the server id, otherwise the next sync duplicates the row. */
+    public void adoptServerMessageId(String conversationId, UUID senderUuid, String content, UUID serverId) {
+        if (serverId == null || content == null) return;
+        synchronized (messages) {
+            for (int i = messages.size() - 1; i >= 0; i--) {
+                ChatMessageData m = messages.get(i);
+                if (!m.conversationId().equals(conversationId)) continue;
+                if (!m.content().getString().equals(content)) continue;
+                if (senderUuid != null && !senderUuid.equals(m.senderUuid())) continue;
+                if (m.messageId().equals(serverId)) return;
+                messages.set(i, m.withMessageId(serverId));
+                messagesVersion++;
+                markDirty();
+                return;
+            }
+        }
+    }
+
     private void markDirty() {
         saveDirty = true;
         invalidateConversationIds();
@@ -321,6 +371,17 @@ public class ChatHistoryManager {
             if (index < 0 || index >= messages.size()) return null;
             return messages.get(index);
         }
+    }
+
+    /** The message carrying this id, or null; used to resolve a channel's pinned message. */
+    public ChatMessageData messageById(String messageId) {
+        if (messageId == null || messageId.isEmpty()) return null;
+        synchronized (messages) {
+            for (ChatMessageData m : messages) {
+                if (m.messageId() != null && m.messageId().toString().equals(messageId)) return m;
+            }
+        }
+        return null;
     }
 
     public int getMessageIndex(ChatMessageData target) {
@@ -651,6 +712,24 @@ public class ChatHistoryManager {
         }
     }
 
+    /** True when this channel accepts posts from the owner and admins only. */
+    public boolean isReadOnly(String channelId) {
+        if (channelId == null) return false;
+        synchronized (channelConfigs) {
+            ChatDataStore.ChannelConfig cfg = channelConfigs.get(channelId);
+            return cfg != null && cfg.readOnly;
+        }
+    }
+
+    /** Message id pinned at the top of this channel, or empty. */
+    public String pinnedMessageId(String channelId) {
+        if (channelId == null) return "";
+        synchronized (channelConfigs) {
+            ChatDataStore.ChannelConfig cfg = channelConfigs.get(channelId);
+            return cfg != null && cfg.pinnedMessageId != null ? cfg.pinnedMessageId : "";
+        }
+    }
+
     private String effectiveConfigId(String channelId) {
         String cur = channelId;
         int guard = 0;
@@ -691,7 +770,8 @@ public class ChatHistoryManager {
                                 new ArrayList<>(config.invitedPlayers),
                                 config.inviteCode,
                                 config.showInExplore, "", "", "", config.mainChatEnabled, config.defaultSubChannel,
-                                config.slowModeSeconds, config.iconId != null ? config.iconId : "")));
+                                config.slowModeSeconds, config.iconId != null ? config.iconId : "",
+                                config.readOnly, config.pinnedMessageId != null ? config.pinnedMessageId : "")));
             }
         }
     }
@@ -1057,6 +1137,16 @@ public class ChatHistoryManager {
         if (base != null) PlayerSkinCache.setCacheDir(base);
     }
 
+    /** Identifier of the directory the client data currently belongs to. */
+    private static String storageKey() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.isSingleplayer() && mc.getSingleplayerServer() != null) {
+            return "sp:" + mc.getSingleplayerServer().getWorldData().getLevelName();
+        }
+        ServerData serverData = mc.getCurrentServer();
+        return serverData != null ? "mp:" + serverData.ip : "";
+    }
+
     public void load() {
         if (loaded) return;
         loaded = true;
@@ -1115,9 +1205,9 @@ public class ChatHistoryManager {
                     ctype = ChatMessageData.ConversationType.CHANNEL;
                 }
                 ChatMessageData loaded = new ChatMessageData(
-                        Component.literal(sm.senderName()),
+                        componentOf(sm.senderNameJson(), sm.senderName()),
                         sm.senderUuid(),
-                        Component.literal(sm.content()),
+                        componentOf(sm.contentJson(), sm.content()),
                         sm.timestamp(),
                         sm.conversationId(),
                         ctype,
@@ -1138,9 +1228,9 @@ public class ChatHistoryManager {
             commandMessages.clear();
             for (ChatDataStore.SavedMessage sm : data.commandMessages) {
                 ChatMessageData loaded = new ChatMessageData(
-                        Component.literal(sm.senderName()),
+                        componentOf(sm.senderNameJson(), sm.senderName()),
                         sm.senderUuid(),
-                        Component.literal(sm.content()),
+                        componentOf(sm.contentJson(), sm.content()),
                         sm.timestamp(),
                         sm.conversationId(),
                         ChatMessageData.ConversationType.COMMAND,
@@ -1217,7 +1307,9 @@ public class ChatHistoryManager {
                         msg.replyContent(),
                         msg.replySender(),
                         msg.itemNbt(),
-                        msg.messageId()
+                        msg.messageId(),
+                        componentJson(msg.senderName()),
+                        componentJson(msg.content())
                 ));
             }
         }
@@ -1236,7 +1328,9 @@ public class ChatHistoryManager {
                         msg.replyContent(),
                         msg.replySender(),
                         msg.itemNbt(),
-                        msg.messageId()
+                        msg.messageId(),
+                        componentJson(msg.senderName()),
+                        componentJson(msg.content())
                 ));
             }
         }
@@ -1460,6 +1554,8 @@ public class ChatHistoryManager {
                 cfg.defaultSubChannel = e.defaultSubChannel() != null ? e.defaultSubChannel() : "";
                 cfg.slowModeSeconds = e.slowModeSeconds();
                 cfg.iconId = e.iconId() != null ? e.iconId() : "";
+                cfg.readOnly = e.readOnly();
+                cfg.pinnedMessageId = e.pinnedMessageId() != null ? e.pinnedMessageId() : "";
                 cfg.voiceRooms.clear();
                 for (ModServerChannels.VoiceRoom vr : e.voiceRooms()) {
                     cn.sarskin.ChatSphere.client.voice.VoiceRoom cvr = new cn.sarskin.ChatSphere.client.voice.VoiceRoom();
@@ -1572,7 +1668,21 @@ public class ChatHistoryManager {
     }
 
     public void applyServerMessages(List<ClientboundMessageSyncPayload.StoredMessage> serverMessages, UUID localPlayerUuid) {
+        // A quick reconnect can arrive before the old session cleaned up, so serialise the whole merge
+        synchronized (syncApplyLock) {
+            applyServerMessagesLocked(serverMessages, localPlayerUuid);
+        }
+    }
+
+    private void applyServerMessagesLocked(List<ClientboundMessageSyncPayload.StoredMessage> serverMessages,
+                                           UUID localPlayerUuid) {
         serverConnected = true;
+        // The directory depends on the connect address, so an IPv4 to IPv6 switch must reload
+        String key = storageKey();
+        if (!key.equals(activeDataDirKey)) {
+            activeDataDirKey = key;
+            loaded = false;
+        }
         if (!loaded) load();
         loaded = true;
         Map<String, String[]> replyMap = new HashMap<>();
@@ -1586,7 +1696,7 @@ public class ChatHistoryManager {
                             new String[]{existing.replyContent(), existing.replySender()});
                 }
             }
-            messages.clear();
+            // Refilled below under the same syncApplyLock hold, so no merge sees the list empty
         }
         synchronized (commandMessages) {
             localCommands = new ArrayList<>(commandMessages);
@@ -1697,14 +1807,15 @@ public class ChatHistoryManager {
                     lastPerConv.put(msg.conversationId(), msg);
                 }
             }
+            messages.clear();
             messages.addAll(deduped);
             mergeLocalOnly(messages, localMessages);
             invalidateConversationIds();
             for (int i = 0; i < messages.size(); i++) {
                 ChatMessageData msg = messages.get(i);
                 if (msg.replyContent() != null) continue;
-                String key = msg.senderName().getString() + "|" + msg.content().getString() + "|" + msg.conversationId();
-                String[] replyData = replyMap.get(key);
+                String replyKey = msg.senderName().getString() + "|" + msg.content().getString() + "|" + msg.conversationId();
+                String[] replyData = replyMap.get(replyKey);
                 if (replyData != null) {
                     messages.set(i, msg.withReply(replyData[0], replyData[1]));
                 }
@@ -1757,6 +1868,8 @@ public class ChatHistoryManager {
         this.serverConnected = connected;
         if (!connected) {
             loaded = false;
+            // Forget the resolved directory so the next session re-resolves it after a missed hook
+            activeDataDirKey = "";
         }
     }
 

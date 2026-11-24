@@ -41,7 +41,7 @@ public final class ServerPayloadHandlers {
             case UPDATE_CONFIG -> msc.updateChannelConfig(p.channelId(), p.isPublic(), p.description(), p.displayName(),
                     p.admins(), p.mutedPlayers(), p.invitedPlayers(), p.inviteCode(), realUuid,
                     p.showInExplore(), p.mainChatEnabled(), p.defaultSubChannel(), p.slowModeSeconds(),
-                    p.iconId());
+                    p.iconId(), p.readOnly(), p.pinnedMessageId(), player.hasPermissions(2));
             case JOIN_MEMBER -> {
                 if (p.channelId() != null && !p.channelId().isEmpty()) {
                     msc.addMemberToChannel(p.channelId(), realUuid.toString());
@@ -90,6 +90,9 @@ public final class ServerPayloadHandlers {
                 }
             }
             case LEAVE_CHANNEL -> msc.leaveChannel(p.channelId(), realUuid);
+            // Both flags ride in the description slot the other admin actions already use
+            case SET_READ_ONLY -> msc.setReadOnly(p.channelId(), realUuid, "1".equals(p.description()), player.hasPermissions(2));
+            case PIN_MESSAGE -> msc.pinMessage(p.channelId(), realUuid, p.description(), player.hasPermissions(2));
             case LIST_PUBLIC -> {
                 if (player instanceof ServerPlayer sp) {
                     var publicList = msc.getPublicChannels();
@@ -148,6 +151,7 @@ public final class ServerPayloadHandlers {
         UUID targetUuid = null;
         boolean muted = false;
         boolean notMember = false;
+        boolean readOnly = false;
         String chatTarget = null;
 
         if (chatChannelId.contains(":")) {
@@ -173,10 +177,18 @@ public final class ServerPayloadHandlers {
                 notMember = true;
             } else if (msc.isMuted(chatTarget, realUuid.toString())) {
                 muted = true;
+            } else if (msc.isReadOnly(chatTarget) && !msc.isOwnerOrAdmin(chatTarget, realUuid.toString())) {
+                readOnly = true;
             }
             chatChannelId = chatTarget;
         }
         if (notMember) return;
+        if (readOnly) {
+            if (player instanceof ServerPlayer sp) {
+                sp.sendSystemMessage(Component.translatable("chatsphere.read_only.feedback"), false);
+            }
+            return;
+        }
         if (muted) {
             if (player instanceof ServerPlayer sp) {
                 sp.sendSystemMessage(Component.translatable("chatsphere.mute.feedback"), false);
@@ -509,7 +521,8 @@ public final class ServerPayloadHandlers {
             case REQUEST -> {
                 byte[] data = store.load(p.id());
                 if (data == null || data.length == 0) {
-                    ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), ChatImageGuard.ERR_FORMAT));
+                    // A swept or never uploaded image is about absence, not about its format
+                    ClientboundChatImagePayload.sendTo(sp, ClientboundChatImagePayload.failed(p.id(), ChatImageGuard.ERR_MISSING));
                     return;
                 }
                 int count = (data.length + ModServerImages.CHUNK_BYTES - 1) / ModServerImages.CHUNK_BYTES;

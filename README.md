@@ -8,13 +8,14 @@ A modern instant-messaging chat mod for Minecraft **NeoForge & Fabric (1.21.1)**
 
 > **License:** GNU LGPLv3 — released jars carry the LGPLv3 text and a third-party notice (`LICENSE`, `THIRD-PARTY.md`)
 > **Mod ID:** `chatsphere`
-> **Version:** 2.5.2
+> **Version:** 2.5.3
 
 ---
 
 ## Features
 
-- Channels: public/private, invite codes, per-channel icons, sub-channels, explore screen
+- Channels: public/private, invite codes, per-channel icons, sub-channels, read-only announcement channels, explore screen
+- Pinned message per channel: pin from the message menu, shown in a banner at the top, click to jump
 - Private messaging, `/msg` and `/tell`
 - Custom emoji — local or server-shared, png/gif, animated
 - 349 built-in emoji with search and `:shortcode:` autocomplete

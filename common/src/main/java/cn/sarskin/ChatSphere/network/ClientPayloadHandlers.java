@@ -67,7 +67,8 @@ public final class ClientPayloadHandlers {
                     Component.literal(""),
                     sm.isInput());
         } else if (isOwn) {
-            // Own messages already added locally by ModChatScreen.sendChatMessage() with reply data
+            // Point the local echo at the server's id, or the next sync duplicates the row
+            history.adoptServerMessageId(convId, sm.senderUuid(), sm.content(), sm.messageId());
         } else if (ctype == ChatMessageData.ConversationType.PRIVATE) {
             Component displayName = ChatHistoryManager.resolveOtherPartyName(convId, Component.literal(sm.senderName()));
             history.addPrivateConversation(convId, displayName);

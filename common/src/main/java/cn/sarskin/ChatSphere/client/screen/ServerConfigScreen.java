@@ -163,6 +163,8 @@ public class ServerConfigScreen extends Screen {
             y -> mkIntBox(y, "chatImageServerTtlMinutes", safeGetStr(ModServerConfig.CONFIG.chatImageServerTtlMinutes, "1440"), 1, 1000000, 7)));
         images.add(new Opt("config.chatsphere.chat_image_client_ttl",
             y -> mkIntBox(y, "chatImageClientTtlMinutes", safeGetStr(ModServerConfig.CONFIG.chatImageClientTtlMinutes, "2880"), 1, 1000000, 7)));
+        images.add(new Opt("config.chatsphere.chat_image_client_ttl_follows",
+            y -> mkBool(y, "chatImageClientTtlFollowsServer", ModServerConfig.CONFIG.chatImageClientTtlFollowsServer)));
         images.add(new Opt("config.chatsphere.chat_image_cooldown",
             y -> mkIntBox(y, "chatImageUploadCooldownSeconds", safeGetStr(ModServerConfig.CONFIG.chatImageUploadCooldownSeconds, "10"), 0, 600, 3)));
         images.add(new Opt("config.chatsphere.chat_image_max_per_player",

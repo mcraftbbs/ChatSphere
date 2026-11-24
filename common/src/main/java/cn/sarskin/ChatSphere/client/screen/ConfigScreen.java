@@ -500,9 +500,10 @@ public class ConfigScreen extends Screen {
         int color = ModClientConfig.parseHexColor(hex, Theme.textDim());
         int px = inputX - 22;
         int sw = 12;
-        int sy = y + (ROW_H - sw) / 2;
-        g.fill(px, sy, px + sw, sy + sw, Theme.previewSwatchBg());
-        g.fill(px + 1, sy + 1, px + sw - 1, sy + sw - 1, color);
+        // Centre on the 20px control beside it, not on the taller row
+        int sy = y + (20 - sw) / 2;
+        Ui.fillRoundedRect(g, px, sy, sw, sw, 3, Theme.previewSwatchBg());
+        Ui.fillRoundedRect(g, px + 1, sy + 1, sw - 2, sw - 2, 2, color);
     }
 
     private AbstractWidget mkBool(int y, CfgValue.Bool cfg) {

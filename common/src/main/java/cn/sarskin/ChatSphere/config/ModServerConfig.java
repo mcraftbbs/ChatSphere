@@ -47,6 +47,8 @@ public class ModServerConfig {
     public final CfgValue.Int chatImageMaxPixels;
     public final CfgValue.Int chatImageServerTtlMinutes;
     public final CfgValue.Int chatImageClientTtlMinutes;
+    /** Caps the client cache by the server TTL, so a swept image disappears from clients too. */
+    public final CfgValue.Bool chatImageClientTtlFollowsServer;
     public final CfgValue.Int chatImageUploadCooldownSeconds;
     public final CfgValue.Int chatImageMaxPerPlayer;
 
@@ -105,6 +107,7 @@ public class ModServerConfig {
         chatImageMaxPixels = new CfgValue.Int(store, "chatImageMaxPixels", 1500000);
         chatImageServerTtlMinutes = new CfgValue.Int(store, "chatImageServerTtlMinutes", 1440);
         chatImageClientTtlMinutes = new CfgValue.Int(store, "chatImageClientTtlMinutes", 2880);
+        chatImageClientTtlFollowsServer = new CfgValue.Bool(store, "chatImageClientTtlFollowsServer", false);
         chatImageUploadCooldownSeconds = new CfgValue.Int(store, "chatImageUploadCooldownSeconds", 10);
         chatImageMaxPerPlayer = new CfgValue.Int(store, "chatImageMaxPerPlayer", 50);
 

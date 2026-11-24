@@ -20,11 +20,18 @@ import java.util.List;
  */
 public class CustomEmojiScreen extends Screen {
     private static final int POPUP_WIDTH = 280;
-    private static final int POPUP_HEIGHT = 340;
-    private static final int HEADER_H = 30;
+    private static final int PREFERRED_POPUP_HEIGHT = 340;
+    private static final int PREFERRED_LIST_H = 162;
     private static final int LIST_Y = 54;
-    private static final int LIST_H = 162;
     private static final int ROW_H = 54;
+    /** The upload-target row: gap above it, its own height, then the gap below it. */
+    private static final int PILL_GAP_TOP = 10;
+    private static final int PILL_H = 18;
+    private static final int PILL_GAP_BOTTOM = 8;
+    /** Everything from the bottom of the list to the bottom edge of the popup. */
+    private static final int FOOTER_H = PILL_GAP_TOP + PILL_H + PILL_GAP_BOTTOM + 58;
+    /** One list row plus the footer, so a short window keeps both a list and its buttons. */
+    private static final int MIN_POPUP_HEIGHT = LIST_Y + ROW_H + FOOTER_H;
 
     private final Screen parent;
     private final CopyToast toast = new CopyToast();
@@ -32,6 +39,10 @@ public class CustomEmojiScreen extends Screen {
     private String uploadTarget = "";
     private int scrollOffset;
     private int selectedIndex = -1;
+    /** Popup height and list height for the current window, recomputed on resize. */
+    private int popupHeight = PREFERRED_POPUP_HEIGHT;
+    private int listHeight = PREFERRED_LIST_H;
+    private int pillOffsetY = LIST_Y + PREFERRED_LIST_H + PILL_GAP_TOP;
 
     public CustomEmojiScreen(Screen parent, String conversation) {
         super(Component.translatable("screen.chatsphere.custom_emoji.title"));
@@ -39,19 +50,30 @@ public class CustomEmojiScreen extends Screen {
         this.conversation = conversation;
     }
 
-    @Override
-    protected void init() {
-        CustomEmojiRegistry.ensureScanned();
-        int popupX = (width - POPUP_WIDTH) / 2;
-        int popupY = (height - POPUP_HEIGHT) / 2;
+    /** Shrinks the list first, so the footer buttons never overlap the upload-target row. */
+    private void layoutForWindow() {
+        popupHeight = Math.max(MIN_POPUP_HEIGHT, Math.min(PREFERRED_POPUP_HEIGHT, height - 20));
+        int available = popupHeight - LIST_Y - FOOTER_H;
+        // Whole rows only, so the list never ends mid-row and leaves a strip touching the pill row
+        int rows = Math.max(1, Math.min(PREFERRED_LIST_H / ROW_H, available / ROW_H));
+        listHeight = rows * ROW_H;
+        pillOffsetY = LIST_Y + listHeight + PILL_GAP_TOP;
         int maxScroll = Math.max(0, CustomEmojiRegistry.list().size() - visibleRows());
         scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
         selectedIndex = Math.min(selectedIndex, Math.max(CustomEmojiRegistry.list().size() - 1, -1));
+    }
+
+    @Override
+    protected void init() {
+        CustomEmojiRegistry.ensureScanned();
+        layoutForWindow();
+        int popupX = (width - POPUP_WIDTH) / 2;
+        int popupY = (height - popupHeight) / 2;
 
         int btnX = popupX + 12;
         int btnW = (POPUP_WIDTH - 24 - 8) / 2;
-        int row1Y = popupY + POPUP_HEIGHT - 58;
-        int row2Y = popupY + POPUP_HEIGHT - 32;
+        int row1Y = popupY + popupHeight - 58;
+        int row2Y = popupY + popupHeight - 32;
 
         addRenderableWidget(StyledButton.styledBuilder(
             Component.translatable("screen.chatsphere.custom_emoji.upload_server"),
@@ -75,7 +97,7 @@ public class CustomEmojiScreen extends Screen {
     }
 
     private int visibleRows() {
-        return LIST_H / ROW_H;
+        return Math.max(1, listHeight / ROW_H);
     }
 
     /** Channel-scoped uploads are offered only while chatting in a channel. */
@@ -89,7 +111,7 @@ public class CustomEmojiScreen extends Screen {
     private int[] pillLayout() {
         int labelW = font.width(Component.translatable("screen.chatsphere.custom_emoji.target"));
         int x = (width - POPUP_WIDTH) / 2 + 12 + labelW + 8;
-        int y = (height - POPUP_HEIGHT) / 2 + 226;
+        int y = (height - popupHeight) / 2 + pillOffsetY;
         int pw = font.width(Component.translatable("screen.chatsphere.custom_emoji.target_public")) + 14;
         int cw = channelTargetAvailable()
                 ? font.width(Component.translatable("screen.chatsphere.custom_emoji.target_channel")
@@ -166,12 +188,12 @@ public class CustomEmojiScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g, mouseX, mouseY, partialTick);
         int popupX = (width - POPUP_WIDTH) / 2;
-        int popupY = (height - POPUP_HEIGHT) / 2;
+        int popupY = (height - popupHeight) / 2;
         int radius = Theme.cardRadius();
 
-        Ui.fillRoundedRect(g, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, radius, Theme.popupBg());
+        Ui.fillRoundedRect(g, popupX, popupY, POPUP_WIDTH, popupHeight, radius, Theme.popupBg());
         if (Theme.popupBorderVisible()) {
-            Ui.renderRoundedOutline(g, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT, radius, Theme.popupOutline());
+            Ui.renderRoundedOutline(g, popupX, popupY, POPUP_WIDTH, popupHeight, radius, Theme.popupOutline());
         }
 
         int iconX = popupX + 8;
@@ -221,9 +243,9 @@ public class CustomEmojiScreen extends Screen {
 
         int listX = popupX + 12;
         int listW = POPUP_WIDTH - 24;
-        Ui.fillRoundedRect(g, listX - 4, popupY + LIST_Y - 2, listW + 8, LIST_H + 4,
+        Ui.fillRoundedRect(g, listX - 4, popupY + LIST_Y - 2, listW + 8, listHeight + 4,
                 Theme.buttonRadius(), Theme.panelBg2());
-        g.enableScissor(listX - 4, popupY + LIST_Y - 2, listX + listW + 4, popupY + LIST_Y + LIST_H + 2);
+        g.enableScissor(listX - 4, popupY + LIST_Y - 2, listX + listW + 4, popupY + LIST_Y + listHeight + 2);
 
         List<CustomEmoji> list = CustomEmojiRegistry.list();
         if (list.isEmpty()) {
@@ -274,7 +296,7 @@ public class CustomEmojiScreen extends Screen {
         int maxScroll = Math.max(0, list.size() - rows);
         if (maxScroll > 0) {
             int trackX = listX + listW + 2;
-            int trackH = LIST_H;
+            int trackH = listHeight;
             int thumbH = Math.max(12, trackH * rows / list.size());
             int thumbY = popupY + LIST_Y + (trackH - thumbH) * scrollOffset / maxScroll;
             Ui.fillRoundedRect(g, trackX, popupY + LIST_Y, 3, trackH, 1, Theme.scrollTrack());
@@ -291,7 +313,7 @@ public class CustomEmojiScreen extends Screen {
     public boolean mouseClicked(double mx, double my, int button) {
         if (button != 0) return false;
         int popupX = (width - POPUP_WIDTH) / 2;
-        int popupY = (height - POPUP_HEIGHT) / 2;
+        int popupY = (height - popupHeight) / 2;
         if (my >= popupY + 31 && my < popupY + 46 && mx >= popupX + 8 && mx < popupX + POPUP_WIDTH - 8) {
             if (minecraft != null && minecraft.keyboardHandler != null) {
                 minecraft.keyboardHandler.setClipboard(CustomEmojiRegistry.dir().toString());
@@ -319,7 +341,7 @@ public class CustomEmojiScreen extends Screen {
         }
         int listX = popupX + 12;
         int listW = POPUP_WIDTH - 24;
-        if (my >= popupY + LIST_Y && my < popupY + LIST_Y + LIST_H && mx >= listX && mx < listX + listW) {
+        if (my >= popupY + LIST_Y && my < popupY + LIST_Y + listHeight && mx >= listX && mx < listX + listW) {
             int rel = (int) ((my - (popupY + LIST_Y)) / ROW_H);
             int index = scrollOffset + rel;
             List<CustomEmoji> list = CustomEmojiRegistry.list();
@@ -338,8 +360,8 @@ public class CustomEmojiScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mx, double my, double horizontalAmount, double verticalAmount) {
         int popupX = (width - POPUP_WIDTH) / 2;
-        int popupY = (height - POPUP_HEIGHT) / 2;
-        if (mx >= popupX && mx <= popupX + POPUP_WIDTH && my >= popupY && my <= popupY + POPUP_HEIGHT) {
+        int popupY = (height - popupHeight) / 2;
+        if (mx >= popupX && mx <= popupX + POPUP_WIDTH && my >= popupY && my <= popupY + popupHeight) {
             scrollList(verticalAmount);
             return true;
         }

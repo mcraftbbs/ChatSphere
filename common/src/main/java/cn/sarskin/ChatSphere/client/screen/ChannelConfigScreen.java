@@ -119,6 +119,8 @@ public class ChannelConfigScreen extends Screen {
             general.add(new Opt("screen.chatsphere.channel_config.show_in_explore", (y, k) -> mkExploreToggle(y)));
             general.add(new Opt("screen.chatsphere.channel_config.main_chat_label", (y, k) -> mkChatToggle(y)));
         }
+        // Sub-channels carry their own read-only flag, so this row is not gated on isSub
+        general.add(new Opt("screen.chatsphere.channel_config.read_only", (y, k) -> mkReadOnlyToggle(y)));
         general.add(new Opt("screen.chatsphere.channel_config.display_name",
             (y, k) -> mkField(y, "screen.chatsphere.channel_config.display_name_hint", 32,
                 config.displayName, val -> { config.displayName = val; scheduleChannelUpdate(); }), INPUT_H));
@@ -620,6 +622,16 @@ public class ChannelConfigScreen extends Screen {
                 init();
             });
         toggle.setTooltip(Tooltip.create(Component.translatable("screen.chatsphere.channel_config.tip_main_chat")));
+        return toggle;
+    }
+
+    private UiToggle mkReadOnlyToggle(int y) {
+        UiToggle toggle = new UiToggle(toggleX, y, TOGGLE_W, 20, config.readOnly,
+            v -> {
+                config.readOnly = v;
+                ChatHistoryManager.getInstance().updateChannelConfig(channelId, config);
+            });
+        toggle.setTooltip(Tooltip.create(Component.translatable("screen.chatsphere.channel_config.read_only_hint")));
         return toggle;
     }
 

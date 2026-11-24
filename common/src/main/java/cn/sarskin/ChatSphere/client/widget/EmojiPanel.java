@@ -12,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
 import java.util.ArrayList;
@@ -34,6 +35,8 @@ public class EmojiPanel {
 
     /** Panel width fits both the built-in 8x20 grid and the custom 4x48 grid. */
     private static final int PANEL_W = 4 * 48 + 12;
+    /** Add-custom-emoji affordance at the right end of the search row. */
+    private static final int ADD_ICON_SIZE = 12;
     private static final int NO_CATEGORY = -1;
     private static final int GROUP_BUILTIN = 0;
     private static final int GROUP_CUSTOM = 1;
@@ -133,13 +136,13 @@ public class EmojiPanel {
                 && mouseX >= panelX + PANEL_W - 17 && mouseX < panelX + PANEL_W - 3
                 && mouseY >= searchY + 1 && mouseY < searchY + SEARCH_HEIGHT - 1;
         if (manageHover) {
-            Ui.fillRoundedRect(g, panelX + PANEL_W - 17, searchY + 1, 14, SEARCH_HEIGHT - 2, 3, Theme.hoverRow());
+            Ui.fillRoundedRect(g, panelX + PANEL_W - 17, searchY + 1, 14, SEARCH_HEIGHT - 2, 3, Theme.menuHover());
         }
         if (CustomEmojiRegistry.enabled()) {
-            g.drawString(font, "+", panelX + PANEL_W - 13, searchY + 2,
-                manageHover ? Theme.text() : Theme.textInactive(), false);
+            int iconX = panelX + PANEL_W - 17 + (14 - ADD_ICON_SIZE) / 2;
+            int iconY = searchY + (SEARCH_HEIGHT - ADD_ICON_SIZE) / 2;
+            Ui.drawAddIcon(g, iconX, iconY, ADD_ICON_SIZE, manageHover);
         }
-
         int gridY = searchY + SEARCH_HEIGHT;
         int gridHeight = gridH();
         g.enableScissor(panelX + 2, gridY, panelX + PANEL_W - 2, gridY + gridHeight);

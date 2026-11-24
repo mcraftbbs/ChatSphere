@@ -164,7 +164,7 @@ public class InvitePlayerScreen extends Screen {
         int iconX = PAD;
         int iconY = (HEADER_H - 18) / 2;
         Ui.fillRoundedRect(g, iconX, iconY, 18, 18, 5, Theme.iconBtnBg());
-        g.drawString(font, "+", iconX + (18 - font.width("+")) / 2, iconY + 5, Theme.accent(), false);
+        Ui.drawAddIcon(g, iconX, iconY, 18, 18, false);
 
         Component title = Component.translatable("screen.chatsphere.invite_player.title");
         g.drawString(font, title, iconX + 26, (HEADER_H - 8) / 2, Theme.text(), false);
